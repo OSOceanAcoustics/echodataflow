@@ -1,9 +1,9 @@
-.. cava_project documentation master file, created by
+.. echoflow documentation master file, created by
    sphinx-quickstart on Wed Oct 13 12:40:29 2021.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to cava_project's documentation!
+Welcome to echoflow's documentation!
 ========================================
 
 This cava repository contains a template for developing a python project.

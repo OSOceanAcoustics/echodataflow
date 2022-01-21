@@ -1,4 +1,4 @@
-from cava_project import hello
+from echoflow import hello
 
 
 def test_hello():

@@ -17,7 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = "cava_project"
+project = "echoflow"
 copyright = "2021, Landung Setiawan"
 author = "Landung Setiawan"
 
