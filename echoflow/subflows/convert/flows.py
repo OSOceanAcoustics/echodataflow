@@ -35,7 +35,7 @@ def conversion_pipeline(
     all_weeks = parse_raw_json(raw_dicts=raw_dicts, raw_url_file=raw_url_file)
     futures = []
     client = get_client(client)
-    for idx, raw_dicts in enumerate(all_weeks[:5]):
+    for idx, raw_dicts in enumerate(all_weeks):
         future = data_convert.submit(
             idx=idx,
             raw_dicts=raw_dicts,
