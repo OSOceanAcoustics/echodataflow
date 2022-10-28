@@ -1,11 +1,10 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 import json
 import itertools as it
 
 from prefect import task
-import dask
-import dask.distributed
+from dask.distributed import Client
 from dask import delayed
 
 from ..utils import extract_fs
@@ -18,7 +17,13 @@ from .utils import (
 
 
 @task
-def data_convert(idx, raw_dicts, deployment, client=None, config={}):
+def data_convert(
+    idx: int,
+    raw_dicts: List[Dict[str, Any]],
+    deployment: str,
+    client: Optional[Client] = None,
+    config: Dict[Any, Any] = {},
+):
     """
     Task for running the data conversion on a list of raw url
     dictionaries.
@@ -42,6 +47,10 @@ def data_convert(idx, raw_dicts, deployment, client=None, config={}):
 
     """
     zarr_path = f"combined-{deployment}-{idx}.zarr"
+
+    if client is None:
+        client = Client()
+
     # TODO: Allow for specifying output path
     temp_raw_dir = make_temp_folder()
     ed_tasks = []
@@ -49,7 +58,8 @@ def data_convert(idx, raw_dicts, deployment, client=None, config={}):
         raw = delayed(download_temp_file)(raw, temp_raw_dir)
         ed = delayed(open_and_save)(raw)
         ed_tasks.append(ed)
-    ed_list = dask.compute(*ed_tasks)
+    ed_futures = client.compute(*ed_tasks)
+    ed_list = client.gather(ed_futures)
     return combine_data(ed_list, zarr_path, client)
 
 

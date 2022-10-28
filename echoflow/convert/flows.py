@@ -23,6 +23,10 @@ def conversion_pipeline(raw_url_file, deployment, client=None, config={}):
     Returns
     -------
     List of path string to converted files
+
+    Notes
+    -----
+    Don't run this pipeline with Dask Task Runners
     """
     all_weeks = parse_raw_json(raw_url_file)
     futures = []
