@@ -10,17 +10,18 @@ repos:
       - id: pretty-format-json
         args: ["--autofix", "--indent=2", "--no-sort-keys"]
 
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.10.1
+    hooks:
+      - id: isort
+        args: ["--profile", "black", "--filter-files"]
+
   - repo: https://github.com/psf/black
-    rev: 21.9b0
+    rev: 22.10.0
     hooks:
       - id: black
 
   - repo: https://github.com/PyCQA/flake8
-    rev: 4.0.1
+    rev: 5.0.4
     hooks:
       - id: flake8
-
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.9.3
-    hooks:
-      - id: isort
