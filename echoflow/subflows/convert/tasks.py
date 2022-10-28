@@ -17,11 +17,18 @@ from .utils import (
 
 
 @task
+def get_client(client=None):
+    if client is None:
+        return Client()
+    return client
+
+
+@task
 def data_convert(
     idx: int,
+    client: Client,
     raw_dicts: List[Dict[str, Any]],
     deployment: str,
-    client: Optional[Client] = None,
     config: Dict[Any, Any] = {},
 ):
     """
@@ -44,12 +51,8 @@ def data_convert(
     Returns
     -------
     String path to the combined echodata file
-
     """
     zarr_path = f"combined-{deployment}-{idx}.zarr"
-
-    if client is None:
-        client = Client()
 
     # TODO: Allow for specifying output path
     temp_raw_dir = make_temp_folder()
@@ -58,14 +61,16 @@ def data_convert(
         raw = delayed(download_temp_file)(raw, temp_raw_dir)
         ed = delayed(open_and_save)(raw)
         ed_tasks.append(ed)
-    ed_futures = client.compute(*ed_tasks)
+    ed_futures = client.compute(ed_tasks)
     ed_list = client.gather(ed_futures)
     return combine_data(ed_list, zarr_path, client)
 
 
 @task
 def parse_raw_json(
-    raw_url_file: str, json_storage_options: Dict[Any, Any] = {}
+    raw_dicts: List[Dict[str, Any]] = [],
+    raw_url_file: Optional[str] = None,
+    json_storage_options: Dict[Any, Any] = {},
 ) -> List[List[Dict[str, Any]]]:
     """
     Task to parse raw urls json files and splits them into
@@ -84,21 +89,26 @@ def parse_raw_json(
 
     Parameters
     ----------
-    raw_url_file : str
-        raw urls file path string
+    raw_dicts : list, optional
+        List of raw url dictionary
+    raw_url_file : str, optional
+        Raw urls file path string
     json_storage_options : dict
-        storage options for reading raw urls file path
+        Storage options for reading raw urls file path
 
     Returns
     -------
     List of list of raw urls string,
     broken up to 7 julian days each chunk
     """
-    file_system = extract_fs(
-        raw_url_file, storage_options=json_storage_options
-    )
-    with file_system.open(raw_url_file) as f:
-        raw_dicts = json.load(f)
+    if len(raw_dicts) == 0:
+        if raw_url_file is None:
+            raise ValueError("Must have raw_dicts or raw_url_file present.")
+        file_system = extract_fs(
+            raw_url_file, storage_options=json_storage_options
+        )
+        with file_system.open(raw_url_file) as f:
+            raw_dicts = json.load(f)
 
     # Number of days for a week chunk
     n = 7
