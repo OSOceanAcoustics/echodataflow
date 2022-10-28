@@ -1,6 +1,7 @@
 from typing import Any, Dict
-import fsspec
 from urllib.parse import urlparse
+
+import fsspec
 
 
 def glob_url(path, **storage_options):

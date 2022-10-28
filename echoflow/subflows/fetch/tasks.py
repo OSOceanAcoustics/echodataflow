@@ -1,31 +1,29 @@
-import copy
 import itertools as it
 
-from prefect import task
 import fsspec
+from prefect import get_run_logger, task
 
-from jinja2 import Environment
-
+from ...settings.models import RawConfig
 from ..utils import glob_url
 from .utils import parse_file_path
 
 
 @task
 def setup_config(input_config, **parameters):
-    jinja = Environment()
-    config = copy.deepcopy(input_config)
-    config_params = config.setdefault('parameters', parameters)
-    urlpath = config['args']['urlpath']
-    template = jinja.from_string(urlpath)
-    updated_path = template.render(config_params)
-    config['args'].update({'urlpath': updated_path})
+    logger = get_run_logger()
+    logger.info("Validating configurations ...")
+    config = RawConfig(**input_config)
+    config.args.parameters.update(parameters)
     return config
 
 
 @task
 def glob_all_files(config, storage_options={}):
+    logger = get_run_logger()
+    logger.info("Fetching raw file paths ...")
     total_files = []
-    data_path = config['args'].get('urlpath', None)
+    data_path = config.args.rendered_path
+    logger.info(f"File pattern: {data_path}.")
     if data_path is not None:
         if isinstance(data_path, list):
             for path in data_path:
@@ -34,13 +32,16 @@ def glob_all_files(config, storage_options={}):
             total_files = list(it.chain.from_iterable(total_files))
         else:
             total_files = glob_url(data_path, **storage_options)
+    logger.info(f"There are {len(total_files)} raw files.")
     return total_files
 
 
 @task
 def parse_raw_paths(all_raw_files, config):
-    sonar_model = config.get('model')
-    fname_pattern = config.get('raw_regex')
+    logger = get_run_logger()
+    logger.info("Parsing file paths into dictionary ...")
+    sonar_model = config.sonar_model
+    fname_pattern = config.raw_regex
     return [
         dict(
             instrument=sonar_model,
@@ -49,11 +50,6 @@ def parse_raw_paths(all_raw_files, config):
         )
         for raw_file in all_raw_files
     ]
-
-
-@task
-def print_raw_count(raw_dicts):
-    print(f"There are {len(raw_dicts)} raw files.")  # noqa
 
 
 @task

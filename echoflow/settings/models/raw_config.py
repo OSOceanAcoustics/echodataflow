@@ -1,8 +1,8 @@
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 import jinja2
-
 from pydantic import BaseModel, validator
+
 from ...utils import get_glob_parameters
 
 
@@ -24,13 +24,20 @@ class Args(BaseModel):
             return template.render(**self.parameters)
         return self.urlpath
 
-    @validator('parameters', pre=True, always=True)
+    @validator("parameters", pre=True, always=True)
     def check_parameters(cls, glob_params, values):
-        param_values = get_glob_parameters(values.get('urlpath'))
+        param_values = get_glob_parameters(values.get("urlpath"))
         if len(param_values) > 0 and glob_params is None:
             raise ValueError(
                 "Parameters found in `urlpath` but not defined in `parameters` setting.",  # noqa
             )
+        missing_keys = []
+        for p in param_values:
+            if p not in glob_params:
+                missing_keys.append(p)
+
+        if len(missing_keys) > 0:
+            raise ValueError(f"{', '.join(missing_keys)} is/are missing from parameters.")
         return glob_params
 
 

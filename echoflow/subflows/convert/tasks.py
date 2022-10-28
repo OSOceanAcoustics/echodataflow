@@ -1,19 +1,13 @@
-from typing import Dict, Any, List, Optional
-
-import json
 import itertools as it
+import json
+from typing import Any, Dict, List, Optional
 
-from prefect import task
-from dask.distributed import Client
 from dask import delayed
+from dask.distributed import Client
+from prefect import task
 
 from ..utils import extract_fs
-from .utils import (
-    make_temp_folder,
-    download_temp_file,
-    open_and_save,
-    combine_data,
-)
+from .utils import combine_data, download_temp_file, make_temp_folder, open_and_save
 
 
 @task
@@ -104,23 +98,19 @@ def parse_raw_json(
     if len(raw_dicts) == 0:
         if raw_url_file is None:
             raise ValueError("Must have raw_dicts or raw_url_file present.")
-        file_system = extract_fs(
-            raw_url_file, storage_options=json_storage_options
-        )
+        file_system = extract_fs(raw_url_file, storage_options=json_storage_options)
         with file_system.open(raw_url_file) as f:
             raw_dicts = json.load(f)
 
     # Number of days for a week chunk
     n = 7
 
-    all_jdays = sorted({r.get('jday') for r in raw_dicts})
-    split_days = [
-        all_jdays[i : i + n] for i in range(0, len(all_jdays), n)  # noqa
-    ]
+    all_jdays = sorted({r.get("jday") for r in raw_dicts})
+    split_days = [all_jdays[i : i + n] for i in range(0, len(all_jdays), n)]  # noqa
 
     day_dict = {}
     for r in raw_dicts:
-        mint = r.get('jday')
+        mint = r.get("jday")
         if mint not in day_dict:
             day_dict[mint] = []
         day_dict[mint].append(r)

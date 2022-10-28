@@ -1,6 +1,6 @@
 import re
 
-PARAM_PATTERN = r'({{[^\n\r/]+}})+'
+PARAM_PATTERN = r"({{[^\n\r/]+}})+"
 
 
 def get_glob_parameters(glob_str):
@@ -9,6 +9,4 @@ def get_glob_parameters(glob_str):
     templating
     """
     param_values = re.findall(PARAM_PATTERN, glob_str)
-    return {
-        pstr.strip('{{').strip('}}').strip(' ') for pstr in param_values
-    }
+    return {pstr.strip("{{").strip("}}").strip(" ") for pstr in param_values}

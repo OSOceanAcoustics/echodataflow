@@ -1,12 +1,10 @@
 from prefect import flow
 
-from .tasks import parse_raw_json, data_convert, get_client
+from .tasks import data_convert, get_client, parse_raw_json
 
 
 @flow
-def conversion_pipeline(
-    deployment, raw_dicts=[], raw_url_file=None, client=None, config={}
-):
+def conversion_pipeline(deployment, raw_dicts=[], raw_url_file=None, client=None, config={}):
     """
     Conversion pipeline for raw echosounder data.
     The results will be converted as weekly files.
