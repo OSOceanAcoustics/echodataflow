@@ -7,7 +7,14 @@ from dask.distributed import Client
 from prefect import task
 
 from ..utils import extract_fs
-from .utils import combine_data, download_temp_file, make_temp_folder, open_and_save
+from .utils import (
+    combine_data,
+    download_temp_file,
+    make_temp_folder,
+    open_and_save,
+    get_output_file_path,
+)
+from ...settings.models import RawConfig
 
 
 @task
@@ -19,11 +26,9 @@ def get_client(client=None):
 
 @task
 def data_convert(
-    idx: int,
-    client: Client,
     raw_dicts: List[Dict[str, Any]],
-    deployment: str,
-    config: Dict[Any, Any] = {},
+    config: RawConfig,
+    client,
 ):
     """
     Task for running the data conversion on a list of raw url
@@ -31,33 +36,29 @@ def data_convert(
 
     Parameters
     ----------
-    idx : int
-        The week index
     raw_dicts : list
         The list of raw url dictionary
-    client : dask.distributed.Client, optional
-        The dask client to use for `echopype.combine_echodata`
     config : dict
         Pipeline configuration file
-    deployment : str
-        The deployment string to identify combined file
+    client : dask.distributed.Client, optional
+        The dask client to use for `echopype.combine_echodata`
 
     Returns
     -------
     String path to the combined echodata file
     """
-    zarr_path = f"combined-{deployment}-{idx}.zarr"
+    zarr_path = get_output_file_path(raw_dicts=raw_dicts, config=config)
 
     # TODO: Allow for specifying output path
     temp_raw_dir = make_temp_folder()
     ed_tasks = []
     for raw in raw_dicts:
-        raw = delayed(download_temp_file)(raw, temp_raw_dir)
-        ed = delayed(open_and_save)(raw)
+        raw = delayed(download_temp_file)(raw, temp_raw_dir=temp_raw_dir)
+        ed = delayed(open_and_save)(raw, config=config)
         ed_tasks.append(ed)
     ed_futures = client.compute(ed_tasks)
     ed_list = client.gather(ed_futures)
-    return combine_data(ed_list, zarr_path, client)
+    return combine_data(ed_list, zarr_path, client, config)
 
 
 @task
@@ -98,7 +99,9 @@ def parse_raw_json(
     if len(raw_dicts) == 0:
         if raw_url_file is None:
             raise ValueError("Must have raw_dicts or raw_url_file present.")
-        file_system = extract_fs(raw_url_file, storage_options=json_storage_options)
+        file_system = extract_fs(
+            raw_url_file, storage_options=json_storage_options
+        )
         with file_system.open(raw_url_file) as f:
             raw_dicts = json.load(f)
 
@@ -106,7 +109,9 @@ def parse_raw_json(
     n = 7
 
     all_jdays = sorted({r.get("jday") for r in raw_dicts})
-    split_days = [all_jdays[i : i + n] for i in range(0, len(all_jdays), n)]  # noqa
+    split_days = [
+        all_jdays[i : i + n] for i in range(0, len(all_jdays), n)
+    ]  # noqa
 
     day_dict = {}
     for r in raw_dicts:

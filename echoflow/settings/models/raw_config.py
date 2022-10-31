@@ -6,10 +6,17 @@ from pydantic import BaseModel, validator
 from ...utils import get_glob_parameters
 
 
+class Output(BaseModel):
+    urlpath: str
+    storage_options: Dict[str, Any] = {}
+    overwrite: bool = False
+
+
 class Args(BaseModel):
     urlpath: str
-    storage_options: Dict[str, Any]
     parameters: Optional[Dict[str, Any]]
+    storage_options: Dict[str, Any] = {}
+    # Set internally
     rendered_path: Optional[str]
 
     class Config:
@@ -46,3 +53,4 @@ class RawConfig(BaseModel):
     sonar_model: str
     raw_regex: str
     args: Args
+    output: Output
