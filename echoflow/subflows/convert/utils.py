@@ -1,11 +1,12 @@
 import os
 from pathlib import Path
-from dateutil import parser
 
 import echopype as ep
 import requests
+from dateutil import parser
 
 from echoflow.settings.models.raw_config import RawConfig
+
 from ..utils import extract_fs
 
 ep.verbose()
@@ -42,9 +43,9 @@ def get_output_file_path(raw_dicts, config):
         raise ValueError("There must be at least one raw file dictionary!")
 
     first_file = raw_dicts[0]
-    datetime_obj = parser.parse(first_file.get('datetime'))
+    datetime_obj = parser.parse(first_file.get("datetime"))
     out_fname = datetime_obj.strftime("D%Y%m%d-T%H%M%S.zarr")
-    return '/'.join([config.output.urlpath, out_fname])
+    return "/".join([config.output.urlpath, out_fname])
 
 
 def download_temp_file(raw, temp_raw_dir):
@@ -66,14 +67,9 @@ def open_and_save(raw, config: RawConfig, **kwargs):
     Open, convert, and save raw file
     """
     local_file = Path(raw.get("local_path"))
-    out_zarr = '/'.join(
-        [config.output.urlpath, local_file.name.replace(".raw", ".zarr")]
-    )
+    out_zarr = "/".join([config.output.urlpath, local_file.name.replace(".raw", ".zarr")])
     ed = ep.open_raw(
-        raw_file=local_file,
-        sonar_model=raw.get("instrument"),
-        offload_to_zarr=True,
-        **kwargs
+        raw_file=local_file, sonar_model=raw.get("instrument"), offload_to_zarr=True, **kwargs
     )
     ed.to_zarr(
         save_path=str(out_zarr),
@@ -95,9 +91,7 @@ def open_and_save(raw, config: RawConfig, **kwargs):
 def clean_up_files(ed_list, config):
     for ed in ed_list:
         path = str(ed.converted_raw_path)
-        file_system = extract_fs(
-            path, storage_options=config.output.storage_options
-        )
+        file_system = extract_fs(path, storage_options=config.output.storage_options)
         file_system.delete(path, recursive=True)
         del ed
 

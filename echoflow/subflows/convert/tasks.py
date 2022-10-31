@@ -6,15 +6,15 @@ from dask import delayed
 from dask.distributed import Client
 from prefect import task
 
+from ...settings.models import RawConfig
 from ..utils import extract_fs
 from .utils import (
     combine_data,
     download_temp_file,
+    get_output_file_path,
     make_temp_folder,
     open_and_save,
-    get_output_file_path,
 )
-from ...settings.models import RawConfig
 
 
 @task
@@ -99,9 +99,7 @@ def parse_raw_json(
     if len(raw_dicts) == 0:
         if raw_url_file is None:
             raise ValueError("Must have raw_dicts or raw_url_file present.")
-        file_system = extract_fs(
-            raw_url_file, storage_options=json_storage_options
-        )
+        file_system = extract_fs(raw_url_file, storage_options=json_storage_options)
         with file_system.open(raw_url_file) as f:
             raw_dicts = json.load(f)
 
@@ -109,9 +107,7 @@ def parse_raw_json(
     n = 7
 
     all_jdays = sorted({r.get("jday") for r in raw_dicts})
-    split_days = [
-        all_jdays[i : i + n] for i in range(0, len(all_jdays), n)
-    ]  # noqa
+    split_days = [all_jdays[i : i + n] for i in range(0, len(all_jdays), n)]  # noqa
 
     day_dict = {}
     for r in raw_dicts:

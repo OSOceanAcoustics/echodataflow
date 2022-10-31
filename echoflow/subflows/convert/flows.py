@@ -1,8 +1,9 @@
 from typing import Any, Dict, List, Optional
+
 from prefect import flow
 
-from .tasks import data_convert, get_client, parse_raw_json
 from ...settings.models import RawConfig
+from .tasks import data_convert, get_client, parse_raw_json
 
 
 @flow
