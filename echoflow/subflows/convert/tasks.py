@@ -3,7 +3,7 @@ import json
 from typing import Any, Dict, List, Optional
 
 from dask import delayed
-from dask.distributed import Client
+import dask.distributed
 from prefect import task
 
 from ...settings.models import RawConfig
@@ -18,9 +18,22 @@ from .utils import (
 
 
 @task
-def get_client(client=None):
+def get_client(client: dask.distributed.Client = None):
+    """
+    Task to get dask client if doesn't exist,
+    otherwise use the client passed into argument
+
+    Parameters
+    ----------
+    client : dask.distributed.Client, optional
+        Dask distributed client object to use
+
+    Returns
+    -------
+    dask.distributed.Client
+    """
     if client is None:
-        return Client()
+        return dask.distributed.Client()
     return client
 
 

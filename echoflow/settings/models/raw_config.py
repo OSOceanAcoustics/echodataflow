@@ -1,3 +1,9 @@
+"""raw_config.py
+
+Modules for the raw configuration models
+used within the pipeline to pass information
+between L0 to L1
+"""
 from typing import Any, Dict, Optional
 
 import jinja2
@@ -7,17 +13,21 @@ from ...utils import get_glob_parameters
 
 
 class Output(BaseModel):
+    """
+    Model for `output` field in raw configuration
+    """
     urlpath: str
     storage_options: Dict[str, Any] = {}
     overwrite: bool = False
 
 
 class Args(BaseModel):
+    """
+    Model for `args` field in raw configuration
+    """
     urlpath: str
     parameters: Optional[Dict[str, Any]]
     storage_options: Dict[str, Any] = {}
-    # Set internally
-    rendered_path: Optional[str]
 
     class Config:
         validate_assignment = True
@@ -25,6 +35,7 @@ class Args(BaseModel):
 
     @property
     def rendered_path(self):
+        """Rendered url path from inputs of parameters"""
         if self.parameters is not None:
             env = jinja2.Environment()
             template = env.from_string(self.urlpath)
@@ -33,6 +44,7 @@ class Args(BaseModel):
 
     @validator("parameters", pre=True, always=True)
     def check_parameters(cls, glob_params, values):
+        """Check parameters to ensure that they're in `urlpath` glob string."""
         param_values = get_glob_parameters(values.get("urlpath"))
         if len(param_values) > 0 and glob_params is None:
             raise ValueError(
@@ -49,6 +61,9 @@ class Args(BaseModel):
 
 
 class RawConfig(BaseModel):
+    """
+    Model for raw configurations from yaml
+    """
     name: str
     sonar_model: str
     raw_regex: str
