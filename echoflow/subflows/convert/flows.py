@@ -40,6 +40,7 @@ def conversion_pipeline(
     Don't run this pipeline with Dask Task Runners
     """
     all_weeks = parse_raw_json(
+        config=config,
         raw_dicts=raw_dicts,
         raw_url_file=raw_json,
         json_storage_options=raw_json_storage_options,

@@ -76,6 +76,7 @@ def data_convert(
 
 @task
 def parse_raw_json(
+    config: Dict[Any, Any] = [],
     raw_dicts: List[Dict[str, Any]] = [],
     raw_url_file: Optional[str] = None,
     json_storage_options: Dict[Any, Any] = {},
@@ -97,6 +98,8 @@ def parse_raw_json(
 
     Parameters
     ----------
+    config : dict
+        Pipeline configuration file
     raw_dicts : list, optional
         List of raw url dictionary
     raw_url_file : str, optional
@@ -116,22 +119,26 @@ def parse_raw_json(
         with file_system.open(raw_url_file) as f:
             raw_dicts = json.load(f)
 
-    # Number of days for a week chunk
-    n = 7
+    if config.args.transect is not None:
+        # Transect, split by transect spec
+        ...
+    else:
+        # Number of days for a week chunk
+        n = 7
 
-    all_jdays = sorted({r.get("jday") for r in raw_dicts})
-    split_days = [all_jdays[i : i + n] for i in range(0, len(all_jdays), n)]  # noqa
+        all_jdays = sorted({r.get("jday") for r in raw_dicts})
+        split_days = [all_jdays[i : i + n] for i in range(0, len(all_jdays), n)]  # noqa
 
-    day_dict = {}
-    for r in raw_dicts:
-        mint = r.get("jday")
-        if mint not in day_dict:
-            day_dict[mint] = []
-        day_dict[mint].append(r)
+        day_dict = {}
+        for r in raw_dicts:
+            mint = r.get("jday")
+            if mint not in day_dict:
+                day_dict[mint] = []
+            day_dict[mint].append(r)
 
-    all_weeks = []
-    for week in split_days:
-        files = list(it.chain.from_iterable([day_dict[d] for d in week]))
-        all_weeks.append(files)
+        all_weeks = []
+        for week in split_days:
+            files = list(it.chain.from_iterable([day_dict[d] for d in week]))
+            all_weeks.append(files)
 
-    return all_weeks
+        return all_weeks

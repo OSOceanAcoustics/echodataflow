@@ -1,12 +1,13 @@
 from typing import Dict, Any, List
 import itertools as it
+import os
 
 import fsspec
 from prefect import get_run_logger, task
 
 from ...settings.models import RawConfig
 from ..utils import glob_url
-from .utils import parse_file_path
+from .utils import parse_file_path, extract_transect_files
 
 
 @task
@@ -38,9 +39,7 @@ def setup_config(
 
 
 @task
-def glob_all_files(
-    config: Dict[Any, Any]
-) -> List[str]:
+def glob_all_files(config: Dict[Any, Any]) -> List[str]:
     """
     Task for fetch individual file urls from a source path,
     defined in config dictionary
@@ -98,14 +97,48 @@ def parse_raw_paths(
     logger.info("Parsing file paths into dictionary ...")
     sonar_model = config.sonar_model
     fname_pattern = config.raw_regex
-    return [
-        dict(
-            instrument=sonar_model,
-            file_path=raw_file,
-            **parse_file_path(raw_file, fname_pattern),
-        )
-        for raw_file in all_raw_files
-    ]
+    transect_dict = {}
+    if config.args.transect is not None:
+        # When transect info is available, extract it
+        logger.info("Transect file provided. Extracting ...")
+        file_input = config.args.transect.file
+        storage_options = config.args.transect.storage_options
+        if isinstance(file_input, str):
+            filename = os.path.basename(file_input)
+            _, ext = os.path.splitext(filename)
+            transect_dict = extract_transect_files(
+                ext.strip('.'), file_input, storage_options
+            )
+        else:
+            transect_dict = {}
+            for f in file_input:
+                filename = os.path.basename(f)
+                _, ext = os.path.splitext(filename)
+                result = extract_transect_files(
+                    ext.strip('.'), f, storage_options
+                )
+                transect_dict.update(result)
+
+    raw_file_dicts = []
+    for raw_file in all_raw_files:
+        # get transect info from the transect_dict above
+        transect = transect_dict.get(os.path.basename(raw_file), {})
+        transect_num = transect.get('num', None)
+        if (config.args.transect is None) or (
+            config.args.transect is not None and transect_num is not None
+        ):
+            # Only adds to the list if not transect
+            # if it's a transect, ensure it has a transect number
+            raw_file_dicts.append(
+                dict(
+                    instrument=sonar_model,
+                    file_path=raw_file,
+                    transect_num=transect_num,
+                    **parse_file_path(raw_file, fname_pattern),
+                )
+            )
+    logger.info("Finished creating list of raw file dicts.")
+    return raw_file_dicts
 
 
 @task
