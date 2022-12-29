@@ -1,10 +1,10 @@
-from typing import Any, Dict, Union, Tuple
+from typing import Any, Dict, Union, Tuple, List
 from urllib.parse import urlparse
 
 import fsspec
 
 
-def glob_url(path, **storage_options):
+def glob_url(path: str, **storage_options: Dict[str, Any]) -> List[str]:
     """
     Glob files based on given path string,
     using fsspec.filesystem.glob
@@ -25,6 +25,8 @@ def glob_url(path, **storage_options):
         path, storage_options, include_scheme=True
     )
     all_files = [
+        # Add scheme back into file urlpath for fs like s3
+        # since it seem to get lost
         f if f.startswith(scheme) else f"{scheme}://{f}"
         for f in file_system.glob(path)
     ]
