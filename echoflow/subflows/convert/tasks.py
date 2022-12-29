@@ -115,19 +115,33 @@ def parse_raw_json(
     if len(raw_dicts) == 0:
         if raw_url_file is None:
             raise ValueError("Must have raw_dicts or raw_url_file present.")
-        file_system = extract_fs(raw_url_file, storage_options=json_storage_options)
+        file_system = extract_fs(
+            raw_url_file, storage_options=json_storage_options
+        )
         with file_system.open(raw_url_file) as f:
             raw_dicts = json.load(f)
 
     if config.args.transect is not None:
         # Transect, split by transect spec
-        ...
+        raw_dct = {}
+        for r in raw_dicts:
+            transect_num = r['transect_num']
+            if transect_num not in raw_dct:
+                raw_dct[transect_num] = []
+            raw_dct[transect_num].append(r)
+
+        all_weeks = [
+            sorted(raw_list, key=lambda a: a['datetime'])
+            for raw_list in raw_dct.values()
+        ]
     else:
         # Number of days for a week chunk
         n = 7
 
         all_jdays = sorted({r.get("jday") for r in raw_dicts})
-        split_days = [all_jdays[i : i + n] for i in range(0, len(all_jdays), n)]  # noqa
+        split_days = [
+            all_jdays[i : i + n] for i in range(0, len(all_jdays), n)
+        ]  # noqa
 
         day_dict = {}
         for r in raw_dicts:
@@ -141,4 +155,4 @@ def parse_raw_json(
             files = list(it.chain.from_iterable([day_dict[d] for d in week]))
             all_weeks.append(files)
 
-        return all_weeks
+    return all_weeks

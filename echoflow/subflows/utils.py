@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Any, Dict, Union, Tuple
 from urllib.parse import urlparse
 
 import fsspec
@@ -21,11 +21,22 @@ def glob_url(path, **storage_options):
     -------
     List of paths from glob
     """
-    file_system = extract_fs(path, storage_options)
-    return file_system.glob(path)
+    file_system, scheme = extract_fs(
+        path, storage_options, include_scheme=True
+    )
+    all_files = [
+        f if f.startswith(scheme) else f"{scheme}://{f}"
+        for f in file_system.glob(path)
+    ]
+
+    return all_files
 
 
-def extract_fs(url: str, storage_options: Dict[Any, Any] = {}):
+def extract_fs(
+    url: str,
+    storage_options: Dict[Any, Any] = {},
+    include_scheme: bool = False,
+) -> Union[Tuple[Any, str], Any]:
     """
     Extract the fsspec file system from a url path.
 
@@ -35,6 +46,8 @@ def extract_fs(url: str, storage_options: Dict[Any, Any] = {}):
         The url path string to be parsed and file system extracted
     storage_options : dict
         Additional keywords to pass to the filesystem class
+    include_scheme : bool
+        Flag to include scheme in the output of the function
 
     Returns
     -------
@@ -42,4 +55,6 @@ def extract_fs(url: str, storage_options: Dict[Any, Any] = {}):
     """
     parsed_path = urlparse(url)
     file_system = fsspec.filesystem(parsed_path.scheme, **storage_options)
+    if include_scheme:
+        return file_system, parsed_path.scheme
     return file_system

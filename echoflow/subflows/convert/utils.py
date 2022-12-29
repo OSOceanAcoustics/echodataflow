@@ -2,7 +2,6 @@ import os
 from pathlib import Path
 
 import echopype as ep
-import requests
 from dateutil import parser
 
 from echoflow.settings.models.raw_config import RawConfig
@@ -48,7 +47,14 @@ def get_output_file_path(raw_dicts, config):
 
     first_file = raw_dicts[0]
     datetime_obj = parser.parse(first_file.get("datetime"))
-    out_fname = datetime_obj.strftime("D%Y%m%d-T%H%M%S.zarr")
+    if config.args.transect is None:
+        # Only use datetime
+        out_fname = datetime_obj.strftime("D%Y%m%d-T%H%M%S.zarr")
+    else:
+        # Use transect number
+        transect_num = first_file.get("transect_num", None)
+        date_name = datetime_obj.strftime("D%Y%m%d-T%H%M%S")
+        out_fname = f"x{transect_num:04}-{date_name}.zarr"
     return "/".join([config.output.urlpath, out_fname])
 
 
@@ -57,11 +63,12 @@ def download_temp_file(raw, temp_raw_dir):
     Download temporary raw file
     """
     urlpath = raw.get("file_path")
-    req = requests.get(urlpath)
+    file_system = extract_fs(urlpath)
     fname = os.path.basename(urlpath)
     out_path = temp_raw_dir / fname
-    with open(out_path, mode="wb") as f:
-        f.write(req.content)
+    with file_system.open(urlpath, 'rb') as source_file:
+        with open(out_path, mode="wb") as f:
+            f.write(source_file.read())
     raw.update({"local_path": out_path})
     return raw
 
