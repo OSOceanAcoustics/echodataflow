@@ -21,8 +21,8 @@ def find_raw_pipeline(
 
     Parameters
     ----------
-    config : dict
-        Pipeline configuration dictionary
+    config : object
+        Pipeline configuration object
     export : bool
         Flag to export raw paths for individual raw files
         to a raw urls JSON file

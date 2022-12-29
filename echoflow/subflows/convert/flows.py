@@ -16,12 +16,12 @@ def conversion_pipeline(
 ):
     """
     Conversion pipeline for raw echosounder data.
-    The results will be converted as weekly files.
+    The results will be converted as weekly or transect files.
 
     Parameters
     ----------
-    config : dict
-        Pipeline configuration file
+    config : object
+        Pipeline configuration object
     raw_dicts : list
         List of raw url dictionary
     raw_json : str, optional
