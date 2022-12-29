@@ -4,7 +4,7 @@ from prefect import flow
 
 from ..subflows.convert import conversion_pipeline
 from ..subflows.fetch import find_raw_pipeline
-from .utils import check_and_extract_config
+from .utils import init_configuration
 
 
 @flow(name="00-fetch-and-convert")
@@ -43,12 +43,11 @@ def fetch_and_convert(
     DO NOT use Dask Task Runner for this flow.
     Dask is used underneath within echopype.
     """
-    config = check_and_extract_config(
-        config=config, storage_options=storage_options
+    new_config = init_configuration(
+        config=config, parameters=parameters, storage_options=storage_options
     )
-    raw_dicts, new_config = find_raw_pipeline(
-        config=config,
-        parameters=parameters,
+    raw_dicts = find_raw_pipeline(
+        config=new_config,
         export=export,
         export_path=export_path,
         export_storage_options=export_storage_options,

@@ -5,14 +5,13 @@ from .tasks import (
     export_raw_dicts,
     glob_all_files,
     parse_raw_paths,
-    setup_config,
 )
+from ...settings.models import MainConfig
 
 
 @flow
 def find_raw_pipeline(
-    config: Dict[Any, Any],
-    parameters: Dict[Any, Any] = {},
+    config: MainConfig,
     export: bool = False,
     export_path: str = "",
     export_storage_options: Dict[Any, Any] = {},
@@ -24,10 +23,6 @@ def find_raw_pipeline(
     ----------
     config : dict
         Pipeline configuration dictionary
-    parameters : dict
-        Input parameters for creating the full url path.
-        *These inputs will overwrite the parameters,
-        within the config.*
     export : bool
         Flag to export raw paths for individual raw files
         to a raw urls JSON file
@@ -42,10 +37,9 @@ def find_raw_pipeline(
         Raw urls dictionary and an updated configuration dictionary
 
     """
-    new_config = setup_config(config, parameters)
-    total_files = glob_all_files(new_config)
-    file_dicts = parse_raw_paths(total_files, new_config)
+    total_files = glob_all_files(config)
+    file_dicts = parse_raw_paths(total_files, config)
 
     if export:
         export_raw_dicts(file_dicts, export_path, export_storage_options)
-    return file_dicts, new_config
+    return file_dicts

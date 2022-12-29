@@ -2,13 +2,13 @@ from typing import Any, Dict, List, Optional
 
 from prefect import flow
 
-from ...settings.models import RawConfig
+from ...settings.models import MainConfig
 from .tasks import data_convert, get_client, parse_raw_json
 
 
 @flow
 def conversion_pipeline(
-    config: RawConfig,
+    config: MainConfig,
     raw_dicts: List[Dict[str, Any]] = [],
     raw_json: Optional[str] = None,
     raw_json_storage_options: Dict[str, Any] = {},

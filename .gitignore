@@ -133,3 +133,6 @@ dmypy.json
 
 # Local Package
 version.py
+
+# Local zarr files
+*.zarr

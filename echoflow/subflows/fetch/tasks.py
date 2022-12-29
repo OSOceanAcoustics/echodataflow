@@ -5,37 +5,8 @@ import os
 import fsspec
 from prefect import get_run_logger, task
 
-from ...settings.models import RawConfig
 from ..utils import glob_url
 from .utils import parse_file_path, extract_transect_files
-
-
-@task
-def setup_config(
-    input_config: Dict[Any, Any], parameters: Dict[Any, Any]
-) -> Dict[Any, Any]:
-    """
-    Task for validating configuration dictionary,
-    and updating url parameters for harvest
-
-    Parameters
-    ----------
-    input_config : dict
-        Pipeline configuration
-    parameters : dict
-        Parameters input to overwrite the parameters,
-        within the input_config
-
-    Returns
-    -------
-    dict
-        Updated configuration dictionary
-    """
-    logger = get_run_logger()
-    logger.info("Validating configurations ...")
-    config = RawConfig(**input_config)
-    config.args.parameters.update(parameters)
-    return config
 
 
 @task

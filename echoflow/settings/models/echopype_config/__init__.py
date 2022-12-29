@@ -5,5 +5,5 @@ from pydantic import BaseModel
 from .calibrate import Calibrate
 
 
-class Echopype(BaseModel):
+class EchopypeConfig(BaseModel):
     calibrate: Optional[Calibrate]
