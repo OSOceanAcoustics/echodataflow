@@ -39,7 +39,7 @@ def conversion_pipeline(
     -----
     Don't run this pipeline with Dask Task Runners
     """
-    all_weeks = parse_raw_json(
+    all_files = parse_raw_json(
         config=config,
         raw_dicts=raw_dicts,
         raw_url_file=raw_json,
@@ -47,7 +47,7 @@ def conversion_pipeline(
     )
     futures = []
     client = get_client(client)
-    for raw_dicts in all_weeks:
+    for raw_dicts in all_files:
         future = data_convert.submit(
             raw_dicts=raw_dicts,
             client=client,

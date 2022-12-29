@@ -1,15 +1,17 @@
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 from prefect import flow
 
 from ..subflows.convert import conversion_pipeline
 from ..subflows.fetch import find_raw_pipeline
+from .utils import check_and_extract_config
 
 
 @flow(name="00-fetch-and-convert")
 def fetch_and_convert(
-    config: Dict[Any, Any],
+    config: Union[Dict[str, Any], str],
     parameters: Dict[Any, Any] = {},
+    storage_options: Dict[Any, Any] = {},
     export: bool = False,
     export_path: str = "",
     export_storage_options: Dict[Any, Any] = {},
@@ -19,12 +21,15 @@ def fetch_and_convert(
 
     Parameters
     ----------
-    config : dict
-        Pipeline configuration file
+    config : dict or str
+        Path string to configuration file or dictionary
+        containing configuration values
     parameters : dict
         Input parameters for creating the full url path.
         *These inputs will overwrite the parameters,
         within the config.*
+    storage_options : dict
+        Storage options for reading config file if specified
     export : bool
         Flag to export raw paths for individual raw files
         to a raw urls JSON file
@@ -38,6 +43,9 @@ def fetch_and_convert(
     DO NOT use Dask Task Runner for this flow.
     Dask is used underneath within echopype.
     """
+    config = check_and_extract_config(
+        config=config, storage_options=storage_options
+    )
     raw_dicts, new_config = find_raw_pipeline(
         config=config,
         parameters=parameters,

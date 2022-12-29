@@ -130,7 +130,7 @@ def parse_raw_json(
                 raw_dct[transect_num] = []
             raw_dct[transect_num].append(r)
 
-        all_weeks = [
+        all_files = [
             sorted(raw_list, key=lambda a: a['datetime'])
             for raw_list in raw_dct.values()
         ]
@@ -150,9 +150,9 @@ def parse_raw_json(
                 day_dict[mint] = []
             day_dict[mint].append(r)
 
-        all_weeks = []
+        all_files = []
         for week in split_days:
             files = list(it.chain.from_iterable([day_dict[d] for d in week]))
-            all_weeks.append(files)
+            all_files.append(files)
 
-    return all_weeks
+    return all_files
