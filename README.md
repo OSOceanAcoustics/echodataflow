@@ -69,6 +69,8 @@ Essentially this is the individual smaller flows that need to run within a data 
     - `__init__.py`: File to import flow so the subflow directory can become a module and flow to be easily imported.
 - [tests](./echoflow/tests/): Tests code lives in this directory.
 
+For more details about prefect, go to their extensive [documentation](https://docs.prefect.io/).
+
 ## License
 
 Licensed under the MIT License; you may not use this file except in compliance with the License. You may obtain a copy of the License [here](./LICENSE).
