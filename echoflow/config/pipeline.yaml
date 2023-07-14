@@ -13,12 +13,12 @@ pipeline:
       use_offline: true
       out_path: ./temp_files
       parallelize: true
-  # - name: combine_echodata
-  #   module: echoflow.stages_v2.subflows.combine_echodata
-  # - name: compute_SV
-  #   module: echoflow.stages_v2.subflows.compute_SV
-  # - name: compute_MVBS
-  #   module: echoflow.stages_v2.subflows.compute_MVBS
-  #   external_params:
-  #     range_meter_bin: 20 
-  #     ping_time_bin: 20S
+  - name: combine_echodata
+    module: echoflow.stages_v2.subflows.combine_echodata
+  - name: compute_SV
+    module: echoflow.stages_v2.subflows.compute_SV
+  - name: compute_MVBS
+    module: echoflow.stages_v2.subflows.compute_MVBS
+    external_params:
+      range_meter_bin: 20 
+      ping_time_bin: 20S
