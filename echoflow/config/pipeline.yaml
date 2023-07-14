@@ -1,0 +1,24 @@
+active_recipe: standard
+pipeline:
+- recipe_name: standard
+  generate_grpah: false
+  stages:
+  - name: open_raw
+    module: echoflow.stages_v2.subflows.open_raw
+    external_params:
+      sonar_model: EK60
+      xml_path: s3//
+    options:
+      save_output: true
+      use_offline: true
+      out_path: ./temp_files
+      parallelize: true
+  # - name: combine_echodata
+  #   module: echoflow.stages_v2.subflows.combine_echodata
+  # - name: compute_SV
+  #   module: echoflow.stages_v2.subflows.compute_SV
+  # - name: compute_MVBS
+  #   module: echoflow.stages_v2.subflows.compute_MVBS
+  #   external_params:
+  #     range_meter_bin: 20 
+  #     ping_time_bin: 20S
