@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from urllib.parse import urlparse
@@ -13,6 +14,10 @@ import logging
 from echoflow.config.models.dataset import Dataset, StorageOptions
 
 from prefect import task
+from prefect.filesystems import *
+
+from echoflow.config.models.log_object import Log, Log_Data, Process
+from echoflow.stages_v2.utils.global_db_logger import add_new_process
 
 TRANSECT_FILE_REGEX = r"x(?P<transect_num>\d+)"
 
@@ -62,15 +67,26 @@ def glob_all_files(config: Dataset) -> List[str]:
     data_path = config.args.rendered_path
     storage_options = config.args.storage_options
 
-    if data_path is not None:
-        if isinstance(data_path, list):
-            for path in data_path:
-                all_files = glob_url(path, dict(storage_options))
-                total_files.append(all_files)
-            total_files = list(it.chain.from_iterable(total_files))
-        else:
-            total_files = glob_url(data_path, dict(storage_options))
-    return total_files
+    process = Process(name="glob_all_files", status=False)
+
+    try:
+        if data_path is not None:
+            if isinstance(data_path, list):
+                for path in data_path:
+                    all_files = glob_url(path, dict(storage_options))
+                    total_files.append(all_files)
+                total_files = list(it.chain.from_iterable(total_files))
+            else:
+                total_files = glob_url(data_path, dict(storage_options))
+        
+        process.status = True
+        return total_files
+    except Exception as e:
+        process.error = e
+        raise e
+    finally:
+        add_new_process(process=process, name="Configuration")
+
 
 
 def glob_url(path: str, storage_options: StorageOptions) -> List[str]:
@@ -147,41 +163,49 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
     sonar_model = config.sonar_model
     fname_pattern = config.raw_regex
     transect_dict = {}
-    if config.args.transect is not None:
-        # When transect info is available, extract it
-        file_input = config.args.transect.file
-        storage_options = config.args.transect.storage_options
-        if isinstance(file_input, str):
-            filename = os.path.basename(file_input)
-            _, ext = os.path.splitext(filename)
-            transect_dict = extract_transect_files(ext.strip("."), file_input, storage_options)
-        else:
-            transect_dict = {}
-            for f in file_input:
-                filename = os.path.basename(f)
+    process = Process(name="parse_raw_paths", status=False)
+    try:
+        if config.args.transect is not None:
+            # When transect info is available, extract it
+            file_input = config.args.transect.file
+            storage_options = config.args.transect.storage_options
+            if isinstance(file_input, str):
+                filename = os.path.basename(file_input)
                 _, ext = os.path.splitext(filename)
-                result = extract_transect_files(ext.strip("."), f, storage_options)
-                transect_dict.update(result)
+                transect_dict = extract_transect_files(ext.strip("."), file_input, storage_options)
+            else:
+                transect_dict = {}
+                for f in file_input:
+                    filename = os.path.basename(f)
+                    _, ext = os.path.splitext(filename)
+                    result = extract_transect_files(ext.strip("."), f, storage_options)
+                    transect_dict.update(result)
 
-    raw_file_dicts = []
-    for raw_file in all_raw_files:
-        # get transect info from the transect_dict above
-        transect = transect_dict.get(os.path.basename(raw_file), {})
-        transect_num = transect.get("num", None)
-        if (config.args.transect is None) or (
-            config.args.transect is not None and transect_num is not None
-        ):
-            # Only adds to the list if not transect
-            # if it's a transect, ensure it has a transect number
-            raw_file_dicts.append(
-                dict(
-                    instrument=sonar_model,
-                    file_path=raw_file,
-                    transect_num=transect_num,
-                    **parse_file_path(raw_file, fname_pattern),
+        raw_file_dicts = []
+        for raw_file in all_raw_files:
+            # get transect info from the transect_dict above
+            transect = transect_dict.get(os.path.basename(raw_file), {})
+            transect_num = transect.get("num", None)
+            if (config.args.transect is None) or (
+                config.args.transect is not None and transect_num is not None
+            ):
+                # Only adds to the list if not transect
+                # if it's a transect, ensure it has a transect number
+                raw_file_dicts.append(
+                    dict(
+                        instrument=sonar_model,
+                        file_path=raw_file,
+                        transect_num=transect_num,
+                        **parse_file_path(raw_file, fname_pattern),
+                    )
                 )
-            )
-    return raw_file_dicts
+        process.status = True
+        return raw_file_dicts
+    except Exception as e:
+        process.error = e
+        raise e
+    finally:
+        add_new_process(process=process, name="Configuration")
 
 
 def extract_transect_files(
@@ -310,7 +334,7 @@ def club_raw_files(
     config: Dataset,
     raw_dicts: List[Dict[str, Any]] = [],
     raw_url_file: Optional[str] = None,
-    json_storage_options: Dict[Any, Any] = {},
+    json_storage_options: Dict[Any, Any] = {}
 ) -> List[List[Dict[str, Any]]]:
     """
     Task to parse raw urls json files and splits them into
@@ -343,52 +367,66 @@ def club_raw_files(
     List of list of raw urls string,
     broken up to 7 julian days each chunk
     """
-    if len(raw_dicts) == 0:
-        if raw_url_file is None:
-            raise ValueError("Must have raw_dicts or raw_url_file present.")
-        file_system = extract_fs(
-            raw_url_file, storage_options=json_storage_options
-        )
-        with file_system.open(raw_url_file) as f:
-            raw_dicts = json.load(f)
 
-    if config.args.transect is not None:
-        # Transect, split by transect spec
-        raw_dct = {}
-        for r in raw_dicts:
-            transect_num = r['transect_num']
-            if transect_num not in raw_dct:
-                raw_dct[transect_num] = []
-            raw_dct[transect_num].append(r)
+    
+    process = Process(name="club_raw_files", status=False)
 
-        all_files = [
-            sorted(raw_list, key=lambda a: a['datetime'])
-            for raw_list in raw_dct.values()
-        ]
-    else:
-        # Number of days for a week chunk
-        n = 7
+    try:
+        if len(raw_dicts) == 0:
+            if raw_url_file is None:
+                raise ValueError("Must have raw_dicts or raw_url_file present.")
+            file_system = extract_fs(
+                raw_url_file, storage_options=json_storage_options
+            )
+            with file_system.open(raw_url_file) as f:
+                raw_dicts = json.load(f)
 
-        all_jdays = sorted({r.get("jday") for r in raw_dicts})
-        split_days = [
-            all_jdays[i : i + n] for i in range(0, len(all_jdays), n)
-        ]  # noqa
+        if config.args.transect is not None:
+            # Transect, split by transect spec
+            raw_dct = {}
+            for r in raw_dicts:
+                transect_num = r['transect_num']
+                if transect_num not in raw_dct:
+                    raw_dct[transect_num] = []
+                raw_dct[transect_num].append(r)
 
-        day_dict = {}
-        for r in raw_dicts:
-            mint = r.get("jday")
-            if mint not in day_dict:
-                day_dict[mint] = []
-            day_dict[mint].append(r)
+            all_files = [
+                sorted(raw_list, key=lambda a: a['datetime'])
+                for raw_list in raw_dct.values()
+            ]
+        else:
+            # Number of days for a week chunk
+            n = 7
 
-        all_files = []
-        for week in split_days:
-            files = list(it.chain.from_iterable([day_dict[d] for d in week]))
-            all_files.append(files)
+            all_jdays = sorted({r.get("jday") for r in raw_dicts})
+            split_days = [
+                all_jdays[i : i + n] for i in range(0, len(all_jdays), n)
+            ]  # noqa
 
-    return all_files
+            day_dict = {}
+            for r in raw_dicts:
+                mint = r.get("jday")
+                if mint not in day_dict:
+                    day_dict[mint] = []
+                day_dict[mint].append(r)
 
+            all_files = []
+            for week in split_days:
+                files = list(it.chain.from_iterable([day_dict[d] for d in week]))
+                all_files.append(files)
 
+        process.status = True
+        return all_files
+    except Exception as e:
+        process.error = e
+        raise e
+    finally:
+        add_new_process(process=process, name="Configuration")
+
+   
+
+@task
+def get_prefect_config_dict(prefect_config : Dict[str, Any]):
     updated_config = {}
     for key, value in prefect_config.items():
         if type(value) == str and '(' in value and ')' in value:

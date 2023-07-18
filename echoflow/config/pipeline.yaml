@@ -1,4 +1,6 @@
 active_recipe: standard
+use_previous_run: false
+database_path: ./echoflow_db/
 pipeline:
 - recipe_name: standard
   generate_grpah: false
@@ -13,12 +15,16 @@ pipeline:
       use_offline: true
       out_path: ./temp_files
       parallelize: true
-  - name: combine_echodata
-    module: echoflow.stages_v2.subflows.combine_echodata
-  - name: compute_SV
-    module: echoflow.stages_v2.subflows.compute_SV
-  - name: compute_MVBS
-    module: echoflow.stages_v2.subflows.compute_MVBS
-    external_params:
-      range_meter_bin: 20 
-      ping_time_bin: 20S
+    prefect_config:
+      retries: 3
+      persist_result: true
+      result_storage: LocalFileSystem(basepath=my-results)
+  # - name: combine_echodata
+  #   module: echoflow.stages_v2.subflows.combine_echodata
+  # - name: compute_SV
+  #   module: echoflow.stages_v2.subflows.compute_SV
+  # - name: compute_MVBS
+  #   module: echoflow.stages_v2.subflows.compute_MVBS
+  #   external_params:
+  #     range_meter_bin: 20 
+  #     ping_time_bin: 20S

@@ -6,6 +6,7 @@ class Stage(BaseModel):
     module: Optional[str]
     external_params: Optional[Dict[str, Any]]
     options: Optional[Dict[str, Any]]
+    prefect_config: Optional[Dict[str, Any]]
 
 class Pipeline(BaseModel):
     recipe_name: str
@@ -14,5 +15,7 @@ class Pipeline(BaseModel):
 
 class Recipe(BaseModel):
     active_recipe: str
+    use_previous_recipe: Optional[bool] = False
+    database_path: Optional[str] = ''
     pipeline: List[Pipeline]
 
