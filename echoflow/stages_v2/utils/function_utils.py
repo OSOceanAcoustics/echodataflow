@@ -1,8 +1,5 @@
 import importlib
 import inspect
-import os
-
-from prefect import task
 
 def dynamic_function_call(module_name, function_name):
     try:

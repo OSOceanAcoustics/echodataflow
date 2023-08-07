@@ -1,17 +1,23 @@
+from datetime import datetime
+import os
 import sqlite3
 import threading
 import json
+from pathlib import Path
 
 from pydantic import BaseModel
-from echoflow.config.models.log_object import Log, Log_Data
+from echoflow.config.models.db_log_model import Log_Data, DB_Log
 
 db_connections = threading.local()
 
 # Function to get a database connection
-def get_connection(path=''):
+def get_connection(path: str='') -> sqlite3.Connection:
     if not hasattr(db_connections, 'db_connection'):
-        # Create a new database connection if one doesn't exist for the current thread
-        db_connections.db_connection = sqlite3.connect(path+'echoflow.db')
+        if os.path.isdir(path) == False:
+            dir = Path(path)
+            dir.mkdir(exist_ok=True, parents=True)
+            os.chmod(dir, 0o777)
+        db_connections.db_connection = sqlite3.connect(path+'/echoflow.db')
     return db_connections.db_connection
 
 
@@ -26,7 +32,6 @@ def execute_sql(conn, query):
 def create_table(conn, table_name, columns):
     query = f"CREATE TABLE IF NOT EXISTS {table_name} ({', '.join(columns)})"
     execute_sql(conn, query)
-    conn.commit()
 
 
 def create_log_table(conn):
@@ -36,21 +41,26 @@ def create_log_table(conn):
         start_time TEXT,
         end_time TEXT,
         data TEXT,
-        status TEXT
+        status TEXT,
+        error TEXT
     );
     '''
     execute_sql(conn=conn, query=create_table_query)
-    conn.commit()
 
-
-def insert_log_data(conn, log: Log):
+def insert_log_data_by_conn(conn : sqlite3.Connection , log: DB_Log):
     insert_query = '''
-    INSERT INTO log (run_id, start_time, end_time, data, status)
-    VALUES (?, ?, ?, ?, ?);
+    INSERT INTO log (run_id, start_time, end_time, data, status, error)
+    VALUES (?, ?, ?, ?, ?, ?);
     '''
-    data_json = json.dumps(log.data)
-    conn.execute(insert_query, (log.run_id, log.start_time, log.end_time, data_json, log.status))
+    data_json = json.dumps(convert_to_serializable_dict(log.data))
+    res = conn.execute(insert_query, (log.run_id, log.start_time, log.end_time, data_json, log.status, log.error))
+    id = res.lastrowid
     conn.commit()
+    return id
+
+def insert_log_data_by_path(path: str, log: DB_Log):
+    conn = get_connection(path=path)
+    return insert_log_data_by_conn(conn, log)
 
 def convert_to_serializable_dict(obj):
     if isinstance(obj, BaseModel):
@@ -62,20 +72,28 @@ def convert_to_serializable_dict(obj):
     else:
         return obj
 
-def insert_log_data(path: str, log: Log):
-    conn = get_connection(path=path)
-    insert_query = '''
-    INSERT INTO log (run_id, start_time, end_time, data, status)
-    VALUES (?, ?, ?, ?, ?);
+
+def update_log_data_by_conn(conn : sqlite3.Connection, log : DB_Log):
+    update_query = '''
+    UPDATE log
+    SET start_time = ?, end_time = ?, data = ?, status = ?, error =?
+    WHERE run_id = ?;
     '''
     data_json = json.dumps(convert_to_serializable_dict(log.data))
-    conn.execute(insert_query, (log.run_id, log.start_time, log.end_time, data_json, log.status))
+    conn.execute(
+        update_query,
+        (log.start_time, log.end_time, data_json, log.status, log.error, log.run_id),
+    )
     conn.commit()
+
+def update_log_data_by_path(path: str, log: DB_Log):
+    conn = get_connection(path=path)
+    return update_log_data_by_conn(conn, log)
 
 
 def parse_all_log_data(conn):
     select_query = '''
-    SELECT run_id, start_time, end_time, data, status
+    SELECT run_id, start_time, end_time, data, status, error
     FROM log;
     '''
 
@@ -92,13 +110,13 @@ def parse_all_log_data(conn):
 
 def get_last_log(conn):
     select_query = '''
-    SELECT run_id, start_time, end_time, status
+    SELECT run_id, start_time, end_time, data, status, error
     FROM log
     ORDER BY id DESC
     LIMIT 1;
     '''
 
-    last_log = Log()
+    last_log = DB_Log()
     row = execute_sql(conn, select_query)
 
     if row:
@@ -107,7 +125,7 @@ def get_last_log(conn):
     return last_log
 
 def parse_log(row):
-    run_id, start_time, end_time, data_json, status = row
+    run_id, start_time, end_time, data_json, status, error = row
     data_dict = json.loads(data_json)
 
     log_data_dict = {}  
@@ -115,6 +133,6 @@ def parse_log(row):
         log_data_obj = Log_Data(**value)  
         log_data_dict[key] = log_data_obj 
     
-    log_obj = Log(run_id=run_id, start_time=start_time, end_time=end_time, data=log_data_dict, status=status)
+    log_obj = DB_Log(run_id=run_id, start_time=start_time, end_time=end_time, data=log_data_dict, status=status, error=error)
 
     return log_obj

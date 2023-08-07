@@ -18,10 +18,18 @@ class Log_Data(BaseModel):
     process_stack: Optional[List[Process]] = []
 
 
-class Log(BaseModel):
+class DB_Log(BaseModel):
     run_id: Optional[int]
     start_time: Optional[str] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
     end_time: Optional[str]
     data: Optional[Dict[str, Log_Data]] = {}
-    status: str = False
+    status: str = True
+    error: Optional[str]
+
+
+
+
+
+
+    
 

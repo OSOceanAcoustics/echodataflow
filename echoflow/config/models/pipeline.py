@@ -10,12 +10,15 @@ class Stage(BaseModel):
 
 class Pipeline(BaseModel):
     recipe_name: str
-    generate_grpah: Optional[bool] = False
+    generate_graph: Optional[bool] = False
     stages: List[Stage]
 
 class Recipe(BaseModel):
     active_recipe: str
+    use_local_dask: bool = False
+    scheduler_address: str = None
     use_previous_recipe: Optional[bool] = False
     database_path: Optional[str] = ''
     pipeline: List[Pipeline]
 
+    

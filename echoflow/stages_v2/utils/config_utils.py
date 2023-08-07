@@ -1,7 +1,7 @@
-from datetime import datetime
 import json
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 from urllib.parse import urlparse
+from distributed import LocalCluster
 import fsspec
 import yaml
 import itertools as it
@@ -9,15 +9,18 @@ import os
 from dateutil import parser
 import re
 from zipfile import ZipFile
-import logging
 
 from echoflow.config.models.dataset import Dataset, StorageOptions
 
 from prefect import task
 from prefect.filesystems import *
+from prefect.serializers import JSONSerializer
+from prefect_dask import DaskTaskRunner
+from prefect.task_runners import *
+from echoflow.config.models.pipeline import Recipe, Stage
 
-from echoflow.config.models.log_object import Log, Log_Data, Process
-from echoflow.stages_v2.utils.global_db_logger import add_new_process
+from echoflow.stages_v2.aspects.echoflow_aspect import echoflow
+
 
 TRANSECT_FILE_REGEX = r"x(?P<transect_num>\d+)"
 
@@ -44,48 +47,6 @@ def check_config(dataset_config: Dict[str, Any], pipeline_config: Dict[str, Any]
             recipe_names.append(recipe["recipe_name"])
         if not recipe_name in recipe_names:
             raise ValueError("Active recipe name not found in the recipe list!")
-
-
-@task
-def glob_all_files(config: Dataset) -> List[str]:
-    """
-    Task for fetch individual file urls from a source path,
-    defined in Dataset class
-
-    Parameters
-    ----------
-    config : Dataset
-        Dataset configuration
-
-    Returns
-    -------
-    list
-        List of raw url paths string
-    """
-
-    total_files = []
-    data_path = config.args.rendered_path
-    storage_options = config.args.storage_options
-
-    process = Process(name="glob_all_files", status=False)
-
-    try:
-        if data_path is not None:
-            if isinstance(data_path, list):
-                for path in data_path:
-                    all_files = glob_url(path, dict(storage_options))
-                    total_files.append(all_files)
-                total_files = list(it.chain.from_iterable(total_files))
-            else:
-                total_files = glob_url(data_path, dict(storage_options))
-        
-        process.status = True
-        return total_files
-    except Exception as e:
-        process.error = e
-        raise e
-    finally:
-        add_new_process(process=process, name="Configuration")
 
 
 
@@ -139,73 +100,6 @@ def extract_fs(
     if include_scheme:
         return file_system, parsed_path.scheme
     return file_system
-
-
-@task
-def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any, Any]]:
-    """
-    Task for parsing raw url paths,
-    extracting info from it,
-    and creating a file dictionary
-
-    Parameters
-    ----------
-    all_raw_files : list
-        List of raw url paths string
-    config : dict
-        Pipeline configuration
-
-    Returns
-    -------
-    list
-        List of raw url paths dictionary
-    """
-    sonar_model = config.sonar_model
-    fname_pattern = config.raw_regex
-    transect_dict = {}
-    process = Process(name="parse_raw_paths", status=False)
-    try:
-        if config.args.transect is not None:
-            # When transect info is available, extract it
-            file_input = config.args.transect.file
-            storage_options = config.args.transect.storage_options
-            if isinstance(file_input, str):
-                filename = os.path.basename(file_input)
-                _, ext = os.path.splitext(filename)
-                transect_dict = extract_transect_files(ext.strip("."), file_input, storage_options)
-            else:
-                transect_dict = {}
-                for f in file_input:
-                    filename = os.path.basename(f)
-                    _, ext = os.path.splitext(filename)
-                    result = extract_transect_files(ext.strip("."), f, storage_options)
-                    transect_dict.update(result)
-
-        raw_file_dicts = []
-        for raw_file in all_raw_files:
-            # get transect info from the transect_dict above
-            transect = transect_dict.get(os.path.basename(raw_file), {})
-            transect_num = transect.get("num", None)
-            if (config.args.transect is None) or (
-                config.args.transect is not None and transect_num is not None
-            ):
-                # Only adds to the list if not transect
-                # if it's a transect, ensure it has a transect number
-                raw_file_dicts.append(
-                    dict(
-                        instrument=sonar_model,
-                        file_path=raw_file,
-                        transect_num=transect_num,
-                        **parse_file_path(raw_file, fname_pattern),
-                    )
-                )
-        process.status = True
-        return raw_file_dicts
-    except Exception as e:
-        process.error = e
-        raise e
-    finally:
-        add_new_process(process=process, name="Configuration")
 
 
 def extract_transect_files(
@@ -329,7 +223,129 @@ def parse_file_path(raw_file: str, fname_pattern: str) -> Dict[str, Any]:
     return dict(**match_dict)
 
 
+
 @task
+def get_prefect_config_dict(stage: Stage, pipeline: Recipe):
+    prefect_config : Dict[str, Any] = stage.prefect_config
+    updated_config = {}
+    if(stage.prefect_config is not None):
+        for key, value in prefect_config.items():
+            if type(value) == str and '(' in value and ')' in value:
+                class_name, params_str = value.split('(', 1)
+                params_str = params_str.rstrip(')')
+                parameters = {}
+                if params_str is not None and params_str != '':
+                    for param in params_str.split(','):
+                        param_key, param_value = param.split('=')
+                        parameters[param_key.strip()] = param_value.strip()
+                class_object = globals()[class_name](**parameters)
+                updated_config[key] = class_object
+            else:
+                updated_config[key] = value
+    if pipeline.use_local_dask == True and updated_config.get("task_runner") is None:
+        if pipeline.scheduler_address is not None:
+            updated_config["task_runner"] = DaskTaskRunner(address=pipeline.scheduler_address)
+        else:
+            cluster = LocalCluster()
+            updated_config["task_runner"] = DaskTaskRunner(address=cluster.scheduler_address)
+            pipeline.scheduler_address = cluster.scheduler_address
+    return updated_config
+
+@task
+@echoflow(processing_stage="Configuration")
+def glob_all_files(config: Dataset) -> List[str]:
+    """
+    Task for fetch individual file urls from a source path,
+    defined in Dataset class
+
+    Parameters
+    ----------
+    config : Dataset
+        Dataset configuration
+
+    Returns
+    -------
+    list
+        List of raw url paths string
+    """
+    total_files = []
+    data_path = config.args.rendered_path
+    storage_options = config.args.storage_options
+    
+    if data_path is not None:
+        if isinstance(data_path, list):
+            for path in data_path:
+                all_files = glob_url(path, dict(storage_options))
+                total_files.append(all_files)
+            total_files = list(it.chain.from_iterable(total_files))
+        else:
+            total_files = glob_url(data_path, dict(storage_options))
+    
+    return total_files
+
+@task
+@echoflow(processing_stage="Configuration")
+def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any, Any]]:
+    """
+    Task for parsing raw url paths,
+    extracting info from it,
+    and creating a file dictionary
+
+    Parameters
+    ----------
+    all_raw_files : list
+        List of raw url paths string
+    config : dict
+        Pipeline configuration
+
+    Returns
+    -------
+    list
+        List of raw url paths dictionary
+    """
+    sonar_model = config.sonar_model
+    fname_pattern = config.raw_regex
+    transect_dict = {}
+  
+    if config.args.transect is not None:
+        # When transect info is available, extract it
+        file_input = config.args.transect.file
+        storage_options = config.args.transect.storage_options
+        if isinstance(file_input, str):
+            filename = os.path.basename(file_input)
+            _, ext = os.path.splitext(filename)
+            transect_dict = extract_transect_files(ext.strip("."), file_input, storage_options)
+        else:
+            transect_dict = {}
+            for f in file_input:
+                filename = os.path.basename(f)
+                _, ext = os.path.splitext(filename)
+                result = extract_transect_files(ext.strip("."), f, storage_options)
+                transect_dict.update(result)
+
+    raw_file_dicts = []
+    for raw_file in all_raw_files:
+        # get transect info from the transect_dict above
+        transect = transect_dict.get(os.path.basename(raw_file), {})
+        transect_num = transect.get("num", None)
+        if (config.args.transect is None) or (
+            config.args.transect is not None and transect_num is not None
+        ):
+            # Only adds to the list if not transect
+            # if it's a transect, ensure it has a transect number
+            raw_file_dicts.append(
+                dict(
+                    instrument=sonar_model,
+                    file_path=raw_file,
+                    transect_num=transect_num,
+                    **parse_file_path(raw_file, fname_pattern),
+                )
+            )
+    return raw_file_dicts
+
+
+@task(persist_result=True, result_storage=LocalFileSystem(basepath='results'), result_storage_key="clubbing", result_serializer=JSONSerializer())
+@echoflow(processing_stage="Configuration")
 def club_raw_files(
     config: Dataset,
     raw_dicts: List[Dict[str, Any]] = [],
@@ -368,76 +384,48 @@ def club_raw_files(
     broken up to 7 julian days each chunk
     """
 
-    
-    process = Process(name="club_raw_files", status=False)
 
-    try:
-        if len(raw_dicts) == 0:
-            if raw_url_file is None:
-                raise ValueError("Must have raw_dicts or raw_url_file present.")
-            file_system = extract_fs(
-                raw_url_file, storage_options=json_storage_options
-            )
-            with file_system.open(raw_url_file) as f:
-                raw_dicts = json.load(f)
+    if len(raw_dicts) == 0:
+        if raw_url_file is None:
+            raise ValueError("Must have raw_dicts or raw_url_file present.")
+        file_system = extract_fs(
+            raw_url_file, storage_options=json_storage_options
+        )
+        with file_system.open(raw_url_file) as f:
+            raw_dicts = json.load(f)
 
-        if config.args.transect is not None:
-            # Transect, split by transect spec
-            raw_dct = {}
-            for r in raw_dicts:
-                transect_num = r['transect_num']
-                if transect_num not in raw_dct:
-                    raw_dct[transect_num] = []
-                raw_dct[transect_num].append(r)
+    if config.args.transect is not None:
+        # Transect, split by transect spec
+        raw_dct = {}
+        for r in raw_dicts:
+            transect_num = r['transect_num']
+            if transect_num not in raw_dct:
+                raw_dct[transect_num] = []
+            raw_dct[transect_num].append(r)
 
-            all_files = [
-                sorted(raw_list, key=lambda a: a['datetime'])
-                for raw_list in raw_dct.values()
-            ]
-        else:
-            # Number of days for a week chunk
-            n = 7
+        all_files = [
+            sorted(raw_list, key=lambda a: a['datetime'])
+            for raw_list in raw_dct.values()
+        ]
+    else:
+        # Number of days for a week chunk
+        n = 7
 
-            all_jdays = sorted({r.get("jday") for r in raw_dicts})
-            split_days = [
-                all_jdays[i : i + n] for i in range(0, len(all_jdays), n)
-            ]  # noqa
+        all_jdays = sorted({r.get("jday") for r in raw_dicts})
+        split_days = [
+            all_jdays[i : i + n] for i in range(0, len(all_jdays), n)
+        ]  # noqa
 
-            day_dict = {}
-            for r in raw_dicts:
-                mint = r.get("jday")
-                if mint not in day_dict:
-                    day_dict[mint] = []
-                day_dict[mint].append(r)
+        day_dict = {}
+        for r in raw_dicts:
+            mint = r.get("jday")
+            if mint not in day_dict:
+                day_dict[mint] = []
+            day_dict[mint].append(r)
 
-            all_files = []
-            for week in split_days:
-                files = list(it.chain.from_iterable([day_dict[d] for d in week]))
-                all_files.append(files)
+        all_files = []
+        for week in split_days:
+            files = list(it.chain.from_iterable([day_dict[d] for d in week]))
+            all_files.append(files)
 
-        process.status = True
-        return all_files
-    except Exception as e:
-        process.error = e
-        raise e
-    finally:
-        add_new_process(process=process, name="Configuration")
-
-   
-
-@task
-def get_prefect_config_dict(prefect_config : Dict[str, Any]):
-    updated_config = {}
-    for key, value in prefect_config.items():
-        if type(value) == str and '(' in value and ')' in value:
-            class_name, params_str = value.split('(', 1)
-            params_str = params_str.rstrip(')')
-            parameters = {}
-            for param in params_str.split(','):
-                param_key, param_value = param.split('=')
-                parameters[param_key.strip()] = param_value.strip()
-            class_object = globals()[class_name](**parameters)
-            updated_config[key] = class_object
-        else:
-            updated_config[key] = value
-    return updated_config
+    return all_files

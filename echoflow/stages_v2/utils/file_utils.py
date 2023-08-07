@@ -16,17 +16,10 @@ def download_temp_file(raw, temp_raw_dir, stage: Stage):
 
     urlpath = raw.get("file_path")
     fname = os.path.basename(urlpath)
-    
-    if stage.options.get("out_path") is None:
-        rout_path = temp_raw_dir
-    else:
-        rout_path = Path(stage.options.get("out_path"))
-        if os.path.exists(rout_path) == False:
-            make_temp_folder.fn(rout_path)
 
-    out_path = rout_path / fname
+    out_path = temp_raw_dir / fname
 
-    if stage.options.get("use_offline") == False or os.path.isfile(out_path) == False:
+    if stage.options.get("use_raw_offline") == False or os.path.isfile(out_path) == False:
         print("Downloading ...", out_path)
         file_system = extract_fs(urlpath)
         with file_system.open(urlpath, 'rb') as source_file:
@@ -36,7 +29,7 @@ def download_temp_file(raw, temp_raw_dir, stage: Stage):
     raw.update({"local_path": out_path})
     return raw
 
-@task
+
 def make_temp_folder(folder_name:str):
     """
     Make temporary echopype folder locally at
@@ -44,6 +37,7 @@ def make_temp_folder(folder_name:str):
     """
     temp_raw_dir = Path(folder_name)
     temp_raw_dir.mkdir(exist_ok=True, parents=True)
+    os.chmod(temp_raw_dir, 0o777)
     return temp_raw_dir
 
 @task
