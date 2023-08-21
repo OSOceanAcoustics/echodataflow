@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Union
 import psutil
 import yaml
-from echoflow.config.models.dataset import Dataset
+from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.db_log_model import DB_Log, Log_Data, Process
 from echoflow.config.models.pipeline import Recipe
 from echoflow.stages_v2.utils.databse_utils import (

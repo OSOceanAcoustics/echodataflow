@@ -1,7 +1,8 @@
 active_recipe: standard
 use_previous_run: false
 database_path: ./echoflow_db/
-use_local_dask: true 
+# use_local_dask: true 
+# scheduler_address: tcp://127.0.0.1:61918
 pipeline:
 - recipe_name: standard
   generate_graph: false
@@ -15,16 +16,23 @@ pipeline:
       save_output: true
       use_raw_offline: true
       use_offline: true
-      out_path: ./temp_files
+      # out_path: ./temp_files
     prefect_config:
       retries: 0
-      # task_runner: DaskTaskRunner(address=127.0.0.1:4200)
+      # task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
       # persist_result: true
       # result_storage: LocalFileSystem(basepath=my-results)
   - name: echoflow_combine_echodata
     module: echoflow.stages_v2.subflows.combine_echodata
-  # - name: compute_SV
-  #   module: echoflow.stages_v2.subflows.compute_SV
+    options:
+      use_offline: true
+    # prefect_config:
+    #   retries: 0
+    #   task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
+  - name: echoflow_compute_SV
+    module: echoflow.stages_v2.subflows.compute_SV
+    options:
+      use_offline: true
   # - name: compute_MVBS
   #   module: echoflow.stages_v2.subflows.compute_MVBS
   #   external_params:

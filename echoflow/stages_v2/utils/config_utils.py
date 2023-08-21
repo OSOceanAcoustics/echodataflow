@@ -1,8 +1,8 @@
+import asyncio
+import nest_asyncio
 import json
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
-from urllib.parse import urlparse
-from distributed import LocalCluster
-import fsspec
+from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
+from prefect_aws import AwsCredentials
 import yaml
 import itertools as it
 import os
@@ -10,20 +10,19 @@ from dateutil import parser
 import re
 from zipfile import ZipFile
 
-from echoflow.config.models.dataset import Dataset, StorageOptions
+from echoflow.config.models.datastore import Dataset, StorageOptions, StorageType
 
 from prefect import task
 from prefect.filesystems import *
-from prefect.serializers import JSONSerializer
-from prefect_dask import DaskTaskRunner
 from prefect.task_runners import *
 from echoflow.config.models.pipeline import Recipe, Stage
 
 from echoflow.stages_v2.aspects.echoflow_aspect import echoflow
+from echoflow.stages_v2.utils.file_utils import make_temp_folder, extract_fs
 
 
 TRANSECT_FILE_REGEX = r"x(?P<transect_num>\d+)"
-
+nest_asyncio.apply(asyncio.get_event_loop())
 
 @task
 def extract_config(
@@ -50,7 +49,7 @@ def check_config(dataset_config: Dict[str, Any], pipeline_config: Dict[str, Any]
 
 
 
-def glob_url(path: str, storage_options: StorageOptions) -> List[str]:
+def glob_url(path: str, storage_options: Dict[str, Any]={}) -> List[str]:
     """
     Glob files based on given path string,
     using fsspec.filesystem.glob
@@ -67,45 +66,16 @@ def glob_url(path: str, storage_options: StorageOptions) -> List[str]:
     -------
     List of paths from glob
     """
-
-    file_system, scheme = extract_fs(path, dict(storage_options), include_scheme=True)
+    
+    file_system, scheme = extract_fs(path, storage_options, include_scheme=True)
     all_files = [f if f.startswith(scheme) else f"{scheme}://{f}" for f in file_system.glob(path)]
     return all_files
-
-
-def extract_fs(
-    url: str,
-    storage_options: Dict[Any, Any] = {},
-    include_scheme: bool = False,
-) -> Union[Tuple[Any, str], Any]:
-    """
-    Extract the fsspec file system from a url path.
-
-    Parameters
-    ----------
-    url : str
-        The url path string to be parsed and file system extracted
-    storage_options : dict
-        Additional keywords to pass to the filesystem class
-    include_scheme : bool
-        Flag to include scheme in the output of the function
-
-    Returns
-    -------
-    Filesystem for given protocol and arguments
-    """
-
-    parsed_path = urlparse(url)
-    file_system = fsspec.filesystem(parsed_path.scheme, **storage_options)
-    if include_scheme:
-        return file_system, parsed_path.scheme
-    return file_system
 
 
 def extract_transect_files(
     file_format: Literal["txt", "zip"],
     file_path: str,
-    storage_options: StorageOptions,
+    storage_options: Dict[str, Any] = {},
 ) -> Dict[str, Dict[str, Any]]:
     """
     Extracts raw file names and transect number from transect file(s)
@@ -139,7 +109,7 @@ def extract_transect_files(
         ```
 
     """
-    file_system = extract_fs(file_path, storage_options=dict(storage_options))
+    file_system = extract_fs(file_path, storage_options=storage_options)
 
     if file_format == "zip":
         return _extract_from_zip(file_system, file_path)
@@ -225,7 +195,7 @@ def parse_file_path(raw_file: str, fname_pattern: str) -> Dict[str, Any]:
 
 
 @task
-def get_prefect_config_dict(stage: Stage, pipeline: Recipe):
+def get_prefect_config_dict(stage: Stage, pipeline: Recipe, prefect_config_dict: Dict[str, Any]):
     prefect_config : Dict[str, Any] = stage.prefect_config
     updated_config = {}
     if(stage.prefect_config is not None):
@@ -242,13 +212,6 @@ def get_prefect_config_dict(stage: Stage, pipeline: Recipe):
                 updated_config[key] = class_object
             else:
                 updated_config[key] = value
-    if pipeline.use_local_dask == True and updated_config.get("task_runner") is None:
-        if pipeline.scheduler_address is not None:
-            updated_config["task_runner"] = DaskTaskRunner(address=pipeline.scheduler_address)
-        else:
-            cluster = LocalCluster()
-            updated_config["task_runner"] = DaskTaskRunner(address=cluster.scheduler_address)
-            pipeline.scheduler_address = cluster.scheduler_address
     return updated_config
 
 @task
@@ -270,8 +233,7 @@ def glob_all_files(config: Dataset) -> List[str]:
     """
     total_files = []
     data_path = config.args.rendered_path
-    storage_options = config.args.storage_options
-    
+    storage_options = config.args.storage_options_dict
     if data_path is not None:
         if isinstance(data_path, list):
             for path in data_path:
@@ -307,10 +269,10 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
     fname_pattern = config.raw_regex
     transect_dict = {}
   
-    if config.args.transect is not None:
+    if config.args.transect is not None and config.args.transect.file is not None:
         # When transect info is available, extract it
         file_input = config.args.transect.file
-        storage_options = config.args.transect.storage_options
+        storage_options = config.args.transect.storage_options_dict
         if isinstance(file_input, str):
             filename = os.path.basename(file_input)
             _, ext = os.path.splitext(filename)
@@ -327,7 +289,7 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
     for raw_file in all_raw_files:
         # get transect info from the transect_dict above
         transect = transect_dict.get(os.path.basename(raw_file), {})
-        transect_num = transect.get("num", None)
+        transect_num = transect.get("num", config.args.transect.default_transect_num)
         if (config.args.transect is None) or (
             config.args.transect is not None and transect_num is not None
         ):
@@ -341,16 +303,23 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
                     **parse_file_path(raw_file, fname_pattern),
                 )
             )
+    print(raw_file_dicts)
+    if config.args.json_export:
+        out_path = make_temp_folder(config.output.urlpath+"/raw_json", config.output.storage_options_dict)
+        out_path = out_path+"/"+config.name+".json"
+        fs = extract_fs(out_path, config.output.storage_options_dict)
+        with fs.open(out_path, mode="w") as f:
+            json.dump(raw_file_dicts, f)
     return raw_file_dicts
 
 
-@task(persist_result=True, result_storage=LocalFileSystem(basepath='results'), result_storage_key="clubbing", result_serializer=JSONSerializer())
+@task
 @echoflow(processing_stage="Configuration")
 def club_raw_files(
     config: Dataset,
     raw_dicts: List[Dict[str, Any]] = [],
     raw_url_file: Optional[str] = None,
-    json_storage_options: Dict[Any, Any] = {}
+    json_storage_options: StorageOptions = None
 ) -> List[List[Dict[str, Any]]]:
     """
     Task to parse raw urls json files and splits them into
@@ -387,7 +356,7 @@ def club_raw_files(
 
     if len(raw_dicts) == 0:
         if raw_url_file is None:
-            raise ValueError("Must have raw_dicts or raw_url_file present.")
+            raise ValueError("Must have raw_dicts or raw_json_path present.")
         file_system = extract_fs(
             raw_url_file, storage_options=json_storage_options
         )
@@ -427,5 +396,28 @@ def club_raw_files(
         for week in split_days:
             files = list(it.chain.from_iterable([day_dict[d] for d in week]))
             all_files.append(files)
-
     return all_files
+
+def get_storage_options(storage_options: Block = None) -> Dict[str, Any] :
+    storage_options_dict: Dict[str, Any]  = {}
+    if storage_options is not None:
+        if isinstance(storage_options, AwsCredentials):
+            storage_options_dict["key"] = storage_options.aws_access_key_id
+            storage_options_dict["secret"] = storage_options.aws_secret_access_key.get_secret_value()
+            if storage_options.aws_session_token:
+                storage_options_dict["token"] = storage_options.aws_session_token
+    
+    return storage_options_dict
+
+
+def load_block(name: str = None, type: StorageType =  None):
+    if name is None or type is None:
+        raise ValueError("Cannot load block without name")
+    
+    if type == StorageType.AWS:
+        coro = AwsCredentials.load(name=name)
+        if isinstance(coro, Coroutine):
+            block = nest_asyncio.asyncio.run(coro)
+        else:
+            block = coro
+    return block

@@ -1,6 +1,6 @@
 from typing import List, Union
 import echopype as ep
-from echoflow.config.models.dataset import Dataset
+from echoflow.config.models.datastore import Dataset
 
 from echoflow.config.models.output_model import Output
 from echoflow.config.models.pipeline import Stage

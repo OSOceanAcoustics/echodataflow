@@ -11,6 +11,14 @@ args:
     anon: true
   transect:
     file: ./Hake.zip
+    # file: ./x0007_fileset.txt
+    # default_transect_num: 1
+  json_export: true
+  raw_json_path: s3://echoflow-workground/combined_files/raw_json/Bell_M._Shimada-SH1707-EK60.json
 output:
   urlpath: ./combined_files
+  # urlpath: s3://echoflow-workground/combined_files
   overwrite: true
+  # storage_options:
+  #   block_name: echoflow-aws-credentials
+  #   type: AWS
