@@ -73,32 +73,36 @@ def init_flow(
 
     process_list = pipeline.pipeline
     client: Client = None
+    process = None
     for process in process_list:
-        for stage in process.stages:
-            function = dynamic_function_call(stage.module, stage.name)
-            prefect_config_dict = get_prefect_config_dict(
-                stage, pipeline, prefect_config_dict)
+        if process.recipe_name == pipeline.active_recipe:
+            active_pipeline = process 
+    
+    for stage in active_pipeline.stages:
+        function = dynamic_function_call(stage.module, stage.name)
+        prefect_config_dict = get_prefect_config_dict(
+            stage, pipeline, prefect_config_dict)
 
-            if pipeline.scheduler_address is not None and pipeline.use_local_dask == False:
-                if client is None:
-                    client = Client(pipeline.scheduler_address)
-                prefect_config_dict["task_runner"] = DaskTaskRunner(
-                    address=client.scheduler.address)
-            elif pipeline.use_local_dask == True and prefect_config_dict is not None and prefect_config_dict.get("task_runner") is None:
-                if client is None:
-                    cluster = LocalCluster(n_workers=3)
-                    client = Client(cluster.scheduler_address)
-                prefect_config_dict["task_runner"] = DaskTaskRunner(
-                    address=client.scheduler.address)
+        if pipeline.scheduler_address is not None and pipeline.use_local_dask == False:
+            if client is None:
+                client = Client(pipeline.scheduler_address)
+            prefect_config_dict["task_runner"] = DaskTaskRunner(
+                address=client.scheduler.address)
+        elif pipeline.use_local_dask == True and prefect_config_dict is not None and prefect_config_dict.get("task_runner") is None:
+            if client is None:
+                cluster = LocalCluster(n_workers=3)
+                client = Client(cluster.scheduler_address)
+            prefect_config_dict["task_runner"] = DaskTaskRunner(
+                address=client.scheduler.address)
 
-            function = function.with_options(**prefect_config_dict)
-            print("-"*50)
-            print("\nExecuting stage : ", stage)
-            output = function(dataset, stage, data)
-            data = output
-            print(output)
-            print("\nCompleted stage", stage)
-            print("-"*50)
+        function = function.with_options(**prefect_config_dict)
+        print("-"*50)
+        print("\nExecuting stage : ", stage)
+        output = function(dataset, stage, data)
+        data = output
+        print(output)
+        print("\nCompleted stage", stage)
+        print("-"*50)
 
     # Close the local cluster but not the cluster hosted.
     if pipeline.scheduler_address is None and pipeline.use_local_dask == True:

@@ -1,4 +1,4 @@
-active_recipe: standard
+active_recipe: target_strength
 use_previous_run: false
 database_path: ./echoflow_db/
 # use_local_dask: true 
@@ -40,3 +40,26 @@ pipeline:
     external_params:
       range_meter_bin: 20 
       ping_time_bin: 20S
+- recipe_name: target_strength
+  generate_graph: false
+  stages:
+  - name: echoflow_open_raw
+    module: echoflow.stages.subflows.open_raw
+    external_params:
+      sonar_model: EK60
+      xml_path: s3//
+    options:
+      save_output: true
+      use_raw_offline: true
+      use_offline: true
+      # out_path: ./temp_files
+    prefect_config:
+      retries: 0
+      # task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
+      # persist_result: true
+      # result_storage: LocalFileSystem(basepath=my-results)
+  - name: echoflow_compute_TS
+    module: echoflow.stages.subflows.compute_TS
+    options:
+      use_offline: true
+
