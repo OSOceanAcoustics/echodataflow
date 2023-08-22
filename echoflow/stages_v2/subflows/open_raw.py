@@ -63,8 +63,7 @@ def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
     local_file = temp_file.get("local_path")
     local_file_name = os.path.basename(temp_file.get("local_path"))
     out_zarr = os.path.join(working_dir, str(raw.get("transect_num")) , local_file_name.replace(".raw", ".zarr"))
-    if stage.options.get("use_offline") == False or isFile(out_zarr) == False:
-        print("OPENING RAW")
+    if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
         ed = open_raw(raw_file=local_file, sonar_model=raw.get("instrument"), storage_options=config.output.storage_options_dict)
         ed.to_zarr(
                     save_path=str(out_zarr),

@@ -15,7 +15,7 @@ pipeline:
     options:
       save_output: true
       use_raw_offline: true
-      use_offline: true
+      use_offline: false
       # out_path: ./temp_files
     prefect_config:
       retries: 0
@@ -25,14 +25,14 @@ pipeline:
   - name: echoflow_combine_echodata
     module: echoflow.stages_v2.subflows.combine_echodata
     options:
-      use_offline: true
+      use_offline: false
     # prefect_config:
     #   retries: 0
     #   task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
   - name: echoflow_compute_SV
     module: echoflow.stages_v2.subflows.compute_SV
     options:
-      use_offline: true
+      use_offline: false
   # - name: compute_MVBS
   #   module: echoflow.stages_v2.subflows.compute_MVBS
   #   external_params:

@@ -25,7 +25,7 @@ def download_temp_file(raw, working_dir: str, stage: Stage, config: Dataset):
     out_path = working_dir+"/"+fname
     working_dir_fs = extract_fs(out_path, storage_options=config.output.storage_options_dict)
     
-    if stage.options.get("use_raw_offline") == False or isFile(out_path) == False:
+    if stage.options.get("use_raw_offline") == False or isFile(out_path, config.output.storage_options_dict) == False:
         
         print("Downloading ...", out_path)
         file_system = extract_fs(urlpath, storage_options=config.args.storage_options_dict)
@@ -112,7 +112,7 @@ def get_output_file_path(raw_dicts, config:Dataset):
         out_fname = f"x{transect_num:04}-{date_name}.zarr"
     return "/".join([config.output.urlpath, out_fname])
 
-def isFile(file_path: str, storage_options= {}):
+def isFile(file_path: str, storage_options: Dict[str, Any]= {}):
     fs = extract_fs(file_path, storage_options=storage_options)
     if file_path.endswith(".zarr"):
         return fs.isdir(file_path)

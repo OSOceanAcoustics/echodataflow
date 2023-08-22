@@ -28,14 +28,14 @@ handlers:
     filename: echoflow.log
     maxBytes: 1000000
     backupCount: 3
-  echoflow_watchtower:
-    class: watchtower.CloudWatchLogHandler
-    formatter: json
-    level: DEBUG
-    log_group_name: echoflow_logs
-    log_stream_name: echoflow_stream
-    send_interval: 10
-    create_log_group: False
+  # echoflow_watchtower:
+  #   class: watchtower.CloudWatchLogHandler
+  #   formatter: json
+  #   level: DEBUG
+  #   log_group_name: echoflow_logs
+  #   log_stream_name: echoflow_stream
+  #   send_interval: 10
+  #   create_log_group: False
 loggers:
   echoflow:
     level: DEBUG

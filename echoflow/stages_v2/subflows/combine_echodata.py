@@ -5,6 +5,7 @@ from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.output_model import Output
 from echoflow.config.models.pipeline import Stage
 from echopype import open_converted, combine_echodata, echodata
+from echoflow.stages_v2.aspects.echoflow_aspect import echoflow
 
 from prefect import task, flow
 from prefect_dask import get_dask_client
@@ -12,6 +13,7 @@ from echoflow.stages_v2.utils.file_utils import get_working_dir, get_ed_list, is
 from dask.distributed import Client, LocalCluster
 
 @flow
+@echoflow(processing_stage="combine-echodata", type="FLOW")
 def echoflow_combine_echodata(
     config: Dataset, stage: Stage, data: List[Output]
 ):
@@ -49,9 +51,10 @@ def process_combine_echodata(
     ed_list = []
     if type(out_data) == list and type(out_data[0]) == dict:
         out_zarr = os.path.join(working_dir, str(out_data[0].get("transect")) + ".zarr")
-        if stage.options.get("use_offline") == False or isFile(out_zarr) == False:
+        if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
             ed_list = get_ed_list.fn(config=config, stage=stage, transect_data=out_data)
             ceds = combine_echodata(echodata_list=ed_list)
+            print("Ceds", ceds)
             ceds.to_zarr(
             save_path=out_zarr,
             overwrite=True,

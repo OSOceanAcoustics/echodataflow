@@ -5,6 +5,7 @@ from echoflow.config.models.datastore import Dataset
 
 from echoflow.config.models.output_model import Output
 from echoflow.config.models.pipeline import Stage
+from echoflow.stages_v2.aspects.echoflow_aspect import echoflow
 
 from prefect import flow, task
 
@@ -12,6 +13,7 @@ from echoflow.stages_v2.utils.file_utils import get_ed_list, get_working_dir
 
 
 @flow
+@echoflow(processing_stage="compute-sv", type="FLOW")
 def echoflow_compute_SV(config: Dataset, stage: Stage, data: List[Output]):
     outputs: List[Output] = []
     futures = []
