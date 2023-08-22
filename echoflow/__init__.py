@@ -1,5 +1,5 @@
 from pkg_resources import DistributionNotFound, get_distribution
-from .stages_v2.subflows.echoflow import (
+from .stages.subflows.echoflow import (
     echoflow_start,
     echoflow_create_prefect_profile,
     load_profile,
@@ -8,7 +8,7 @@ from .stages_v2.subflows.echoflow import (
     get_active_profile,
 )
 from .config.models.datastore import StorageType
-from .stages_v2.utils.config_utils import load_block
+from .stages.utils.config_utils import load_block
 
 
 try:

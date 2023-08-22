@@ -1,0 +1,153 @@
+"""
+Echoflow Open Raw Stage
+
+This module defines a Prefect Flow and associated tasks for the Echoflow Open Raw stage.
+The stage involves processing raw sonar data files, converting them to zarr format, and
+organizing the processed data based on transects.
+
+Classes:
+    None
+
+Functions:
+    echoflow_open_raw(config: Dataset, stage: Stage, data: Union[str, List[List[Dict[str, Any]]]])
+    process_raw(raw, working_dir: str, config: Dataset, stage: Stage)
+
+Author: Soham Butala
+Email: sbutala@uw.edu
+Date: August 22, 2023
+"""
+import os
+from pathlib import Path
+from typing import Any, Dict, List, Union
+
+from echoflow.config.models.datastore import Dataset
+from echoflow.config.models.output_model import Output
+from echoflow.config.models.pipeline import Stage
+from echoflow.stages.aspects.echoflow_aspect import echoflow
+from echoflow.stages.utils.file_utils import download_temp_file, isFile, get_working_dir
+from echopype import open_raw, open_converted
+from prefect import flow, task
+from prefect_dask import DaskTaskRunner, get_dask_client
+from distributed import LocalCluster
+
+
+@flow
+@echoflow(processing_stage="open-raw", type="FLOW")
+def echoflow_open_raw(config: Dataset, stage: Stage, data: Union[str, List[List[Dict[str, Any]]]]):
+    """
+    Process raw sonar data files and convert them to zarr format.
+
+    Args:
+        config (Dataset): Configuration for the dataset being processed.
+        stage (Stage): Configuration for the current processing stage.
+        data (Union[str, List[List[Dict[str, Any]]]]): Data to be processed.
+
+    Returns:
+        List[Output]: List of processed outputs organized based on transects.
+
+    Example:
+        # Define configuration and data
+        dataset_config = ...
+        pipeline_stage = ...
+        raw_data = ...
+
+        # Execute the Echoflow Open Raw stage
+        processed_outputs = echoflow_open_raw(
+            config=dataset_config,
+            stage=pipeline_stage,
+            data=raw_data
+        )
+        print("Processed outputs:", processed_outputs)
+    """
+
+    working_dir = get_working_dir(stage=stage, config=config)
+
+    ed_list = []
+    futures = []
+    outputs: List[Output] = []
+
+    # Dealing with single file
+    if type(data) == str or type(data) == Path:
+        ed = process_raw(data, working_dir, config, stage)
+        output = Output()
+        output.data = ed
+        outputs.append(output)
+    else:
+        for raw_dicts in data:
+            for raw in raw_dicts:
+                new_processed_raw = process_raw.with_options(
+                    task_run_name=raw.get("file_path"), name=raw.get("file_path")
+                )
+                future = new_processed_raw.submit(
+                    raw, working_dir, config, stage)
+                futures.append(future)
+
+        ed_list = [f.result() for f in futures]
+
+        transect_dict = {}
+        for ed in ed_list:
+            transect = ed['transect']
+            if transect in transect_dict:
+                transect_dict[transect].append(ed)
+            else:
+                transect_dict[transect] = [ed]
+
+        for transect in transect_dict.keys():
+            output = Output()
+            output.data = transect_dict[transect]
+            outputs.append(output)
+
+    return outputs
+
+
+@task()
+def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
+    """
+    Process a single raw sonar data file.
+
+    Args:
+        raw (str): Path to the raw data file.
+        working_dir (str): Working directory for processing.
+        config (Dataset): Configuration for the dataset being processed.
+        stage (Stage): Configuration for the current processing stage.
+
+    Returns:
+        Dict[str, Any]: Processed output information.
+
+    Example:
+        # Define raw data, working directory, and configurations
+        raw_file = "path/to/raw_data.raw"
+        working_directory = "path/to/working_dir"
+        dataset_config = ...
+        pipeline_stage = ...
+
+        # Process the raw data
+        processed_output = process_raw(
+            raw=raw_file,
+            working_dir=working_directory,
+            config=dataset_config,
+            stage=pipeline_stage
+        )
+        print("Processed output:", processed_output)
+    """
+
+    temp_file = download_temp_file(raw, working_dir, stage, config)
+    local_file = temp_file.get("local_path")
+    local_file_name = os.path.basename(temp_file.get("local_path"))
+    out_zarr = os.path.join(working_dir, str(
+        raw.get("transect_num")), local_file_name.replace(".raw", ".zarr"))
+    if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
+        ed = open_raw(raw_file=local_file, sonar_model=raw.get(
+            "instrument"), storage_options=config.output.storage_options_dict)
+        ed.to_zarr(
+            save_path=str(out_zarr),
+            overwrite=True,
+            output_storage_options=config.output.storage_options_dict,
+            compute=False
+        )
+        del ed
+
+        if stage.options.get("save_output") == False:
+            local_file.unlink()
+
+    return {'out_path': out_zarr, 'transect': raw.get("transect_num"), 'file_name': local_file_name}

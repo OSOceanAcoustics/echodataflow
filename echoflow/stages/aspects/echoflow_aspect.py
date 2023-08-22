@@ -1,10 +1,47 @@
+"""
+Module containing a decorator for logging and aspect-oriented programming in echoflow.
+
+This module provides a decorator called `echoflow` which is used for logging and
+aspect-oriented programming in the echoflow framework.
+
+Functions:
+    echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
+        A decorator used to log function entry and exit, as well as modify arguments
+        based on the execution context.
+
+Author: Soham Butala
+Email: sbutala@uw.edu
+Date: August 22, 2023
+"""
 import functools
 import logging
-from echoflow.stages_v2.aspects.singleton_echoflow import Singleton_Echoflow
-from echoflow.stages_v2.utils.rest_utils import get_last_run_history
+from echoflow.stages.aspects.singleton_echoflow import Singleton_Echoflow
+from echoflow.stages.utils.rest_utils import get_last_run_history
 
 
 def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
+    """
+    Decorator for logging and aspect-oriented programming in the echoflow framework.
+
+    This decorator is used to log the entry and exit of a decorated function, as well as
+    modify the function's arguments based on the execution context. It supports two types
+    of execution: "TASK" and "FLOW". For a "FLOW" execution, if a processing stage other
+    than the default is provided, it fetches the history of the last run for that stage
+    and modifies the arguments accordingly.
+
+    Args:
+        processing_stage (str, optional): The processing stage identifier. Defaults to "DEFAULT".
+        type (str, optional): The type of execution, either "TASK" or "FLOW". Defaults to "TASK".
+
+    Returns:
+        function: The decorated function.
+
+    Example:
+        @echoflow(processing_stage="StageA", type="FLOW")
+        def my_function(arg1, arg2):
+            # Function code here
+            pass
+    """
     def decorator(func=None):
         def before_function_call(
             gea: Singleton_Echoflow, type: str, processing_stage: str, *args, **kwargs
