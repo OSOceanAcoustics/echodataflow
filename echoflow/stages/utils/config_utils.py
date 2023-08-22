@@ -308,7 +308,7 @@ def get_prefect_config_dict(stage: Stage, pipeline: Recipe, prefect_config_dict:
 
 
 @task
-@echoflow(processing_stage="Configuration")
+@echoflow(processing_stage="Configuration", type="CONFIG_TASK")
 def glob_all_files(config: Dataset) -> List[str]:
     """
     Fetches individual file URLs from a source path in the Dataset configuration.
@@ -339,7 +339,7 @@ def glob_all_files(config: Dataset) -> List[str]:
 
 
 @task
-@echoflow(processing_stage="Configuration")
+@echoflow(processing_stage="Configuration", type="CONFIG_TASK")
 def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any, Any]]:
     """
     Parses raw URL paths, extracts information, and creates a file dictionary.
@@ -409,7 +409,7 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
 
 
 @task
-@echoflow(processing_stage="Configuration")
+@echoflow(processing_stage="Configuration", type="CONFIG_TASK")
 def club_raw_files(
     config: Dataset,
     raw_dicts: List[Dict[str, Any]] = [],

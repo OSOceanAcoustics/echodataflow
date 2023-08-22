@@ -8,7 +8,7 @@ pipeline:
   generate_graph: false
   stages:
   - name: echoflow_open_raw
-    module: echoflow.stages_v2.subflows.open_raw
+    module: echoflow.stages.subflows.open_raw
     external_params:
       sonar_model: EK60
       xml_path: s3//
@@ -23,18 +23,18 @@ pipeline:
       # persist_result: true
       # result_storage: LocalFileSystem(basepath=my-results)
   - name: echoflow_combine_echodata
-    module: echoflow.stages_v2.subflows.combine_echodata
+    module: echoflow.stages.subflows.combine_echodata
     options:
       use_offline: true
     # prefect_config:
     #   retries: 0
     #   task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
   - name: echoflow_compute_SV
-    module: echoflow.stages_v2.subflows.compute_SV
+    module: echoflow.stages.subflows.compute_SV
     options:
       use_offline: true
   - name: echoflow_compute_MVBS
-    module: echoflow.stages_v2.subflows.compute_MVBS
+    module: echoflow.stages.subflows.compute_MVBS
     options:
       use_offline: true
     external_params:

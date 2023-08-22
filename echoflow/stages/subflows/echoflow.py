@@ -239,7 +239,7 @@ def echoflow_start(
         active_profile = get_active_profile()
         if active_profile["PREFECT_API_KEY"] is not None:
             raise ValueError(
-                "Please connect to internet or consider switching to a local prefect environment. This can be done by calling load_profile('echoflow-local') method."
+                "Please connect to internet or consider switching to a local prefect environment. This can be done by calling load_profile(name_of_local_prefect_profile or 'echoflow-local' if no prefect profile was created) method."
             )
         else:
             print("Using a local prefect environment. To go back to your cloud workspace call load_profile(<name>) with <name> of your cloud profile.")

@@ -26,7 +26,7 @@ from echoflow.stages.aspects.echoflow_aspect import echoflow
 
 from prefect import task, flow
 from prefect_dask import get_dask_client
-from echoflow.stages.utils.file_utils import get_working_dir, get_ed_list, isFile
+from echoflow.stages.utils.file_utils import get_working_dir, get_ed_list, isFile, process_output_transects
 from dask.distributed import Client, LocalCluster
 
 
@@ -81,7 +81,8 @@ def echoflow_combine_echodata(
                 config=config, stage=stage, out_data=data, working_dir=working_dir)
             futures.append(future)
 
-        outputs = [f.result() for f in futures]
+        ed_list = [f.result() for f in futures]
+        outputs = process_output_transects(name=stage.name, ed_list=ed_list)
     return outputs
 
 
@@ -137,9 +138,8 @@ def process_combine_echodata(
                 compute=False
             )
             del ceds
-        output = Output()
-        output.data = [{'out_path': out_zarr, 'transect': out_data[0].get(
-            "transect"), 'file_name': str(out_data[0].get("transect")) + ".zarr"}]
+        return {'out_path': out_zarr, 'transect': out_data[0].get(
+            "transect"), 'file_name': str(out_data[0].get("transect")) + ".zarr", 'error': False}
     else:
         out_zarr = os.path.join(
             working_dir, "default", + "Default_Transect.zarr")
@@ -156,7 +156,5 @@ def process_combine_echodata(
                 compute=False
             )
             del ceds
-        output = Output()
-        output.data = [{'out_path': out_zarr, 'transect': "Default_Transect",
-                        'file_name': 'Default_Transect.zarr'}]
-    return output
+        return {'out_path': out_zarr, 'transect': "Default_Transect",
+                        'file_name': 'Default_Transect.zarr', 'error': False}

@@ -293,3 +293,52 @@ def get_zarr_list(config: Dataset, stage: Stage, transect_data: Union[Output, Di
         zarr_list.append(zarr)
 
     return zarr_list
+
+def process_output_transects(name: str, ed_list: List[Dict[str, Any]]) -> List[Output]:
+    """
+    Process and aggregate output transects.
+
+    This function processes a list of echodata (ed) dictionaries and aggregates them based on transect numbers.
+    It raises a ValueError if any of the echodata dictionaries have an error flag set to True.
+
+    Parameters:
+        name (str): The name of the process.
+        ed_list (List[Dict[str, Any]]): A list of echodata dictionaries.
+
+    Returns:
+        List[Output]: A list of Output instances, each containing aggregated data for a transect.
+
+    Raises:
+        ValueError: If any echodata dictionary has an error flag set to True.
+
+    Example:
+        ed_list = [
+            {"transect": 1, "data": {...}, "error": False},
+            {"transect": 1, "data": {...}, "error": False},
+            {"transect": 2, "data": {...}, "error": False},
+            {"transect": 2, "data": {...}, "error": False},
+            {"transect": 2, "data": {...}, "error": True}
+        ]
+
+        output_list = process_output_transects("Data Processing", ed_list)
+        # Returns a list of Output instances with aggregated data per transect.
+
+    """
+    transect_dict = {}
+    outputs: List[Output] = []
+    for ed in ed_list:
+        if ed["error"] == True:
+            raise ValueError("Could not complete "+name+" successfully since 1 or more raw files" 
+                                + "failed to convert. Try fixing or skipping the files from the process."
+                                + "If `use_offline` flag is set to true, processed files will be skipped the next run.")
+        transect = ed['transect']
+        if transect in transect_dict:
+            transect_dict[transect].append(ed)
+        else:
+            transect_dict[transect] = [ed]
+
+    for transect in transect_dict.keys():
+        output = Output()
+        output.data = transect_dict[transect]
+        outputs.append(output)
+    return outputs

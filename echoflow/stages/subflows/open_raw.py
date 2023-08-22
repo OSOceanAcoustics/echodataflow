@@ -24,7 +24,7 @@ from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.output_model import Output
 from echoflow.config.models.pipeline import Stage
 from echoflow.stages.aspects.echoflow_aspect import echoflow
-from echoflow.stages.utils.file_utils import download_temp_file, isFile, get_working_dir
+from echoflow.stages.utils.file_utils import download_temp_file, isFile, get_working_dir, process_output_transects
 from echopype import open_raw, open_converted
 from prefect import flow, task
 from prefect_dask import DaskTaskRunner, get_dask_client
@@ -84,23 +84,13 @@ def echoflow_open_raw(config: Dataset, stage: Stage, data: Union[str, List[List[
 
         ed_list = [f.result() for f in futures]
 
-        transect_dict = {}
-        for ed in ed_list:
-            transect = ed['transect']
-            if transect in transect_dict:
-                transect_dict[transect].append(ed)
-            else:
-                transect_dict[transect] = [ed]
-
-        for transect in transect_dict.keys():
-            output = Output()
-            output.data = transect_dict[transect]
-            outputs.append(output)
+        outputs = process_output_transects(name=stage.name, ed_list=ed_list)
 
     return outputs
 
 
 @task()
+@echoflow(processing_stage="Open-Raw")
 def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
     """
     Process a single raw sonar data file.
@@ -150,4 +140,4 @@ def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
         if stage.options.get("save_output") == False:
             local_file.unlink()
 
-    return {'out_path': out_zarr, 'transect': raw.get("transect_num"), 'file_name': local_file_name}
+    return {'out_path': out_zarr, 'transect': raw.get("transect_num"), 'file_name': local_file_name, 'error': False}
