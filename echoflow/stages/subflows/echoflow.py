@@ -17,17 +17,22 @@ Functions:
     update_base_config(name: str, b_type: str, active: bool = False, options: Dict[str, Any] = {})
     echoflow_config_AWS(aws_key: str, aws_secret: str, token: str = None, name: str = "echoflow-aws-credentials", region: str = None, options: Dict[str, Any] = {}, active: bool = False)
     echoflow_config_AZ_cosmos(name: str = "echoflow-az-credentials", connection_string: str = None, options: Dict[str, Any] = {}, active: bool = False)
+    load_credential_configuration(): Loads credentials from an `.ini` configuration file and creates corresponding credential blocks.
 
 Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 
+from enum import Enum
+import json
 import toml
 import asyncio
 import os
+import configparser
 from typing import Any, Dict, List, Optional, Union
-from echoflow.config.echoflow_config import BaseConfig, EchoflowConfig, EchoflowPrefectConfig
+from echoflow.config.models.echoflow_config import BaseConfig, EchoflowConfig, EchoflowPrefectConfig
+from echoflow.config.models.datastore import StorageType
 
 from echoflow.stages.subflows.pipeline_trigger import pipeline_trigger
 
@@ -35,8 +40,9 @@ from prefect.blocks.core import Block
 from prefect_aws import AwsCredentials
 from prefect_azure import AzureCosmosDbCredentials
 import socket
+from pydantic import SecretStr
 
-from echoflow.stages.utils.config_utils import get_storage_options
+from echoflow.stages.utils.config_utils import get_storage_options, load_block
 
 
 def check_internet_connection(host="8.8.8.8", port=53, timeout=5):
@@ -323,13 +329,13 @@ def update_prefect_config(
     return ecfg
 
 
-def update_base_config(name: str, b_type: str, active: bool = False, options: Dict[str, Any] = {}):
+def update_base_config(name: str, b_type: StorageType, active: bool = False, options: Dict[str, Any] = {}):
     """
     Update or create a base configuration in the echoflow configuration block.
 
     Args:
         name (str): Name of the configuration.
-        b_type (str): Type of the configuration.
+        b_type (StorageType): Type of the configuration.
         active (bool, optional): Set the configuration as active. Defaults to False.
         options (Dict[str, Any], optional): Additional options. Defaults to {}.
 
@@ -340,7 +346,7 @@ def update_base_config(name: str, b_type: str, active: bool = False, options: Di
         # Update or create a base configuration
         update_base_config(
             name="my-aws-config",
-            b_type="AwsCredentials",
+            b_type="AWS",
             active=True,
             options={"option_key": "option_value"}
         )
@@ -368,24 +374,25 @@ def update_base_config(name: str, b_type: str, active: bool = False, options: Di
 
 
 def echoflow_config_AWS(
-    aws_key: str,
-    aws_secret: str,
-    token: str = None,
+    aws_access_key_id: str,
+    aws_secret_access_key: str,
+    aws_session_token: str = None,
     name: str = "echoflow-aws-credentials",
-    region: str = None,
-    options: Dict[str, Any] = {},
+    region_name: str = None,
+    options: Union[str, Dict[str, Any]] = {},
     active: bool = False,
+    **kwargs
 ):
     """
     Configure AWS credentials in the echoflow configuration block.
 
     Args:
-        aws_key (str): AWS access key.
-        aws_secret (str): AWS secret access key.
-        token (str, optional): AWS session token. Defaults to None.
+        aws_access_key_id (str): AWS access key.
+        aws_secret_access_key (str): AWS secret access key.
+        aws_session_token (str, optional): AWS session token. Defaults to None.
         name (str, optional): Name of the configuration. Defaults to "echoflow-aws-credentials".
-        region (str, optional): AWS region name. Defaults to None.
-        options (Dict[str, Any], optional): Additional options. Defaults to {}.
+        region_name (str, optional): AWS region name. Defaults to None.
+        options (str, Dict[str, Any], optional): Additional options. Defaults to {}.
         active (bool, optional): Set the configuration as active. Defaults to False.
 
     Example:
@@ -401,19 +408,21 @@ def echoflow_config_AWS(
         )
     """
     coro = asyncio.run(AwsCredentials(
-        aws_access_key_id=aws_key,
-        aws_secret_access_key=aws_secret,
-        aws_session_token=token,
-        region_name=region,
+        aws_access_key_id=aws_access_key_id,
+        aws_secret_access_key=aws_secret_access_key,
+        aws_session_token=aws_session_token,
+        region_name=region_name,
     ).save(name, overwrite=True))
-
-    update_base_config(name=name, active=active, options=options, b_type="AwsCredentials")
+    if isinstance(options, str):
+        options = json.loads(options)
+    update_base_config(name=name, active=active, options=options, b_type=StorageType.AWS)
 
 def echoflow_config_AZ_cosmos(
     name: str = "echoflow-az-credentials",
     connection_string: str = None,
-    options: Dict[str, Any] = {},
+    options: Union[str, Dict[str, Any]] = {},
     active: bool = False,
+    **kwargs
 ):
     """
     Configure Azure Cosmos DB credentials in the local configuration file.
@@ -421,7 +430,7 @@ def echoflow_config_AZ_cosmos(
     Args:
         name (str, optional): Name of the configuration. Defaults to "echoflow-az-credentials".
         connection_string (str): Azure Cosmos DB connection string.
-        options (Dict[str, Any], optional): Additional options. Defaults to {}.
+        options (str, Dict[str, Any], optional): Additional options. Defaults to {}.
         active (bool, optional): Set the configuration as active. Defaults to False.
 
     Raises:
@@ -441,5 +450,93 @@ def echoflow_config_AZ_cosmos(
     coro = asyncio.run(AzureCosmosDbCredentials(
         connection_string=connection_string
     ).save(name, overwrite=True))
+    if isinstance(options, str):
+        options = json.loads(options)
+    update_base_config(name=name, active=active, options=options, b_type=StorageType.AZCosmos)
 
-    update_base_config(name=name, active=active, options=options, b_type="AzCredentials")
+def load_credential_configuration(sync: bool = False):
+    """
+    Load credentials from an `.ini` configuration file and create corresponding credential blocks.
+
+    This function reads the `credentials.ini` file from the `.echoflow` directory located in the user's home directory.
+    It parses the contents of the `.ini` file and creates credential blocks using Echoflow's `echoflow_config_AWS`
+    and `echoflow_config_AZ_cosmos` functions. Each section in the `.ini` file corresponds to a different type of
+    credential block, such as AWS and Azure Cosmos DB.
+
+    Args:
+        sync (bool): If True, syncs blocks updated using Prefect UI. Defaults to False.
+
+    Example:
+        If `credentials.ini` contains the following:
+
+        [AWS]
+        aws_key = my-access-key
+        aws_secret = my-secret-key
+        region = us-west-1
+
+        [AZCosmos]
+        name = my-az-cosmos-credentials
+        connection_string = my-connection-string
+
+        Calling `load_credential_configuration()` will create an AWS credential block with the provided credentials
+        and an Azure Cosmos DB credential block with the specified connection string.
+
+    Note:
+        - Ensure the `credentials.ini` file is correctly formatted with appropriate sections and keys.
+        - Supported section names are "AWS" and "AZCosmos".
+        - Any unrecognized sections will be reported.
+        - If `sync` is True, the function will sync blocks with the Prefect UI.
+
+    Raises:
+        FileNotFoundError: If the `credentials.ini` file is not found.
+        ValueError: If no Echoflow configuration is found when `sync` is True.
+    """
+    config = configparser.ConfigParser()
+    home_directory = os.path.expanduser("~")
+
+    # Create the directory if it doesn't exist
+    config_directory = os.path.join(home_directory, ".echoflow")
+    os.makedirs(config_directory, exist_ok=True)
+
+    # Write the .ini file
+    ini_file_path = os.path.join(config_directory, "credentials.ini")
+    config.read(ini_file_path)
+
+    if sync:
+        current_config: EchoflowConfig = None
+        try:
+            current_config = asyncio.run(EchoflowConfig.load("echoflow-config", validate=False))
+            if current_config is not None:
+
+                for base in current_config.blocks:
+       
+                    block = load_block(base.name, base.type)
+                    block_dict = dict(block)
+                    block_dict['name'] = base.name
+                    block_dict['active'] = base.active
+                    block_dict['options'] = json.dumps(base.options)
+                    block_dict['provider'] = base.type
+                    converted_dict = {}
+                    for key, value in block_dict.items():
+                        if isinstance(value, SecretStr):
+                            value = value.get_secret_value()
+                        if isinstance(value, Enum):
+                            value = value.value
+                        converted_dict[key] = str(value)
+                    config[base.name] = converted_dict
+                with open(ini_file_path, "w") as config_file:
+                    config.write(config_file) 
+        except ValueError:
+            raise("No Echoflow configuration found.")      
+    for section in config.sections():
+        provider = config.get(section,'provider')
+        data_dict = dict(config[section])
+        data_dict['name'] = section
+        data_dict.pop('provider')
+        if provider == "AWS":
+            echoflow_config_AWS(**data_dict)
+        elif provider == "AZCosmos":
+            echoflow_config_AZ_cosmos(**data_dict)
+        else:
+            print(f"Unknown section: {provider}")
+

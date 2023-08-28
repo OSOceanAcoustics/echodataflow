@@ -19,6 +19,8 @@ Functions:
     - add_new_process(self, process: Process, name: str): Add a new process to the DB_Log instance.
     - insert_log_data(self): Insert or update log data in the database.
     - log_memory_usage(self): Get the memory usage of the current process.
+    - get_possible_next_functions(self, function_name): Retrieve a list of functions that can potentially be executed next
+    - load(self): Load predefined rules from a file and establish dependency relationships
 
 Author: Soham Butala
 Email: sbutala@uw.edu
@@ -26,12 +28,14 @@ Date: August 22, 2023
 """
 from datetime import datetime
 import logging
+from pathlib import Path
 from typing import Dict, Union
 import psutil
 import yaml
 from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.db_log_model import DB_Log, Log_Data, Process
 from echoflow.config.models.pipeline import Recipe
+from echoflow.config.models.rule_engine.dependency_engine import DependencyEngine
 from echoflow.stages.utils.databse_utils import (
     create_log_table,
     get_connection,
@@ -44,6 +48,7 @@ from echoflow.stages.utils.databse_utils import (
 class Singleton_Echoflow:
     _instance: "Singleton_Echoflow" = None
 
+    rengine: DependencyEngine = DependencyEngine()
     pipeline: Recipe
     dataset: Dataset
     db_log: DB_Log
@@ -66,6 +71,7 @@ class Singleton_Echoflow:
         cls._instance.pipeline = pipeline
         cls._instance.dataset = dataset
         # cls._instance.db_log = cls._instance.setup_echoflow_db()
+        cls._instance.rengine = cls._instance.load()
         return cls._instance
 
     @classmethod
@@ -184,3 +190,44 @@ class Singleton_Echoflow:
         process = psutil.Process()
         mem = process.memory_info().rss
         return mem
+    
+    def get_possible_next_functions(self, function_name: str):
+        """
+        Get Possible Next Functions
+
+        Retrieve a list of functions that can potentially be executed next, according
+        to the defined rules and dependencies.
+
+        Args:
+            function_name (str): The name of the function that has completed.
+
+        Returns:
+            list: A list of functions that can be executed next.
+
+        Example:
+            # Get possible next functions after executing "data_download"
+            next_functions = executor.get_possible_next_functions(function_name="data_download")
+        """
+        return self.rengine.get_possible_next_functions(function_name)
+        
+    def load(self):
+        """
+        Load Rules and Dependencies
+
+        Load predefined rules from a file and establish dependency relationships
+        between functions using the DependencyEngine.
+
+        Returns:
+            DependencyEngine: The initialized DependencyEngine with loaded rules.
+
+        Example:
+            # Load rules from file and establish dependencies
+            loaded_rengine = executor.load()
+        """
+        rengine: DependencyEngine = DependencyEngine()
+        path = Path('../echoflow/config/models/rule_engine/echoflow_rules.txt')
+        with open(path, 'r') as file:
+            for line in file:
+                target, dependent = line.strip().split(':')
+                rengine.add_dependency(target_function=target, dependent_function=dependent)
+        return rengine

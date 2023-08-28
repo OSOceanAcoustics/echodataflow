@@ -19,6 +19,7 @@ from distributed import Client, LocalCluster
 
 from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.pipeline import Recipe
+from echoflow.stages.aspects.singleton_echoflow import Singleton_Echoflow
 from echoflow.stages.aspects.echoflow_aspect import echoflow
 from echoflow.stages.utils.config_utils import club_raw_files, get_prefect_config_dict, glob_all_files, parse_raw_paths
 from echoflow.stages.utils.function_utils import dynamic_function_call
@@ -78,6 +79,7 @@ def init_flow(
         if process.recipe_name == pipeline.active_recipe:
             active_pipeline = process 
     
+    prev_stage = None
     for stage in active_pipeline.stages:
         function = dynamic_function_call(stage.module, stage.name)
         prefect_config_dict = get_prefect_config_dict(
@@ -88,21 +90,24 @@ def init_flow(
                 client = Client(pipeline.scheduler_address)
             prefect_config_dict["task_runner"] = DaskTaskRunner(
                 address=client.scheduler.address)
+            print(client)
         elif pipeline.use_local_dask == True and prefect_config_dict is not None and prefect_config_dict.get("task_runner") is None:
             if client is None:
                 cluster = LocalCluster(n_workers=3)
                 client = Client(cluster.scheduler_address)
             prefect_config_dict["task_runner"] = DaskTaskRunner(
                 address=client.scheduler.address)
+            print(client)
 
         function = function.with_options(**prefect_config_dict)
         print("-"*50)
         print("\nExecuting stage : ", stage)
-        output = function(dataset, stage, data)
+        output = function(dataset, data, stage, prev_stage)
         data = output
         print(output)
         print("\nCompleted stage", stage)
         print("-"*50)
+        prev_stage = stage
 
     # Close the local cluster but not the cluster hosted.
     if pipeline.scheduler_address is None and pipeline.use_local_dask == True:

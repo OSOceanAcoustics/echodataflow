@@ -18,9 +18,13 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+from enum import Enum
 from typing import Any, Dict, List, Optional
+from echoflow.config.models.datastore import StorageType
 from prefect.blocks.core import Block
 from pydantic import SecretStr
+import xarray as xry
+import pydantic
 
 class EchoflowPrefectConfig(Block):
     """
@@ -58,7 +62,7 @@ class BaseConfig(Block):
 
     Attributes:
         name (str): The name of the configuration.
-        type (str): The type of the configuration.
+        type (StorageType): The type of the configuration.
         active (Optional[bool]): Whether the configuration is active.
         options (Optional[Dict[str, Any]]): Additional configuration options.
 
@@ -66,7 +70,7 @@ class BaseConfig(Block):
         No methods are defined in this class.
     """
     name: str
-    type: str
+    type: StorageType
     active: Optional[bool] = False
     options: Optional[Dict[str, Any]] = {}
 

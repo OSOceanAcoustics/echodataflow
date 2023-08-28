@@ -33,7 +33,7 @@ from dask.distributed import Client, LocalCluster
 @flow
 @echoflow(processing_stage="combine-echodata", type="FLOW")
 def echoflow_combine_echodata(
-    config: Dataset, stage: Stage, data: List[Output]
+    config: Dataset, data: List[Output], stage: Stage, prev_stage: Stage
 ):
     """
     Combine echodata files into a single zarr file organized by transects.

@@ -31,7 +31,7 @@ from echoflow.stages.utils.file_utils import get_ed_list, get_working_dir, isFil
 
 @flow
 @echoflow(processing_stage="compute-sv", type="FLOW")
-def echoflow_compute_SV(config: Dataset, stage: Stage, data: List[Output]):
+def echoflow_compute_SV(config: Dataset, data: List[Output], stage: Stage, prev_stage: Stage):
     """
     Compute volume backscattering strength (Sv) from echodata.
 

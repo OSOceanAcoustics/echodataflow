@@ -32,7 +32,7 @@ class StorageType(Enum):
         GCP: Google Cloud Platform storage type.
     """
     AWS = "AWS"
-    AZ = "AZ"
+    AZCosmos = "AZCosmos"
     GCP = "GCP"
 
 

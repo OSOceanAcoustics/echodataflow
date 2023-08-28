@@ -18,7 +18,7 @@ Date: August 22, 2023
 """
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 
 from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.output_model import Output
@@ -33,7 +33,7 @@ from distributed import LocalCluster
 
 @flow
 @echoflow(processing_stage="open-raw", type="FLOW")
-def echoflow_open_raw(config: Dataset, stage: Stage, data: Union[str, List[List[Dict[str, Any]]]]):
+def echoflow_open_raw(config: Dataset, data: Union[str, List[List[Dict[str, Any]]]], stage: Stage, prev_stage: Optional[Stage]):
     """
     Process raw sonar data files and convert them to zarr format.
 
@@ -90,7 +90,6 @@ def echoflow_open_raw(config: Dataset, stage: Stage, data: Union[str, List[List[
 
 
 @task()
-@echoflow(processing_stage="Open-Raw")
 def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
     """
     Process a single raw sonar data file.
@@ -137,7 +136,7 @@ def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
         )
         del ed
 
-        if stage.options.get("save_output") == False:
+        if stage.options.get("save_raw_file") == False:
             local_file.unlink()
 
     return {'out_path': out_zarr, 'transect': raw.get("transect_num"), 'file_name': local_file_name, 'error': False}

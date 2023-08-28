@@ -6,6 +6,7 @@ from .stages.subflows.echoflow import (
     echoflow_config_AWS,
     echoflow_config_AZ_cosmos,
     get_active_profile,
+    load_configuration
 )
 from .config.models.datastore import StorageType
 from .stages.utils.config_utils import load_block
@@ -32,5 +33,6 @@ __all__ = [
     "echoflow_config_AZ_cosmos",
     "get_active_profile",
     "StorageType",
-    "load_block"
+    "load_block",
+    "load_configuration"
 ]

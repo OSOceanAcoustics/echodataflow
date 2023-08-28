@@ -33,7 +33,7 @@ from echoflow.stages.utils.file_utils import get_working_dir, get_zarr_list, isF
 @flow
 @echoflow(processing_stage="compute-mvbs", type="FLOW")
 def echoflow_compute_MVBS(
-        config: Dataset, stage: Stage, data: Union[str, List[Output]]
+        config: Dataset, data: Union[str, List[Output]], stage: Stage, prev_stage: Stage
 ):
     """
     Compute Mean Volume Backscattering Strength (MVBS) from echodata.
