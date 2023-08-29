@@ -26,14 +26,14 @@ from echoflow.stages.aspects.echoflow_aspect import echoflow
 
 from prefect import task, flow
 from prefect_dask import get_dask_client
-from echoflow.stages.utils.file_utils import get_working_dir, get_ed_list, isFile, process_output_transects
+from echoflow.stages.utils.file_utils import get_output, get_working_dir, get_ed_list, isFile, process_output_transects, store_output
 from dask.distributed import Client, LocalCluster
 
 
 @flow
 @echoflow(processing_stage="combine-echodata", type="FLOW")
 def echoflow_combine_echodata(
-    config: Dataset, data: List[Output], stage: Stage, prev_stage: Stage
+    config: Dataset, stage: Stage, prev_stage: Stage
 ):
     """
     Combine echodata files into a single zarr file organized by transects.
@@ -41,7 +41,6 @@ def echoflow_combine_echodata(
     Args:
         config (Dataset): Configuration for the dataset being processed.
         stage (Stage): Configuration for the current processing stage.
-        data (List[Output]): List of processed outputs to be combined.
 
     Returns:
         List[Output]: List of combined outputs organized by transects.
@@ -63,6 +62,8 @@ def echoflow_combine_echodata(
     futures = []
     outputs: List[Output] = []
 
+    data: List[Output] = get_output()
+
     working_dir = get_working_dir(config=config, stage=stage)
 
     if type(data) == list:
@@ -70,7 +71,7 @@ def echoflow_combine_echodata(
             for output_obj in data:
                 transect = str(output_obj.data[0].get("transect")) + ".zarr"
                 process_combine_echodata_wo = process_combine_echodata.with_options(
-                    name=transect, task_run_name=transect
+                    name=transect, task_run_name=transect, retries=3
                 )
                 future = process_combine_echodata_wo.submit(
                     config=config, stage=stage, out_data=output_obj.data, working_dir=working_dir
@@ -83,10 +84,12 @@ def echoflow_combine_echodata(
 
         ed_list = [f.result() for f in futures]
         outputs = process_output_transects(name=stage.name, ed_list=ed_list)
+    store_output(outputs)
     return outputs
 
 
 @task
+@echoflow()
 def process_combine_echodata(
     config: Dataset,
     stage: Stage,

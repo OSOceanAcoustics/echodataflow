@@ -24,7 +24,7 @@ from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.output_model import Output
 from echoflow.config.models.pipeline import Stage
 from echoflow.stages.aspects.echoflow_aspect import echoflow
-from echoflow.stages.utils.file_utils import download_temp_file, isFile, get_working_dir, process_output_transects
+from echoflow.stages.utils.file_utils import download_temp_file, get_output, isFile, get_working_dir, process_output_transects, store_output
 from echopype import open_raw, open_converted
 from prefect import flow, task
 from prefect_dask import DaskTaskRunner, get_dask_client
@@ -33,7 +33,7 @@ from distributed import LocalCluster
 
 @flow
 @echoflow(processing_stage="open-raw", type="FLOW")
-def echoflow_open_raw(config: Dataset, data: Union[str, List[List[Dict[str, Any]]]], stage: Stage, prev_stage: Optional[Stage]):
+def echoflow_open_raw(config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
     """
     Process raw sonar data files and convert them to zarr format.
 
@@ -60,6 +60,8 @@ def echoflow_open_raw(config: Dataset, data: Union[str, List[List[Dict[str, Any]
         print("Processed outputs:", processed_outputs)
     """
 
+    data: Union[str, List[List[Dict[str, Any]]]] = get_output("Raw")
+
     working_dir = get_working_dir(stage=stage, config=config)
 
     ed_list = []
@@ -76,7 +78,7 @@ def echoflow_open_raw(config: Dataset, data: Union[str, List[List[Dict[str, Any]
         for raw_dicts in data:
             for raw in raw_dicts:
                 new_processed_raw = process_raw.with_options(
-                    task_run_name=raw.get("file_path"), name=raw.get("file_path")
+                    task_run_name=raw.get("file_path"), name=raw.get("file_path"), retries=3
                 )
                 future = new_processed_raw.submit(
                     raw, working_dir, config, stage)
@@ -85,11 +87,12 @@ def echoflow_open_raw(config: Dataset, data: Union[str, List[List[Dict[str, Any]
         ed_list = [f.result() for f in futures]
 
         outputs = process_output_transects(name=stage.name, ed_list=ed_list)
-
+    store_output(outputs)
     return outputs
 
 
 @task()
+@echoflow()
 def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
     """
     Process a single raw sonar data file.
@@ -119,7 +122,6 @@ def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
         )
         print("Processed output:", processed_output)
     """
-
     temp_file = download_temp_file(raw, working_dir, stage, config)
     local_file = temp_file.get("local_path")
     local_file_name = os.path.basename(temp_file.get("local_path"))

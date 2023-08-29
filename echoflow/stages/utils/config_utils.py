@@ -34,6 +34,7 @@ import nest_asyncio
 import json
 from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
 from prefect_aws import AwsCredentials
+from prefect_azure import AzureCosmosDbCredentials
 import yaml
 import itertools as it
 import os
@@ -137,6 +138,7 @@ def extract_transect_files(
     file_format: Literal["txt", "zip"],
     file_path: str,
     storage_options: Dict[str, Any] = {},
+    default_transect: int = 0
 ) -> Dict[str, Dict[str, Any]]:
     """
     Extracts raw file names and transect numbers from transect file(s).
@@ -145,6 +147,7 @@ def extract_transect_files(
         file_format (Literal["txt", "zip"]): Transect file format (txt or zip).
         file_path (str): The full path to the transect file.
         storage_options (dict): Storage options for transect file access.
+        default_transect: int = Default transect in case of no transect specified. Defaults to 0
 
     Returns:
         Dict[str, Dict[str, Any]]: Raw file name dictionary with transect information.
@@ -157,7 +160,7 @@ def extract_transect_files(
     if file_format == "zip":
         return _extract_from_zip(file_system, file_path)
     elif file_format == "txt":
-        return _extract_from_text(file_system, file_path)
+        return _extract_from_text(file_system, file_path, default_transect)
     else:
         raise ValueError(
             f"Invalid file format: {file_format}. Only 'txt' or 'zip' are valid")
@@ -202,13 +205,15 @@ def _extract_from_zip(file_system, file_path: str) -> Dict[str, Dict[str, Any]]:
     return transect_dict
 
 
-def _extract_from_text(file_system, file_path: str) -> Dict[str, Dict[str, Any]]:
+def _extract_from_text(file_system, file_path: str, default_transect: int = 0) -> Dict[str, Dict[str, Any]]:
     """
     Extracts raw files from transect file text format.
 
     Parameters:
         file_system: The filesystem where the text file is located.
         file_path (str): The path to the transect text file.
+        default_transect: int = Default transect in case of no transect specified. Defaults to 0
+
 
     Returns:
         Dict[str, Dict[str, Any]]: A dictionary containing extracted raw file information.
@@ -220,12 +225,15 @@ def _extract_from_text(file_system, file_path: str) -> Dict[str, Dict[str, Any]]
     """
     filename = os.path.basename(file_path)
     m = re.match(TRANSECT_FILE_REGEX, filename)
-    transect_num = int(m.groupdict()["transect_num"])
+    if m is None:
+        transect_num = default_transect
+    else:
+        transect_num = int(m.groupdict()["transect_num"])
 
     transect_dict = {}
 
     with file_system.open(file_path) as txtfile:
-        file_list = txtfile.read().decode("utf-8").split("\r\n")
+        file_list = txtfile.read().decode("utf-8").splitlines()
         for rawfile in file_list:
             transect_dict.setdefault(
                 rawfile,
@@ -364,18 +372,19 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
         # When transect info is available, extract it
         file_input = config.args.transect.file
         storage_options = config.args.transect.storage_options_dict
+        default_transect = config.args.transect.default_transect_num
         if isinstance(file_input, str):
             filename = os.path.basename(file_input)
             _, ext = os.path.splitext(filename)
             transect_dict = extract_transect_files(
-                ext.strip("."), file_input, storage_options)
+                ext.strip("."), file_input, storage_options, default_transect)
         else:
             transect_dict = {}
             for f in file_input:
                 filename = os.path.basename(f)
                 _, ext = os.path.splitext(filename)
                 result = extract_transect_files(
-                    ext.strip("."), f, storage_options)
+                    ext.strip("."), f, storage_options, default_transect)
                 transect_dict.update(result)
 
     raw_file_dicts = []
@@ -383,9 +392,9 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
         # get transect info from the transect_dict above
         transect = transect_dict.get(os.path.basename(raw_file), {})
         transect_num = transect.get(
-            "num", config.args.transect.default_transect_num)
+        "num", config.args.transect.default_transect_num)
         if (config.args.transect is None) or (
-            config.args.transect is not None and transect_num is not None
+            config.args.transect is not None and transect_num is not None and bool(transect)
         ):
             # Only adds to the list if not transect
             # if it's a transect, ensure it has a transect number
@@ -397,7 +406,6 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
                     **parse_file_path(raw_file, fname_pattern),
                 )
             )
-    print(raw_file_dicts)
     if config.args.json_export:
         out_path = make_temp_folder(
             config.output.urlpath+"/raw_json", config.output.storage_options_dict)
@@ -529,8 +537,11 @@ def load_block(name: str = None, type: StorageType = None):
 
     if type == StorageType.AWS:
         coro = AwsCredentials.load(name=name)
-        if isinstance(coro, Coroutine):
-            block = nest_asyncio.asyncio.run(coro)
-        else:
-            block = coro
+    elif type == StorageType.AZCosmos:
+        coro = AzureCosmosDbCredentials.load(name=name)
+    
+    if isinstance(coro, Coroutine):
+        block = nest_asyncio.asyncio.run(coro)
+    else:
+        block = coro
     return block

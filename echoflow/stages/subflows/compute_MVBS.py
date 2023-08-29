@@ -27,13 +27,13 @@ from echoflow.config.models.pipeline import Stage
 from prefect import flow, task
 
 from echoflow.stages.aspects.echoflow_aspect import echoflow
-from echoflow.stages.utils.file_utils import get_working_dir, get_zarr_list, isFile, process_output_transects
+from echoflow.stages.utils.file_utils import get_output, get_working_dir, get_zarr_list, isFile, process_output_transects, store_output
 
 
 @flow
 @echoflow(processing_stage="compute-mvbs", type="FLOW")
 def echoflow_compute_MVBS(
-        config: Dataset, data: Union[str, List[Output]], stage: Stage, prev_stage: Stage
+        config: Dataset, stage: Stage, prev_stage: Stage
 ):
     """
     Compute Mean Volume Backscattering Strength (MVBS) from echodata.
@@ -41,7 +41,6 @@ def echoflow_compute_MVBS(
     Args:
         config (Dataset): Configuration for the dataset being processed.
         stage (Stage): Configuration for the current processing stage.
-        data (Union[str, List[Output]]): Data to be processed (echodata outputs).
 
     Returns:
         List[Output]: List of computed MVBS outputs.
@@ -60,6 +59,7 @@ def echoflow_compute_MVBS(
         )
         print("Computed MVBS outputs:", computed_mvbs_outputs)
     """
+    data: Union[str, List[Output]] = get_output()
     outputs: List[Output] = []
     futures = []
     working_dir = get_working_dir(config=config, stage=stage)
@@ -71,7 +71,7 @@ def echoflow_compute_MVBS(
                 for ed in transect_list:
                     transect = str(ed.get("out_path")).split(".")[0] + ".MVBS"
                     process_compute_MVBS_wo = process_compute_MVBS.with_options(
-                        name=transect, task_run_name=transect
+                        name=transect, task_run_name=transect, retries=3
                     )
                     future = process_compute_MVBS_wo.submit(
                         config=config, stage=stage, out_data=ed, working_dir=working_dir
@@ -86,10 +86,12 @@ def echoflow_compute_MVBS(
 
         ed_list = [f.result() for f in futures]
         outputs = process_output_transects(name=stage.name, ed_list=ed_list)
+    store_output()
     return outputs
 
 
 @task
+@echoflow()
 def process_compute_MVBS(
     config: Dataset, stage: Stage, out_data: Union[Dict, Output], working_dir: str
 ):

@@ -28,6 +28,7 @@ Date: August 22, 2023
 """
 from datetime import datetime
 import logging
+import os
 from pathlib import Path
 from typing import Dict, Union
 import psutil
@@ -141,10 +142,11 @@ class Singleton_Echoflow:
             level: The log level.
             extra: Extra information to include in the log record.
         """
-        self.logger.log(level=logging.DEBUG, msg=msg, extra=extra)
-        self.logger.log(level=logging.ERROR, msg=msg, extra=extra)
-        self.logger.log(level=logging.INFO, msg=msg, extra=extra)
-        self.logger.log(level=logging.WARNING, msg=msg, extra=extra)
+        if self.logger is not None:
+            self.logger.log(level=logging.DEBUG, msg=msg, extra=extra)
+            self.logger.log(level=logging.ERROR, msg=msg, extra=extra)
+            self.logger.log(level=logging.INFO, msg=msg, extra=extra)
+            self.logger.log(level=logging.WARNING, msg=msg, extra=extra)
 
     def add_new_process(self, process: Process, name: str):
         """
@@ -225,8 +227,11 @@ class Singleton_Echoflow:
             loaded_rengine = executor.load()
         """
         rengine: DependencyEngine = DependencyEngine()
-        path = Path('../echoflow/config/models/rule_engine/echoflow_rules.txt')
-        with open(path, 'r') as file:
+        home_directory = os.path.expanduser("~")
+        config_directory = os.path.join(home_directory, ".echoflow")
+        rules_file_path = os.path.join(config_directory, "echoflow_rules.txt")
+
+        with open(rules_file_path, 'r') as file:
             for line in file:
                 target, dependent = line.strip().split(':')
                 rengine.add_dependency(target_function=target, dependent_function=dependent)

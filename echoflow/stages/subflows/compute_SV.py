@@ -26,19 +26,18 @@ from echoflow.stages.aspects.echoflow_aspect import echoflow
 
 from prefect import flow, task
 
-from echoflow.stages.utils.file_utils import get_ed_list, get_working_dir, isFile, process_output_transects
+from echoflow.stages.utils.file_utils import get_ed_list, get_output, get_working_dir, isFile, process_output_transects, store_output
 
 
 @flow
 @echoflow(processing_stage="compute-sv", type="FLOW")
-def echoflow_compute_SV(config: Dataset, data: List[Output], stage: Stage, prev_stage: Stage):
+def echoflow_compute_SV(config: Dataset, stage: Stage, prev_stage: Stage):
     """
     Compute volume backscattering strength (Sv) from echodata.
 
     Args:
         config (Dataset): Configuration for the dataset being processed.
         stage (Stage): Configuration for the current processing stage.
-        data (List[Output]): List of processed echodata outputs.
 
     Returns:
         List[Output]: List of computed Sv outputs.
@@ -57,6 +56,7 @@ def echoflow_compute_SV(config: Dataset, data: List[Output], stage: Stage, prev_
         )
         print("Computed Sv outputs:", computed_sv_outputs)
     """
+    data: List[Output] = get_output()
     outputs: List[Output] = []
     futures = []
     working_dir = get_working_dir(config=config, stage=stage)
@@ -69,7 +69,7 @@ def echoflow_compute_SV(config: Dataset, data: List[Output], stage: Stage, prev_
                 for ed in transect_list:
                     transect = str(ed.get("out_path")).split(".")[0] + ".SV"
                     process_compute_SV_wo = process_compute_SV.with_options(
-                        name=transect, task_run_name=transect
+                        name=transect, task_run_name=transect, retries=3
                     )
                     future = process_compute_SV_wo.submit(
                         config=config, stage=stage, out_data=ed, working_dir=working_dir
@@ -84,11 +84,14 @@ def echoflow_compute_SV(config: Dataset, data: List[Output], stage: Stage, prev_
 
         ed_list = [f.result() for f in futures]
         outputs = process_output_transects(name=stage.name, ed_list=ed_list)
+
+    store_output(outputs)
     return outputs
 
 
 
 @task
+@echoflow
 def process_compute_SV(
     config: Dataset, stage: Stage, out_data: Union[Dict, Output], working_dir: str
 ):

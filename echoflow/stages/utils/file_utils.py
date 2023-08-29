@@ -30,6 +30,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
@@ -44,6 +45,8 @@ from dateutil import parser
 from prefect import task
 from fsspec.implementations.local import LocalFileSystem
 import xarray as xr
+from fastapi.encoders import jsonable_encoder
+
 
 
 def download_temp_file(raw, working_dir: str, stage: Stage, config: Dataset):
@@ -74,7 +77,6 @@ def download_temp_file(raw, working_dir: str, stage: Stage, config: Dataset):
         out_path, storage_options=config.output.storage_options_dict)
 
     if stage.options.get("use_raw_offline") == False or isFile(out_path, config.output.storage_options_dict) == False:
-
         print("Downloading ...", out_path)
         file_system = extract_fs(
             urlpath, storage_options=config.args.storage_options_dict)
@@ -342,3 +344,74 @@ def process_output_transects(name: str, ed_list: List[Dict[str, Any]]) -> List[O
         output.data = transect_dict[transect]
         outputs.append(output)
     return outputs
+
+def store_output(data):
+    """
+    Store output data as JSON in the Echoflow working directory.
+
+    This function serializes the given `data` and stores it as JSON in the `.echoflow`
+    directory within the user's home directory. The stored JSON data can later be retrieved
+    using the `get_output` function.
+
+    Args:
+        data: The data to be stored. It can be of any type.
+
+    Note:
+        The stored data can be retrieved using the `get_output` function with the same type
+        of data.
+
+    Example:
+        >>> output_data = ["data_point_1", "data_point_2", "data_point_3"]
+        >>> store_output(output_data)
+
+    """
+    home_directory = os.path.expanduser("~")
+    config_directory = os.path.join(home_directory, ".echoflow")
+    json_data_path = os.path.join(config_directory, "echoflow_working_data.json")
+    
+    serialized_data_list = jsonable_encoder(data)
+
+    # Serialize the list to JSON
+    json_data = json.dumps(serialized_data_list)
+
+    with open(json_data_path, "w") as outfile:
+        outfile.write(json_data)
+    
+def get_output(type : str = "Output"):
+    """
+    Retrieve stored output data from the Echoflow working directory.
+
+    This function retrieves previously stored output data from the JSON file located in
+    the `.echoflow` directory within the user's home directory.
+
+    Args:
+        type (str, optional): The type of data to retrieve. Defaults to "Output". If a different
+        type is specified, the stored raw JSON data is returned without further processing.
+
+    Returns:
+        If type is "Output":
+            A list of Output instances containing the retrieved data.
+        If type is not "Output":
+            The raw JSON data as stored, if available.
+
+    Example:
+        >>> retrieved_data = get_output(type="custom_type")
+        >>> print(retrieved_data)
+        {"key": "value", ...}
+
+    """
+    data = None
+    home_directory = os.path.expanduser("~")
+    config_directory = os.path.join(home_directory, ".echoflow")
+    json_data_path = os.path.join(config_directory, "echoflow_working_data.json")
+    with open(json_data_path, "r") as outfile:
+        data = json.load(outfile)
+
+    if type != "Output":
+        return data  
+    output_list = []
+    for item in data:
+        output_item = Output(**item)
+        output_list.append(output_item)
+    return output_list
+    

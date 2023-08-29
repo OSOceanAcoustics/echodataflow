@@ -1,0 +1,15 @@
+active_recipe: target_strength 
+use_local_dask: true
+pipeline:
+- recipe_name: target_strength
+  stages:
+  - name: echoflow_open_raw
+    module: echoflow.stages.subflows.open_raw
+    options:
+      save_raw_file: true
+      use_raw_offline: true
+      use_offline: true
+  - name: echoflow_compute_TS
+    module: echoflow.stages.subflows.compute_TS
+    options:
+      use_offline: true

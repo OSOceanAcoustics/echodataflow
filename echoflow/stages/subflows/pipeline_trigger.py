@@ -32,7 +32,7 @@ from prefect.blocks.core import Block
 def pipeline_trigger(
     dataset_config: Union[Dict[str, Any], str],
     pipeline_config: Union[Dict[str, Any], str],
-    logging_config: Union[Dict[str, Any], str] = {},
+    logging_config: Union[Dict[str, Any], str] = None,
     storage_options: Optional[Dict[str, Any]] = {}
 ):
     """
@@ -41,7 +41,7 @@ def pipeline_trigger(
     Args:
         dataset_config (Union[Dict[str, Any], str]): Configuration for the dataset to be processed.
         pipeline_config (Union[Dict[str, Any], str]): Configuration for the processing pipeline.
-        logging_config (Union[Dict[str, Any], str], optional): Configuration for logging. Defaults to {}.
+        logging_config (Union[Dict[str, Any], str], optional): Configuration for logging. Defaults to None.
         storage_options (Optional[Dict[str, Any]], optional): Storage options configuration. Defaults to {}.
 
     Returns:
@@ -66,14 +66,20 @@ def pipeline_trigger(
         if not dataset_config.endswith((".yaml", ".yml")):
             raise ValueError("Configuration file must be a YAML!")
         dataset_config_dict = extract_config(dataset_config, storage_options)
+    elif type(dataset_config) == dict:
+        dataset_config_dict = dataset_config
     if type(pipeline_config) == str:
         if not pipeline_config.endswith((".yaml", ".yml")):
             raise ValueError("Configuration file must be a YAML!")
         pipeline_config_dict = extract_config(pipeline_config, storage_options)
+    elif type(pipeline_config) == dict:
+        pipeline_config_dict = pipeline_config
     if type(logging_config) == str:
         if not logging_config.endswith((".yaml", ".yml")):
             raise ValueError("Configuration file must be a YAML!")
         logging_config_dict = extract_config(logging_config, storage_options)
+    else:
+        logging_config_dict = logging_config
 
     # Do any config checks on config dicts
     # Should be done in pydantic class

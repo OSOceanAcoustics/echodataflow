@@ -5,13 +5,11 @@ from .stages.subflows.echoflow import (
     load_profile,
     echoflow_config_AWS,
     echoflow_config_AZ_cosmos,
-    get_active_profile,
-    load_configuration
+    get_active_profile
 )
 from .config.models.datastore import StorageType
-from .stages.utils.config_utils import load_block
-
-
+from .stages.utils.config_utils import load_block, extract_fs, glob_url
+import echoflow.echoflow_cli as echoflow_cli
 try:
     VERSION = get_distribution(__name__).version
 except DistributionNotFound:  # pragma: no cover
@@ -34,5 +32,7 @@ __all__ = [
     "get_active_profile",
     "StorageType",
     "load_block",
-    "load_configuration"
+    "echoflow_cli",
+    "extract_fs", 
+    "glob_url"
 ]

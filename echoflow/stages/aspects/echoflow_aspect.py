@@ -52,12 +52,14 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
                 mod_args = [arg for arg in args]
             else:
                 mod_args = [arg for arg in args]
-            gea.log(
-                msg=f"Entering with memory at {gea.log_memory_usage()}: ",
-                extra={"mod_name": func.__module__,
-                       "func_name": func.__name__},
-                level=logging.DEBUG,
-            )
+                
+            if type != "TASK":
+                gea.log(
+                    msg=f"Entering with memory at {gea.log_memory_usage()}: ",
+                    extra={"mod_name": func.__module__,
+                        "func_name": func.__name__},
+                    level=logging.DEBUG,
+                )
             
             if type == "FLOW" and processing_stage!= "DEFAULT":
                 prev_stage = args[-1]
@@ -72,12 +74,13 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
             return mod_args
 
         def after_function_call(gea: Singleton_Echoflow, *args, **kwargs):
-            gea.log(
-                msg=f"Exiting with memory at {gea.log_memory_usage()}: ",
-                extra={"mod_name": func.__module__,
-                       "func_name": func.__name__},
-                level=logging.DEBUG,
-            )
+            if type != "TASK":
+                gea.log(
+                    msg=f"Exiting with memory at {gea.log_memory_usage()}: ",
+                    extra={"mod_name": func.__module__,
+                        "func_name": func.__name__},
+                    level=logging.DEBUG,
+                )
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -90,12 +93,6 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
                 return result
             except Exception as e:
                 if type == "TASK":
-                    gea.log(
-                        msg=e,
-                        level=logging.ERROR,
-                        extra={"mod_name": func.__module__,
-                               "func_name": func.__name__},
-                    )
                     return {'error': True}
                 else:
                     raise e

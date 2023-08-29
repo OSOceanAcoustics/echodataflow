@@ -26,11 +26,12 @@ Date: August 22, 2023
 
 from enum import Enum
 import json
+from pathlib import Path
 import toml
 import asyncio
 import os
 import configparser
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Coroutine, Dict, List, Optional, Union
 from echoflow.config.models.echoflow_config import BaseConfig, EchoflowConfig, EchoflowPrefectConfig
 from echoflow.config.models.datastore import StorageType
 
@@ -186,9 +187,9 @@ def get_active_profile():
 
 
 def echoflow_start(
-    dataset_config: Union[Dict[str, Any], str],
-    pipeline_config: Union[Dict[str, Any], str],
-    logging_config: Union[Dict[str, Any], str] = {},
+    dataset_config: Union[Dict[str, Any], str, Path],
+    pipeline_config: Union[Dict[str, Any], str, Path],
+    logging_config: Union[Dict[str, Any], str, Path] = None,
     storage_options: Union[Dict[str, Any], Block] = None,
     options: Optional[Dict[str, Any]] = {}
 ):
@@ -197,9 +198,9 @@ def echoflow_start(
     Start an Echoflow pipeline execution.
 
     Args:
-        dataset_config (Union[Dict[str, Any], str]): Configuration for the dataset to be processed.
-        pipeline_config (Union[Dict[str, Any], str]): Configuration for the pipeline to be executed.
-        logging_config (Union[Dict[str, Any], str], optional): Configuration for logging. Defaults to {}.
+        dataset_config (Union[Dict[str, Any], str, Path]): Configuration for the dataset to be processed.
+        pipeline_config (Union[Dict[str, Any], str, Path]): Configuration for the pipeline to be executed.
+        logging_config (Union[Dict[str, Any], str, Path], optional): Configuration for logging. Defaults to None.
         storage_options (Union[Dict[str, Any], Block], optional): Storage options for accessing data. Defaults to None.
         options (Optional[Dict[str, Any]], optional): Additional options. Defaults to {}.
 
@@ -224,6 +225,13 @@ def echoflow_start(
         )
         print("Pipeline execution result:", result)
     """
+
+    if isinstance(dataset_config, Path):
+        dataset_config = str(dataset_config)
+    if isinstance(logging_config, Path):
+        logging_config = str(logging_config)
+    if isinstance(pipeline_config, Path):
+        pipeline_config = str(pipeline_config)
 
     if storage_options is not None:
         # Check if storage_options is a Block (fsspec storage) and convert it to a dictionary
@@ -299,7 +307,9 @@ def update_prefect_config(
         profile_name=profile_name,
     )
 
-    uuid = asyncio.run(prefect_config.save(name=profile_name, overwrite=True))
+    uuid = prefect_config.save(name=profile_name, overwrite=True)
+    if isinstance(uuid, Coroutine):
+        uuid = asyncio.run(uuid)
 
     active_profile: str = None
     if active:
@@ -307,7 +317,9 @@ def update_prefect_config(
     profiles.append(profile_name)
 
     try:
-        current_config: EchoflowConfig = asyncio.run(EchoflowConfig.load("echoflow-config", validate=False))
+        current_config = EchoflowConfig.load("echoflow-config", validate=False)
+        if isinstance(current_config, Coroutine):
+            current_config = asyncio.run(current_config)
         if current_config.prefect_configs is not None:
 
             if active_profile is None:            
@@ -319,13 +331,18 @@ def update_prefect_config(
                 if p == profile_name:
                     profiles.remove(p)
             profiles.append(profile_name)
-        ecfg = asyncio.run(EchoflowConfig(active=active_profile, prefect_configs=profiles, blocks=current_config.blocks).save(
+        
+        ecfg = EchoflowConfig(active=active_profile, prefect_configs=profiles, blocks=current_config.blocks).save(
             "echoflow-config", overwrite=True
-        ))
+        )
+        if isinstance(ecfg, Coroutine):
+            ecfg = asyncio.run(ecfg)
     except ValueError as e:
-        ecfg = asyncio.run(EchoflowConfig(active=active_profile, prefect_configs=profiles, blocks=[]).save(
+        ecfg = EchoflowConfig(active=active_profile, prefect_configs=profiles, blocks=[]).save(
             "echoflow-config", overwrite=True
-        ))
+        )
+        if isinstance(ecfg, Coroutine):
+            ecfg = asyncio.run(ecfg)
     return ecfg
 
 
@@ -355,21 +372,27 @@ def update_base_config(name: str, b_type: StorageType, active: bool = False, opt
     ecfg: Any = None
     try:
         blocks: List[BaseConfig] = []
-        current_config = asyncio.run(EchoflowConfig.load("echoflow-config", validate=False))
-
+        current_config = EchoflowConfig.load("echoflow-config", validate=False)
+        if isinstance(current_config, Coroutine):
+            current_config = asyncio.run(current_config)
+        
         if current_config.blocks is not None:
             blocks = current_config.blocks
             for b in blocks:
                 if b.name == name:
                     blocks.remove(b)
         blocks.append(aws_base)
-        ecfg = asyncio.run(EchoflowConfig(
+        ecfg = EchoflowConfig(
             prefect_configs=current_config.prefect_configs, blocks=blocks
-        ).save("echoflow-config", overwrite=True))
+        ).save("echoflow-config", overwrite=True)
+        if isinstance(ecfg, Coroutine):
+            ecfg = asyncio.run(ecfg)
     except ValueError as e:
-        ecfg = asyncio.run(EchoflowConfig(active=None, prefect_configs=[], blocks=[aws_base]).save(
+        ecfg = EchoflowConfig(active=None, prefect_configs=[], blocks=[aws_base]).save(
             "echoflow-config", overwrite=True
-        ))
+        )
+        if isinstance(ecfg, Coroutine):
+            ecfg = asyncio.run(ecfg)
     return ecfg
 
 
@@ -407,12 +430,14 @@ def echoflow_config_AWS(
             options={"option_key": "option_value"}
         )
     """
-    coro = asyncio.run(AwsCredentials(
+    coro = AwsCredentials(
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
         aws_session_token=aws_session_token,
         region_name=region_name,
-    ).save(name, overwrite=True))
+    ).save(name, overwrite=True)
+    if isinstance(coro, Coroutine):
+        coro = asyncio.run(coro)
     if isinstance(options, str):
         options = json.loads(options)
     update_base_config(name=name, active=active, options=options, b_type=StorageType.AWS)
@@ -447,9 +472,11 @@ def echoflow_config_AZ_cosmos(
     """
     if connection_string is None:
         raise ValueError("Connection string cannot be empty.")
-    coro = asyncio.run(AzureCosmosDbCredentials(
+    coro = AzureCosmosDbCredentials(
         connection_string=connection_string
-    ).save(name, overwrite=True))
+    ).save(name, overwrite=True)
+    if isinstance(coro, Coroutine):
+        coro = asyncio.run(coro)
     if isinstance(options, str):
         options = json.loads(options)
     update_base_config(name=name, active=active, options=options, b_type=StorageType.AZCosmos)
@@ -505,7 +532,9 @@ def load_credential_configuration(sync: bool = False):
     if sync:
         current_config: EchoflowConfig = None
         try:
-            current_config = asyncio.run(EchoflowConfig.load("echoflow-config", validate=False))
+            current_config = EchoflowConfig.load("echoflow-config", validate=False)
+            if isinstance(current_config, Coroutine):
+                current_config = asyncio.run(current_config)
             if current_config is not None:
 
                 for base in current_config.blocks:

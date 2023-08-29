@@ -45,7 +45,7 @@ pipeline: # List of pipeline configurations; only the active_recipe will be exec
       sonar_model: EK60
       xml_path: s3//
     options:
-      save_output: true
+      save_raw_file: true
       use_raw_offline: true
       use_offline: true
       # out_path: ./temp_files
@@ -66,7 +66,7 @@ pipeline: # List of pipeline configurations; only the active_recipe will be exec
       sonar_model: EK60
       xml_path: s3//
     options:
-      save_output: true
+      save_raw_file: true
       use_raw_offline: true
       use_offline: true
       # out_path: ./temp_files
