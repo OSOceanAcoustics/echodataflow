@@ -431,9 +431,15 @@ def cleanup(config: Dataset, stage: Stage, data: List[Output]):
     """
     if stage is not None:
         working_dir = get_working_dir(stage=stage, config=config)
-        fs = extract_fs(working_dir)
+        fs = extract_fs(working_dir, storage_options=config.output.storage_options_dict)
         print("Cleaning : ",working_dir)
-        fs.rm(working_dir, recursive=True)
+        try:
+            fs.rm(working_dir, recursive=True)
+            print("Cleanup complete")
+        except Exception as e:
+            print(e)
+            print("Failed to cleanup "+working_dir)
+
 
 def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any]={}):
     """
