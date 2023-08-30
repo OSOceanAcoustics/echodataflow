@@ -124,11 +124,13 @@ class Output(BaseModel):
 
     Attributes:
         urlpath (str): The URL path for output.
+        retention (bool): Retains output at each stage. Works as central flag for all the processes but does not trump the `save_offline` flag.
         overwrite (Optional[bool]): Whether to overwrite existing data. Default is True.
         storage_options (Optional[StorageOptions]): Storage options for the output.
         storage_options_dict (Optional[Dict[str, Any]]): Additional storage options as a dictionary.
     """
     urlpath: str
+    retention: bool = True 
     overwrite: Optional[bool] = True
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}

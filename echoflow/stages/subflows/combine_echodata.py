@@ -26,7 +26,7 @@ from echoflow.stages.aspects.echoflow_aspect import echoflow
 
 from prefect import task, flow
 from prefect_dask import get_dask_client
-from echoflow.stages.utils.file_utils import get_output, get_working_dir, get_ed_list, isFile, process_output_transects, store_output
+from echoflow.stages.utils.file_utils import cleanup, get_output, get_working_dir, get_ed_list, isFile, process_output_transects, store_output
 from dask.distributed import Client, LocalCluster
 
 
@@ -85,6 +85,13 @@ def echoflow_combine_echodata(
         ed_list = [f.result() for f in futures]
         outputs = process_output_transects(name=stage.name, ed_list=ed_list)
     store_output(outputs)
+    if prev_stage is not None:
+        if config.output.retention == False:
+            if (prev_stage.options.get("save_offline") is None or prev_stage.options.get("save_offline") == False):
+                cleanup(config, prev_stage, data)
+        else:
+            if (prev_stage.options.get("save_offline") is not None and prev_stage.options.get("save_offline") == False):
+                cleanup(config, prev_stage, data)
     return outputs
 
 
@@ -132,7 +139,6 @@ def process_combine_echodata(
             ed_list = get_ed_list.fn(
                 config=config, stage=stage, transect_data=out_data)
             ceds = combine_echodata(echodata_list=ed_list)
-            print("Ceds", ceds)
             ceds.to_zarr(
                 save_path=out_zarr,
                 overwrite=True,

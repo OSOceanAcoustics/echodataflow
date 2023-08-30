@@ -9,6 +9,7 @@ from .stages.subflows.echoflow import (
 )
 from .config.models.datastore import StorageType
 from .stages.utils.config_utils import load_block, extract_fs, glob_url
+from .stages.utils.file_utils import get_last_run_output, get_ed_list, get_zarr_list
 import echoflow.echoflow_cli as echoflow_cli
 try:
     VERSION = get_distribution(__name__).version
@@ -34,5 +35,8 @@ __all__ = [
     "load_block",
     "echoflow_cli",
     "extract_fs", 
-    "glob_url"
+    "glob_url",
+    "get_last_run_output",
+    "get_ed_list", 
+    "get_zarr_list"
 ]

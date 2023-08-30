@@ -1,5 +1,6 @@
 active_recipe: standard # Specify the recipe to execute on input data
-use_local_dask: true # Spin up a local dask cluster of 3 workers
+use_local_dask: true # Spin up a local dask cluster of 3 workers if n_workers is not used
+n_workers: 4 # Number of workers for local dask cluster
 scheduler_address: tcp://127.0.0.1:61918 # Specify scheduler address or use_local_dask to control cluster creation. For more granular control, under prefect_config, use DaskTaskRunner(address=<scheduler_address>)
 pipeline: # List of pipeline configurations; only the active_recipe will be executed.
 - recipe_name: standard # Name of the recipe

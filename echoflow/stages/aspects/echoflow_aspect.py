@@ -64,8 +64,6 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
             if type == "FLOW" and processing_stage!= "DEFAULT":
                 prev_stage = args[-1]
                 stage = args[-2]
-                print("Stage : ",stage)
-                print("Prev Stage : ",prev_stage)
                 if prev_stage is not None:
                     possible_functions = gea.get_possible_next_functions(prev_stage.name)
                     if stage.name not in possible_functions:

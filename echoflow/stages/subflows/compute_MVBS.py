@@ -27,7 +27,7 @@ from echoflow.config.models.pipeline import Stage
 from prefect import flow, task
 
 from echoflow.stages.aspects.echoflow_aspect import echoflow
-from echoflow.stages.utils.file_utils import get_output, get_working_dir, get_zarr_list, isFile, process_output_transects, store_output
+from echoflow.stages.utils.file_utils import cleanup, get_output, get_working_dir, get_zarr_list, isFile, process_output_transects, store_output
 
 
 @flow
@@ -86,7 +86,14 @@ def echoflow_compute_MVBS(
 
         ed_list = [f.result() for f in futures]
         outputs = process_output_transects(name=stage.name, ed_list=ed_list)
-    store_output()
+    store_output(outputs)
+    if prev_stage is not None:
+        if config.output.retention == False:
+            if (prev_stage.options.get("save_offline") is None or prev_stage.options.get("save_offline") == False):
+                cleanup(config, prev_stage, data)
+        else:
+            if (prev_stage.options.get("save_offline") is not None and prev_stage.options.get("save_offline") == False):
+                cleanup(config, prev_stage, data)
     return outputs
 
 
@@ -134,8 +141,7 @@ def process_compute_MVBS(
         
     out_zarr = os.path.join(working_dir, transect, file_name)
     if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
-        ed_list = get_zarr_list.fn(
-                config=config, stage=stage, transect_data=out_data)
+        ed_list = get_zarr_list.fn(transect_data=out_data, storage_options=config.output.storage_options_dict)
         xr_d_mvbs = ep.commongrid.compute_MVBS(
                     ds_Sv=ed_list[0],
                     range_meter_bin=stage.external_params.get(

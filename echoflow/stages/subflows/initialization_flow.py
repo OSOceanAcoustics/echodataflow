@@ -19,7 +19,7 @@ from distributed import Client, LocalCluster
 
 from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.pipeline import Recipe
-from echoflow.stages.utils.file_utils import store_output
+from echoflow.stages.utils.file_utils import get_last_run_output, store_output
 from echoflow.stages.aspects.echoflow_aspect import echoflow
 from echoflow.stages.utils.config_utils import club_raw_files, get_prefect_config_dict, glob_all_files, parse_raw_paths
 from echoflow.stages.utils.function_utils import dynamic_function_call
@@ -95,7 +95,7 @@ def init_flow(
             print(client)
         elif pipeline.use_local_dask == True and prefect_config_dict is not None and prefect_config_dict.get("task_runner") is None:
             if client is None:
-                cluster = LocalCluster(n_workers=3)
+                cluster = LocalCluster(n_workers=pipeline.n_workers)
                 client = Client(cluster.scheduler_address)
             prefect_config_dict["task_runner"] = DaskTaskRunner(
                 address=client.scheduler.address)
@@ -113,5 +113,7 @@ def init_flow(
     if pipeline.scheduler_address is None and pipeline.use_local_dask == True:
         client.close()
         print("Local Client has been closed")
+    
+    output = get_last_run_output(data=output, storage_options=dataset.output.storage_options_dict)
 
     return output

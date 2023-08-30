@@ -20,6 +20,7 @@ args: # Input arguments
 output: # Output arguments
   urlpath: s3://echoflow-workground/combined_files_dask # Destination data URL parameters
   overwrite: true # Flag to overwrite the data if present in the output directory
+  retention: false # Deletes all the data stored while executing the pipeline
   storage_options: # Destination data storage options
     block_name: echoflow-aws-credentials
     type: AWS

@@ -265,33 +265,31 @@ def get_ed_list(config: Dataset, stage: Stage, transect_data: Union[Output, List
 
 
 @task
-def get_zarr_list(config: Dataset, stage: Stage, transect_data: Union[Output, Dict]):
+def get_zarr_list(transect_data: Union[Output, Dict], storage_options: Dict[str, Any] = {}):
     """
     Get a list of xarray.Dataset objects for zarr data.
 
     Parameters:
-        config (Dataset): The Dataset configuration.
-        stage (Stage): The current processing stage object.
+        config (Dataset): Output storage options
         transect_data (Union[Output, Dict[str, Any]]): The transect data or output.
 
     Returns:
         List[xarray.Dataset]: A list of xarray.Dataset objects.
 
     Example:
-        dataset_config = ...
-        stage_object = ...
+        storage_options = ...
         transect_output = ...
-        zarr_list = get_zarr_list(dataset_config, stage_object, transect_output)
+        zarr_list = get_zarr_list(transect_output, storage_options)
     """
     zarr_list = []
     if type(transect_data) == dict:
         zarr = xr.open_zarr(transect_data.get("out_path"),
-                            storage_options=config.output.storage_options_dict)
+                            storage_options=storage_options)
         zarr_list.append(zarr)
     else:
         zarr_path_data = transect_data.data
         zarr = xr.open_zarr(zarr_path_data.get("out_path"),
-                            storage_options=config.output.storage_options_dict)
+                            storage_options=storage_options)
         zarr_list.append(zarr)
 
     return zarr_list
@@ -373,7 +371,6 @@ def store_output(data):
 
     # Serialize the list to JSON
     json_data = json.dumps(serialized_data_list)
-
     with open(json_data_path, "w") as outfile:
         outfile.write(json_data)
     
@@ -415,3 +412,66 @@ def get_output(type : str = "Output"):
         output_list.append(output_item)
     return output_list
     
+def cleanup(config: Dataset, stage: Stage, data: List[Output]):
+    """
+    Clean up working directory associated with a specific stage of processing.
+
+    This function removes the working directory corresponding to the given stage and dataset configuration.
+
+    Parameters:
+        config (Dataset): The dataset configuration.
+        stage (Stage): The processing stage for which to perform cleanup.
+        data (List[Output]): List of Output objects containing information about processed data.
+
+    Example:
+        >>> dataset_config = Dataset()
+        >>> processing_stage = Stage()
+        >>> output_data = [Output(data=[...]), Output(data=[...])]
+        >>> cleanup(dataset_config, processing_stage, output_data)
+    """
+    if stage is not None:
+        working_dir = get_working_dir(stage=stage, config=config)
+        fs = extract_fs(working_dir)
+        print("Cleaning : ",working_dir)
+        fs.rm(working_dir, recursive=True)
+
+def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any]={}):
+    """
+    Retrieve Zarr arrays from the last run's output data.
+
+    This function extracts Zarr arrays from the output data of the last run and returns them as a list of lists.
+
+    Parameters:
+        data (List[Output], optional): List of Output objects containing information about processed data.
+        storage_options (Dict[str, Any], optional): Storage options for loading Zarr arrays.
+
+    Returns:
+        List[List]: A list of lists containing Zarr arrays from the last run's output data.
+
+    Example:
+        >>> output_data = [Output(data=[...]), Output(data=[...])]
+        >>> zarr_arrays = get_last_run_output(output_data, storage_options={"key": "value"})
+    """
+    outputs : List[List]= []
+    if data is None:
+        data = get_output()
+    if isinstance(data, list) and isinstance(data[0], Output):
+        try:
+            if isinstance(data[0].data, list):
+                for transect in data:
+                    ed_list = []
+                    for d in transect.data:
+                        ed = get_zarr_list(d, storage_options)
+                        ed_list.append(ed[0])
+                    outputs.append(ed_list)
+            else:
+                for d in data:
+                    ed = get_zarr_list(d, storage_options)
+                    ed_list.append(ed[0])
+                    outputs.append(ed_list)
+            return outputs
+        except Exception as e:
+            print("Could not load the results.")
+            return data
+    else:
+        return data

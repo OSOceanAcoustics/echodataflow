@@ -15,4 +15,5 @@ args:
   json_export: true 
 output: 
   urlpath: ./echoflow-output
+  retention: false
   overwrite: true

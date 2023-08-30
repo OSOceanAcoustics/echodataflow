@@ -26,7 +26,7 @@ from echoflow.stages.aspects.echoflow_aspect import echoflow
 
 from prefect import flow, task
 
-from echoflow.stages.utils.file_utils import get_ed_list, get_output, get_working_dir, isFile, process_output_transects, store_output
+from echoflow.stages.utils.file_utils import cleanup, get_ed_list, get_output, get_working_dir, isFile, process_output_transects, store_output
 
 
 @flow
@@ -86,6 +86,13 @@ def echoflow_compute_TS(config: Dataset, stage: Stage, prev_stage: Stage):
         ed_list = [f.result() for f in futures]
         outputs = process_output_transects(name=stage.name, ed_list=ed_list)
     store_output(outputs)
+    if prev_stage is not None:
+        if config.output.retention == False:
+            if (prev_stage.options.get("save_offline") is None or prev_stage.options.get("save_offline") == False):
+                cleanup(config, prev_stage, data)
+        else:
+            if (prev_stage.options.get("save_offline") is not None and prev_stage.options.get("save_offline") == False):
+                cleanup(config, prev_stage, data)
     return outputs
 
 

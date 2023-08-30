@@ -24,7 +24,7 @@ from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.output_model import Output
 from echoflow.config.models.pipeline import Stage
 from echoflow.stages.aspects.echoflow_aspect import echoflow
-from echoflow.stages.utils.file_utils import download_temp_file, get_output, isFile, get_working_dir, process_output_transects, store_output
+from echoflow.stages.utils.file_utils import cleanup, download_temp_file, get_output, isFile, get_working_dir, process_output_transects, store_output
 from echopype import open_raw, open_converted
 from prefect import flow, task
 from prefect_dask import DaskTaskRunner, get_dask_client
@@ -88,6 +88,13 @@ def echoflow_open_raw(config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 
         outputs = process_output_transects(name=stage.name, ed_list=ed_list)
     store_output(outputs)
+    if prev_stage is not None:
+        if config.output.retention == False:
+            if (prev_stage.options.get("save_offline") is None or prev_stage.options.get("save_offline") == False):
+                cleanup(config, prev_stage, data)
+        else:
+            if (prev_stage.options.get("save_offline") is not None and prev_stage.options.get("save_offline") == False):
+                cleanup(config, prev_stage, data)
     return outputs
 
 

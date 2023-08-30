@@ -52,6 +52,7 @@ class Recipe(BaseModel):
     Attributes:
         active_recipe (str): The active recipe name.
         use_local_dask (bool): Flag to indicate whether to use local Dask. Default is False.
+        n_workers (int): Number of workers to spin up for local cluster. Default is 3 
         scheduler_address (str): The scheduler address. Default is None.
         use_previous_recipe (Optional[bool]): Flag to indicate whether to use a previous recipe. Default is False.
         database_path (Optional[str]): The path to the database. Default is an empty string.
@@ -59,6 +60,7 @@ class Recipe(BaseModel):
     """
     active_recipe: str
     use_local_dask: bool = False
+    n_workers: int = 3
     scheduler_address: str = None
     use_previous_recipe: Optional[bool] = False
     database_path: Optional[str] = ''
