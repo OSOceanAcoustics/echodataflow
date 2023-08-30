@@ -55,13 +55,17 @@ This command sets up the groundwork for your Echoflow environment, preparing it 
 ### 4.2 Initializing Prefect
 For Prefect, initialization involves a few extra steps, including secure authentication. Enter the following command to initiate the Prefect authentication process:
 
+- If you have a Prefect Cloud account, provide your Prefect API key to securely link your account. Type your API key when prompted and press Enter.
+
 ```bash
 prefect cloud login
 ```
 
-- If you have a Prefect Cloud account, provide your Prefect API key to securely link your account. Type your API key when prompted and press Enter.
+- If you don't have a Prefect Cloud account yet, you can use local prefect account. This is especially useful for those who are just starting out and want to explore Prefect without an account.
 
-- If you don't have a Prefect Cloud account yet, leave the API key field blank. This is especially useful for those who are just starting out and want to explore Prefect without an account.
+```bash
+prefect profiles create echoflow-local
+```
 
 The initialization process will ensure that both Echoflow and Prefect are properly set up and ready for you to dive into your cloud-based workflows.
 
