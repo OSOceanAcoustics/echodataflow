@@ -66,7 +66,7 @@ import json
 from pathlib import Path
 
 from pydantic import BaseModel
-from echoflow.config.models.db_log_model import Log_Data, DB_Log
+from ...config.models.db_log_model import Log_Data, DB_Log
 
 db_connections = threading.local()
 

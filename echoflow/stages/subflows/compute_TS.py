@@ -18,15 +18,15 @@ Date: August 22, 2023
 import os
 from typing import Any, Dict, List, Optional, Union
 import echopype as ep
-from echoflow.config.models.datastore import Dataset
+from ...config.models.datastore import Dataset
 
-from echoflow.config.models.output_model import Output
-from echoflow.config.models.pipeline import Stage
-from echoflow.stages.aspects.echoflow_aspect import echoflow
+from ...config.models.output_model import Output
+from ...config.models.pipeline import Stage
+from ..aspects.echoflow_aspect import echoflow
 
 from prefect import flow, task
 
-from echoflow.stages.utils.file_utils import get_ed_list, get_output, get_working_dir, isFile, process_output_transects
+from ..utils.file_utils import get_ed_list, get_output, get_working_dir, isFile, process_output_transects
 
 
 @flow

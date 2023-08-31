@@ -42,15 +42,15 @@ from dateutil import parser
 import re
 from zipfile import ZipFile
 
-from echoflow.config.models.datastore import Dataset, StorageOptions, StorageType
+from ...config.models.datastore import Dataset, StorageOptions, StorageType
 
 from prefect import task
 from prefect.filesystems import *
 from prefect.task_runners import *
-from echoflow.config.models.pipeline import Recipe, Stage
+from ...config.models.pipeline import Recipe, Stage
 
-from echoflow.stages.aspects.echoflow_aspect import echoflow
-from echoflow.stages.utils.file_utils import make_temp_folder, extract_fs
+from ..aspects.echoflow_aspect import echoflow
+from ..utils.file_utils import make_temp_folder, extract_fs
 
 
 TRANSECT_FILE_REGEX = r"x(?P<transect_num>\d+)"

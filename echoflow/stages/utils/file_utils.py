@@ -38,9 +38,9 @@ from urllib.parse import urlparse
 from echopype import open_converted
 
 import fsspec
-from echoflow.config.models.datastore import Dataset
-from echoflow.config.models.output_model import Output
-from echoflow.config.models.pipeline import Stage
+from ...config.models.datastore import Dataset
+from ...config.models.output_model import Output
+from ...config.models.pipeline import Stage
 from dateutil import parser
 from prefect import task
 from fsspec.implementations.local import LocalFileSystem

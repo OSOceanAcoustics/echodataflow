@@ -33,11 +33,11 @@ from pathlib import Path
 from typing import Dict, Union
 import psutil
 import yaml
-from echoflow.config.models.datastore import Dataset
-from echoflow.config.models.db_log_model import DB_Log, Log_Data, Process
-from echoflow.config.models.pipeline import Recipe
-from echoflow.config.models.rule_engine.dependency_engine import DependencyEngine
-from echoflow.stages.utils.databse_utils import (
+from ...config.models.datastore import Dataset
+from ...config.models.db_log_model import DB_Log, Log_Data, Process
+from ...config.models.pipeline import Recipe
+from ...config.models.rule_engine.dependency_engine import DependencyEngine
+from ..utils.databse_utils import (
     create_log_table,
     get_connection,
     get_last_log,

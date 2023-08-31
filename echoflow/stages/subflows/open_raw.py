@@ -20,11 +20,11 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from echoflow.config.models.datastore import Dataset
-from echoflow.config.models.output_model import Output
-from echoflow.config.models.pipeline import Stage
-from echoflow.stages.aspects.echoflow_aspect import echoflow
-from echoflow.stages.utils.file_utils import download_temp_file, get_output, isFile, get_working_dir, process_output_transects
+from ...config.models.datastore import Dataset
+from ...config.models.output_model import Output
+from ...config.models.pipeline import Stage
+from ..aspects.echoflow_aspect import echoflow
+from ..utils.file_utils import download_temp_file, get_output, isFile, get_working_dir, process_output_transects
 from echopype import open_raw
 from prefect import flow, task
 

@@ -32,10 +32,10 @@ import asyncio
 import os
 import configparser
 from typing import Any, Coroutine, Dict, List, Optional, Union
-from echoflow.config.models.echoflow_config import BaseConfig, EchoflowConfig, EchoflowPrefectConfig
-from echoflow.config.models.datastore import StorageType
+from ...config.models.echoflow_config import BaseConfig, EchoflowConfig, EchoflowPrefectConfig
+from ...config.models.datastore import StorageType
 
-from echoflow.stages.subflows.pipeline_trigger import pipeline_trigger
+from ..subflows.pipeline_trigger import pipeline_trigger
 
 from prefect.blocks.core import Block
 from prefect_aws import AwsCredentials
@@ -43,7 +43,7 @@ from prefect_azure import AzureCosmosDbCredentials
 import socket
 from pydantic import SecretStr
 
-from echoflow.stages.utils.config_utils import get_storage_options, load_block
+from ..utils.config_utils import get_storage_options, load_block
 
 
 def check_internet_connection(host="8.8.8.8", port=53, timeout=5):

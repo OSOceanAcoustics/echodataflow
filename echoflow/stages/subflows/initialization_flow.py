@@ -18,12 +18,12 @@ from typing import Any, Dict
 import dask
 from distributed import Client, LocalCluster
 
-from echoflow.config.models.datastore import Dataset
-from echoflow.config.models.pipeline import Recipe
-from echoflow.stages.utils.file_utils import cleanup, extract_fs, get_last_run_output, store_json_output
-from echoflow.stages.aspects.echoflow_aspect import echoflow
-from echoflow.stages.utils.config_utils import club_raw_files, get_prefect_config_dict, glob_all_files, parse_raw_paths
-from echoflow.stages.utils.function_utils import dynamic_function_call
+from ...config.models.datastore import Dataset
+from ...config.models.pipeline import Recipe
+from ..utils.file_utils import cleanup, extract_fs, get_last_run_output, store_json_output
+from ..aspects.echoflow_aspect import echoflow
+from ..utils.config_utils import club_raw_files, get_prefect_config_dict, glob_all_files, parse_raw_paths
+from ..utils.function_utils import dynamic_function_call
 
 from prefect import flow
 from prefect.task_runners import SequentialTaskRunner

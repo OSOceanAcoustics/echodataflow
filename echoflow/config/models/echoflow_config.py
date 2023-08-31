@@ -18,13 +18,10 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-from enum import Enum
 from typing import Any, Dict, List, Optional
-from echoflow.config.models.datastore import StorageType
+from ..models.datastore import StorageType
 from prefect.blocks.core import Block
 from pydantic import SecretStr
-import xarray as xry
-import pydantic
 
 class EchoflowPrefectConfig(Block):
     """
