@@ -294,7 +294,7 @@ def get_zarr_list(transect_data: Union[Output, Dict], storage_options: Dict[str,
 
     return zarr_list
 
-def process_output_transects(name: str, ed_list: List[Dict[str, Any]]) -> List[Output]:
+def process_output_transects(name: str, config: Dataset, ed_list: List[Dict[str, Any]]) -> List[Output]:
     """
     Process and aggregate output transects.
 
@@ -304,6 +304,7 @@ def process_output_transects(name: str, ed_list: List[Dict[str, Any]]) -> List[O
     Parameters:
         name (str): The name of the process.
         ed_list (List[Dict[str, Any]]): A list of echodata dictionaries.
+        config (Dataset): Datastore configuration
 
     Returns:
         List[Output]: A list of Output instances, each containing aggregated data for a transect.
@@ -324,13 +325,13 @@ def process_output_transects(name: str, ed_list: List[Dict[str, Any]]) -> List[O
         # Returns a list of Output instances with aggregated data per transect.
 
     """
+    error_flag = False
     transect_dict = {}
     outputs: List[Output] = []
     for ed in ed_list:
         if ed["error"] == True:
-            raise ValueError("Could not complete "+name+" successfully since 1 or more raw files" 
-                                + "failed to convert. Try fixing or skipping the files from the process."
-                                + "If `use_offline` flag is set to true, processed files will be skipped the next run.")
+            error_flag = True
+            print(ed['error_desc'])
         transect = ed['transect']
         if transect in transect_dict:
             transect_dict[transect].append(ed)
@@ -341,18 +342,20 @@ def process_output_transects(name: str, ed_list: List[Dict[str, Any]]) -> List[O
         output = Output()
         output.data = transect_dict[transect]
         outputs.append(output)
+    if error_flag:
+        store_json_output(data=outputs, config=config, name=name)
+        raise ValueError("Could not complete "+name+" successfully since 1 or more raw files" 
+                                + "failed to convert. Try fixing or skipping the files from the process."
+                                + "If `use_offline` flag is set to true, processed files will be skipped the next run.")
     return outputs
 
-def store_output(data):
+def store_json_output(data, config: Dataset, name: str):
     """
-    Store output data as JSON in the Echoflow working directory.
+    Store the given data as JSON in the Echoflow working directory.
 
-    This function serializes the given `data` and stores it as JSON in the `.echoflow`
+    This function serializes the provided `data` and stores it as JSON in the `.echoflow`
     directory within the user's home directory. The stored JSON data can later be retrieved
     using the `get_output` function.
-
-    Args:
-        data: The data to be stored. It can be of any type.
 
     Note:
         The stored data can be retrieved using the `get_output` function with the same type
@@ -360,7 +363,12 @@ def store_output(data):
 
     Example:
         >>> output_data = ["data_point_1", "data_point_2", "data_point_3"]
-        >>> store_output(output_data)
+        >>> store_json_output(output_data, config, "output_name")
+
+    Args:
+        data (Any): The data to be stored.
+        config (Dataset): The configuration dataset.
+        name (str): The name of the JSON output file.
 
     """
     home_directory = os.path.expanduser("~")
@@ -371,8 +379,19 @@ def store_output(data):
 
     # Serialize the list to JSON
     json_data = json.dumps(serialized_data_list)
+
     with open(json_data_path, "w") as outfile:
         outfile.write(json_data)
+
+    if config.args.json_export:
+        out_path = make_temp_folder(
+            config.output.urlpath+"/json_metadata", config.output.storage_options_dict)
+        out_path = out_path+"/"+name+".json"
+        fs = extract_fs(out_path, config.output.storage_options_dict)
+        with fs.open(out_path, mode="w") as f:
+            f.write(json_data)
+
+
     
 def get_output(type : str = "Output"):
     """

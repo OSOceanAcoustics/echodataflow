@@ -406,13 +406,6 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
                     **parse_file_path(raw_file, fname_pattern),
                 )
             )
-    if config.args.json_export:
-        out_path = make_temp_folder(
-            config.output.urlpath+"/raw_json", config.output.storage_options_dict)
-        out_path = out_path+"/"+config.name+".json"
-        fs = extract_fs(out_path, config.output.storage_options_dict)
-        with fs.open(out_path, mode="w") as f:
-            json.dump(raw_file_dicts, f)
     return raw_file_dicts
 
 
@@ -545,3 +538,4 @@ def load_block(name: str = None, type: StorageType = None):
     else:
         block = coro
     return block
+    

@@ -191,7 +191,8 @@ def echoflow_start(
     pipeline_config: Union[Dict[str, Any], str, Path],
     logging_config: Union[Dict[str, Any], str, Path] = None,
     storage_options: Union[Dict[str, Any], Block] = None,
-    options: Optional[Dict[str, Any]] = {}
+    options: Optional[Dict[str, Any]] = {},
+    json_data_path: Union[str, Path] = None
 ):
     
     """
@@ -226,20 +227,6 @@ def echoflow_start(
         print("Pipeline execution result:", result)
     """
 
-    if isinstance(dataset_config, Path):
-        dataset_config = str(dataset_config)
-    if isinstance(logging_config, Path):
-        logging_config = str(logging_config)
-    if isinstance(pipeline_config, Path):
-        pipeline_config = str(pipeline_config)
-
-    if storage_options is not None:
-        # Check if storage_options is a Block (fsspec storage) and convert it to a dictionary
-        if isinstance(storage_options, Block):
-            storage_options = get_storage_options(storage_options=storage_options)
-    else:
-        storage_options = {}
-
     # Try loading the Prefect config block
     try:
         echoflow_config = EchoflowConfig.load("echoflow-config", validate=False)
@@ -257,16 +244,15 @@ def echoflow_start(
             )
         else:
             print("Using a local prefect environment. To go back to your cloud workspace call load_profile(<name>) with <name> of your cloud profile.")
-    
-    if options['storage_options_override'] is not None and options['storage_options_override'] == False:
-        storage_options = {}
 
     # Call the actual pipeline
     return pipeline_trigger(
         dataset_config=dataset_config,
         pipeline_config=pipeline_config,
         logging_config=logging_config,
-        storage_options=storage_options
+        storage_options=storage_options,
+        options=options,
+        json_data_path=json_data_path
     )
 
 

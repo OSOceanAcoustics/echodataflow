@@ -24,11 +24,9 @@ from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.output_model import Output
 from echoflow.config.models.pipeline import Stage
 from echoflow.stages.aspects.echoflow_aspect import echoflow
-from echoflow.stages.utils.file_utils import cleanup, download_temp_file, get_output, isFile, get_working_dir, process_output_transects, store_output
-from echopype import open_raw, open_converted
+from echoflow.stages.utils.file_utils import download_temp_file, get_output, isFile, get_working_dir, process_output_transects
+from echopype import open_raw
 from prefect import flow, task
-from prefect_dask import DaskTaskRunner, get_dask_client
-from distributed import LocalCluster
 
 
 @flow
@@ -40,7 +38,7 @@ def echoflow_open_raw(config: Dataset, stage: Stage, prev_stage: Optional[Stage]
     Args:
         config (Dataset): Configuration for the dataset being processed.
         stage (Stage): Configuration for the current processing stage.
-        data (Union[str, List[List[Dict[str, Any]]]]): Data to be processed.
+        prev_stage (Stage): Configuration for the previous processing stage.
 
     Returns:
         List[Output]: List of processed outputs organized based on transects.
@@ -86,15 +84,7 @@ def echoflow_open_raw(config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 
         ed_list = [f.result() for f in futures]
 
-        outputs = process_output_transects(name=stage.name, ed_list=ed_list)
-    store_output(outputs)
-    if prev_stage is not None:
-        if config.output.retention == False:
-            if (prev_stage.options.get("save_offline") is None or prev_stage.options.get("save_offline") == False):
-                cleanup(config, prev_stage, data)
-        else:
-            if (prev_stage.options.get("save_offline") is not None and prev_stage.options.get("save_offline") == False):
-                cleanup(config, prev_stage, data)
+        outputs = process_output_transects(name=stage.name, config=config, ed_list=ed_list)
     return outputs
 
 

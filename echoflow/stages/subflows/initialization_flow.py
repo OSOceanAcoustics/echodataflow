@@ -11,6 +11,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+import json
 import logging
 from typing import Any, Dict
 
@@ -19,7 +20,7 @@ from distributed import Client, LocalCluster
 
 from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.pipeline import Recipe
-from echoflow.stages.utils.file_utils import get_last_run_output, store_output
+from echoflow.stages.utils.file_utils import cleanup, extract_fs, get_last_run_output, store_json_output
 from echoflow.stages.aspects.echoflow_aspect import echoflow
 from echoflow.stages.utils.config_utils import club_raw_files, get_prefect_config_dict, glob_all_files, parse_raw_paths
 from echoflow.stages.utils.function_utils import dynamic_function_call
@@ -34,7 +35,8 @@ from prefect_dask import DaskTaskRunner
 @echoflow(type="FLOW")
 def init_flow(
         pipeline: Recipe,
-        dataset: Dataset
+        config: Dataset,
+        json_data_path: str = None
 ):
     """
     Initialize and execute the processing pipeline using Prefect.
@@ -61,18 +63,24 @@ def init_flow(
     prefect_config_dict = {}
     file_dicts = []
 
-    if dataset.args.raw_json_path is None:
-        total_files = glob_all_files(config=dataset)
-        file_dicts = parse_raw_paths(all_raw_files=total_files, config=dataset)
+    if json_data_path is None:  
+        if config.args.raw_json_path is None:  
+            total_files = glob_all_files(config=config)
+            file_dicts = parse_raw_paths(all_raw_files=total_files, config=config)
+        data = club_raw_files(
+            config=config,
+            raw_dicts=file_dicts,
+            raw_url_file=config.args.raw_json_path,
+            json_storage_options=config.output.storage_options_dict
+        )
+    else:
+        file_system = extract_fs(
+            json_data_path, storage_options=config.args.storage_options_dict
+        )
+        with file_system.open(json_data_path) as f:
+            data = json.load(f)
 
-    data = club_raw_files(
-        config=dataset,
-        raw_dicts=file_dicts,
-        raw_url_file=dataset.args.raw_json_path,
-        json_storage_options=dataset.output.storage_options_dict
-    )
-
-    store_output(data)
+    store_json_output(data, config=config, name=config.name)
 
     process_list = pipeline.pipeline
     client: Client = None
@@ -104,9 +112,20 @@ def init_flow(
         function = function.with_options(**prefect_config_dict)
         print("-"*50)
         print("\nExecuting stage : ", stage)
-        output = function(dataset, stage, prev_stage)
+        output = function(config, stage, prev_stage)
         print("\nCompleted stage", stage)
         print("-"*50)
+
+        store_json_output(data=output, name=stage.name+"_output", config=config)
+
+        if prev_stage is not None:
+            if config.output.retention == False:
+                if (prev_stage.options.get("save_offline") is None or prev_stage.options.get("save_offline") == False):
+                    cleanup(config, prev_stage, data)
+            else:
+                if (prev_stage.options.get("save_offline") is not None and prev_stage.options.get("save_offline") == False):
+                    cleanup(config, prev_stage, data)
+        
         prev_stage = stage
 
     # Close the local cluster but not the cluster hosted.
@@ -114,6 +133,6 @@ def init_flow(
         client.close()
         print("Local Client has been closed")
     
-    output = get_last_run_output(data=output, storage_options=dataset.output.storage_options_dict)
+    output = get_last_run_output(data=output, storage_options=config.output.storage_options_dict)
 
     return output

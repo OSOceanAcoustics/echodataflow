@@ -17,7 +17,7 @@ Date: August 22, 2023
 """
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 from echoflow.config.models.datastore import Dataset
 from echoflow.config.models.output_model import Output
 from echoflow.config.models.pipeline import Stage
@@ -26,14 +26,14 @@ from echoflow.stages.aspects.echoflow_aspect import echoflow
 
 from prefect import task, flow
 from prefect_dask import get_dask_client
-from echoflow.stages.utils.file_utils import cleanup, get_output, get_working_dir, get_ed_list, isFile, process_output_transects, store_output
+from echoflow.stages.utils.file_utils import get_output, get_working_dir, get_ed_list, isFile, process_output_transects
 from dask.distributed import Client, LocalCluster
 
 
 @flow
 @echoflow(processing_stage="combine-echodata", type="FLOW")
 def echoflow_combine_echodata(
-    config: Dataset, stage: Stage, prev_stage: Stage
+    config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
     Combine echodata files into a single zarr file organized by transects.
@@ -41,6 +41,7 @@ def echoflow_combine_echodata(
     Args:
         config (Dataset): Configuration for the dataset being processed.
         stage (Stage): Configuration for the current processing stage.
+        prev_stage (Stage): Configuration for the previous processing stage.
 
     Returns:
         List[Output]: List of combined outputs organized by transects.
@@ -83,15 +84,7 @@ def echoflow_combine_echodata(
             futures.append(future)
 
         ed_list = [f.result() for f in futures]
-        outputs = process_output_transects(name=stage.name, ed_list=ed_list)
-    store_output(outputs)
-    if prev_stage is not None:
-        if config.output.retention == False:
-            if (prev_stage.options.get("save_offline") is None or prev_stage.options.get("save_offline") == False):
-                cleanup(config, prev_stage, data)
-        else:
-            if (prev_stage.options.get("save_offline") is not None and prev_stage.options.get("save_offline") == False):
-                cleanup(config, prev_stage, data)
+        outputs = process_output_transects(name=stage.name, config=config, ed_list=ed_list)
     return outputs
 
 

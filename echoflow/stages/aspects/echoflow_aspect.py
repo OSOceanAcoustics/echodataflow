@@ -91,8 +91,7 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
                 return result
             except Exception as e:
                 if type == "TASK":
-                    print("Task Failed due to ", e)
-                    return {'error': True}
+                    return {'error': True, 'error_desc': e}
                 else:
                     raise e
 

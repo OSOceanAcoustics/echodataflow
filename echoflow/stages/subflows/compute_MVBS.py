@@ -16,7 +16,7 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 import os
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 import echopype as ep
 
 from echoflow.config.models.datastore import Dataset
@@ -27,13 +27,13 @@ from echoflow.config.models.pipeline import Stage
 from prefect import flow, task
 
 from echoflow.stages.aspects.echoflow_aspect import echoflow
-from echoflow.stages.utils.file_utils import cleanup, get_output, get_working_dir, get_zarr_list, isFile, process_output_transects, store_output
+from echoflow.stages.utils.file_utils import get_output, get_working_dir, get_zarr_list, isFile, process_output_transects
 
 
 @flow
 @echoflow(processing_stage="compute-mvbs", type="FLOW")
 def echoflow_compute_MVBS(
-        config: Dataset, stage: Stage, prev_stage: Stage
+        config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
     Compute Mean Volume Backscattering Strength (MVBS) from echodata.
@@ -41,6 +41,7 @@ def echoflow_compute_MVBS(
     Args:
         config (Dataset): Configuration for the dataset being processed.
         stage (Stage): Configuration for the current processing stage.
+        prev_stage (Stage): Configuration for the previous processing stage.
 
     Returns:
         List[Output]: List of computed MVBS outputs.
@@ -85,15 +86,7 @@ def echoflow_compute_MVBS(
                 futures.append(future)
 
         ed_list = [f.result() for f in futures]
-        outputs = process_output_transects(name=stage.name, ed_list=ed_list)
-    store_output(outputs)
-    if prev_stage is not None:
-        if config.output.retention == False:
-            if (prev_stage.options.get("save_offline") is None or prev_stage.options.get("save_offline") == False):
-                cleanup(config, prev_stage, data)
-        else:
-            if (prev_stage.options.get("save_offline") is not None and prev_stage.options.get("save_offline") == False):
-                cleanup(config, prev_stage, data)
+        outputs = process_output_transects(name=stage.name, config=config, ed_list=ed_list)
     return outputs
 
 
