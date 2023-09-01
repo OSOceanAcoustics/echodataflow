@@ -44,7 +44,7 @@ from echoflow.models.echoflow_config import (BaseConfig, EchoflowConfig,
                                              EchoflowPrefectConfig)
 from echoflow.utils.config_utils import load_block
 
-from echoflow.stages.echoflow_trigger import pipeline_trigger
+from echoflow.stages.echoflow_trigger import echoflow_trigger
 
 
 def check_internet_connection(host="8.8.8.8", port=53, timeout=5):
@@ -247,7 +247,7 @@ def echoflow_start(
             print("Using a local prefect environment. To go back to your cloud workspace call load_profile(<name>) with <name> of your cloud profile.")
 
     # Call the actual pipeline
-    return pipeline_trigger(
+    return echoflow_trigger(
         dataset_config=dataset_config,
         pipeline_config=pipeline_config,
         logging_config=logging_config,

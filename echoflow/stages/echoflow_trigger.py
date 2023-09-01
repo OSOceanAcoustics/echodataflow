@@ -1,10 +1,10 @@
 """
-Pipeline Trigger Flow
+Echoflow Trigger Flow
 
 This module defines the Prefect Flow that acts as a trigger to initialize and execute the processing pipeline.
 
 Functions:
-    pipeline_trigger(
+    echoflow_trigger(
         dataset_config: Union[Dict, str],
         pipeline_config: Union[Dict, str],
         logging_config: Union[Dict, str] = {},
@@ -66,7 +66,7 @@ def echoflow_trigger(
         logging_config = ...
 
         # Trigger the pipeline
-        pipeline_output = pipeline_trigger(
+        pipeline_output = echoflow_trigger(
             dataset_config=data_config,
             pipeline_config=pipeline_config,
             logging_config=logging_config
