@@ -24,26 +24,27 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 
-from enum import Enum
-import json
-from pathlib import Path
-import toml
 import asyncio
-import os
 import configparser
+import json
+import os
+import socket
+from enum import Enum
+from pathlib import Path
 from typing import Any, Coroutine, Dict, List, Optional, Union
-from ...config.models.echoflow_config import BaseConfig, EchoflowConfig, EchoflowPrefectConfig
-from ...config.models.datastore import StorageType
 
-from ..subflows.pipeline_trigger import pipeline_trigger
-
+import toml
 from prefect.blocks.core import Block
 from prefect_aws import AwsCredentials
 from prefect_azure import AzureCosmosDbCredentials
-import socket
 from pydantic import SecretStr
 
-from ..utils.config_utils import get_storage_options, load_block
+from echoflow.models.datastore import StorageType
+from echoflow.models.echoflow_config import (BaseConfig, EchoflowConfig,
+                                             EchoflowPrefectConfig)
+from echoflow.utils.config_utils import load_block
+
+from echoflow.stages.pipeline_trigger import pipeline_trigger
 
 
 def check_internet_connection(host="8.8.8.8", port=53, timeout=5):
@@ -229,7 +230,7 @@ def echoflow_start(
 
     # Try loading the Prefect config block
     try:
-        echoflow_config = EchoflowConfig.load("echoflow-config", validate=False)
+        echoflow_config = load_block(name="echoflow-config", type=StorageType.ECHOFLOW)
     except ValueError as e:
         print("No Prefect Cloud Configuration found. Creating Prefect Local named 'echoflow-local'. Please add your prefect cloud ")
         # Add local profile to echoflow config but keep default as active since user might configure using Prefect setup

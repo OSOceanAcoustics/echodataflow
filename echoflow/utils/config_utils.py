@@ -30,31 +30,30 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 import asyncio
-import nest_asyncio
-import json
-from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
-from prefect_aws import AwsCredentials
-from prefect_azure import AzureCosmosDbCredentials
-import yaml
 import itertools as it
+import json
 import os
-from dateutil import parser
 import re
+from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
 from zipfile import ZipFile
+from echoflow.models.echoflow_config import EchoflowConfig
 
-from ...config.models.datastore import Dataset, StorageOptions, StorageType
-
+import nest_asyncio
+import yaml
+from dateutil import parser
 from prefect import task
 from prefect.filesystems import *
 from prefect.task_runners import *
-from ...config.models.pipeline import Recipe, Stage
+from prefect_aws import AwsCredentials
+from prefect_azure import AzureCosmosDbCredentials
 
-from ..aspects.echoflow_aspect import echoflow
-from ..utils.file_utils import make_temp_folder, extract_fs
-
+from echoflow.aspects.echoflow_aspect import echoflow
+from echoflow.models.datastore import Dataset, StorageOptions, StorageType
+from echoflow.models.pipeline import Recipe, Stage
+from echoflow.utils.file_utils import extract_fs, make_temp_folder
 
 TRANSECT_FILE_REGEX = r"x(?P<transect_num>\d+)"
-nest_asyncio.apply(asyncio.get_event_loop())
+nest_asyncio.apply()
 
 
 @task
@@ -532,7 +531,9 @@ def load_block(name: str = None, type: StorageType = None):
         coro = AwsCredentials.load(name=name)
     elif type == StorageType.AZCosmos:
         coro = AzureCosmosDbCredentials.load(name=name)
-    
+    elif type == StorageType.ECHOFLOW:
+        coro = EchoflowConfig.load(name=name)
+
     if isinstance(coro, Coroutine):
         block = nest_asyncio.asyncio.run(coro)
     else:

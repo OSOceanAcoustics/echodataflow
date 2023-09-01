@@ -22,6 +22,7 @@ import http.client
 import json
 from typing import Any, Dict
 
+
 def send_request(method : str, url : str, headers : Dict[str, Any] = {}, payload : Any = None):
     """
     Send an HTTP request to a specified URL with optional headers and payload.

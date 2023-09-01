@@ -15,6 +15,7 @@ Date: August 22, 2023
 import importlib
 import inspect
 
+
 def dynamic_function_call(module_name, function_name):
     """
     Dynamically calls a function from a specified module.

@@ -19,9 +19,12 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 from typing import Any, Dict, List, Optional
-from ..models.datastore import StorageType
+
 from prefect.blocks.core import Block
 from pydantic import SecretStr
+
+from .datastore import StorageType
+
 
 class EchoflowPrefectConfig(Block):
     """

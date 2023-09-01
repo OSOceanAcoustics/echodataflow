@@ -11,7 +11,9 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 from typing import Any, Dict
+
 from pydantic import BaseModel
+
 
 class Output(BaseModel):
     """

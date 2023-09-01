@@ -31,10 +31,11 @@ Note:
 """
 
 
-import os
 import argparse
+import os
 
-from echoflow.stages.subflows.echoflow import load_credential_configuration
+from echoflow.stages.echoflow import load_credential_configuration
+
 
 def generate_ini_file():
     """

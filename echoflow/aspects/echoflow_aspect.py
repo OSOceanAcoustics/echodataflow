@@ -15,8 +15,10 @@ Date: August 22, 2023
 """
 import functools
 import logging
+
+from echoflow.utils.rest_utils import get_last_run_history
+
 from .singleton_echoflow import Singleton_Echoflow
-from ..utils.rest_utils import get_last_run_history
 
 
 def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):

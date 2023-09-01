@@ -5,10 +5,10 @@ This module defines the Prefect Flow that acts as a trigger to initialize and ex
 
 Functions:
     pipeline_trigger(
-        dataset_config: Union[Dict[str, Any], str],
-        pipeline_config: Union[Dict[str, Any], str],
-        logging_config: Union[Dict[str, Any], str] = {},
-        storage_options: Optional[Dict[str, Any]] = {}
+        dataset_config: Union[Dict, str],
+        pipeline_config: Union[Dict, str],
+        logging_config: Union[Dict, str] = {},
+        storage_options: Optional[Dict] = {}
     )
 Author: Soham Butala
 Email: sbutala@uw.edu
@@ -16,42 +16,42 @@ Date: August 22, 2023
 """
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
-from ...config.models.datastore import Dataset
-from ...config.models.pipeline import Recipe
-from ..aspects.singleton_echoflow import Singleton_Echoflow
-from ..utils.config_utils import load_block
 
-from .initialization_flow import init_flow
-from ..utils.config_utils import check_config, extract_config, get_storage_options
-
-from prefect.blocks.core import Block
 from prefect import flow
-from prefect.task_runners import SequentialTaskRunner
 from prefect.blocks.core import Block
+from prefect.task_runners import SequentialTaskRunner
+
+from echoflow.aspects.singleton_echoflow import Singleton_Echoflow
+from echoflow.models.datastore import Dataset
+from echoflow.models.pipeline import Recipe
+from echoflow.utils.config_utils import (check_config, extract_config,
+                                         get_storage_options, load_block)
+
+from .subflows.initialization_flow import init_flow
 
 
 @flow(name="Pipeline-Trigger", task_runner=SequentialTaskRunner())
 def pipeline_trigger(
-    dataset_config: Union[Dict[str, Any], str, Path],
-    pipeline_config: Union[Dict[str, Any], str, Path],
-    logging_config: Union[Dict[str, Any], str, Path] = None,
-    storage_options: Union[Dict[str, Any], Block] = None,
-    options: Optional[Dict[str, Any]] = {},
+    dataset_config: Union[Dict, str, Path],
+    pipeline_config: Union[Dict, str, Path],
+    logging_config: Union[Dict, str, Path] = None,
+    storage_options: Union[Dict, Block] = None,
+    options: Optional[Dict] = {},
     json_data_path: Union[str, Path] = None
 ):
     """
     Trigger the initialization and execution of the processing pipeline.
 
     Args:
-        dataset_config (Union[Dict[str, Any], str, Path]): Configuration for the dataset to be 
+        dataset_config (Union[Dict, str, Path]): Configuration for the dataset to be 
         processed.
-        pipeline_config (Union[Dict[str, Any], str, Path]): Configuration for the processing 
+        pipeline_config (Union[Dict, str, Path]): Configuration for the processing 
         pipeline.
-        logging_config (Union[Dict[str, Any], str, Path], optional): Configuration for logging. 
+        logging_config (Union[Dict, str, Path], optional): Configuration for logging. 
         Defaults to None.
-        storage_options (Optional[Dict[str, Any]], optional): Storage options configuration. 
+        storage_options (Optional[Dict], optional): Storage options configuration. 
         Defaults to {}.
-        options: Optional[Dict[str, Any]]: Set of options for centralized configuration. 
+        options: Optional[Dict]: Set of options for centralized configuration. 
         Defaults to {}
         json_data_path (str, Path): Takes external json data path to process the files. 
         Defaults to None
@@ -97,13 +97,15 @@ def pipeline_trigger(
         dataset_config_dict = extract_config(dataset_config, storage_options)
     elif isinstance(dataset_config, dict):
         dataset_config_dict = dataset_config
+
     if isinstance(pipeline_config, str):
         if not pipeline_config.endswith((".yaml", ".yml")):
             raise ValueError("Configuration file must be a YAML!")
         pipeline_config_dict = extract_config(pipeline_config, storage_options)
     elif isinstance(pipeline_config, dict):
         pipeline_config_dict = pipeline_config
-    if isinstance(logging_config):
+
+    if isinstance(logging_config, str):
         if not logging_config.endswith((".yaml", ".yml")):
             raise ValueError("Configuration file must be a YAML!")
         logging_config_dict = extract_config(logging_config, storage_options)

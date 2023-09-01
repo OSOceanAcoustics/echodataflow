@@ -58,15 +58,16 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 
-from datetime import datetime
+import json
 import os
 import sqlite3
 import threading
-import json
+from datetime import datetime
 from pathlib import Path
 
 from pydantic import BaseModel
-from ...config.models.db_log_model import Log_Data, DB_Log
+
+from echoflow.models.db_log_model import DB_Log, Log_Data
 
 db_connections = threading.local()
 

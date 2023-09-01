@@ -18,8 +18,9 @@ Date: August 22, 2023
 """
 from enum import Enum
 from typing import Any, Dict, Optional
-from pydantic import BaseModel
+
 import jinja2
+from pydantic import BaseModel
 
 
 class StorageType(Enum):
@@ -34,6 +35,7 @@ class StorageType(Enum):
     AWS = "AWS"
     AZCosmos = "AZCosmos"
     GCP = "GCP"
+    ECHOFLOW = "ECHOFLOW"
 
 
 class StorageOptions(BaseModel):
