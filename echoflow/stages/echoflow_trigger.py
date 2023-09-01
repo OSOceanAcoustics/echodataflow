@@ -32,26 +32,26 @@ from .subflows.initialization_flow import init_flow
 
 @flow(name="Echoflow-Trigger", task_runner=SequentialTaskRunner())
 def echoflow_trigger(
-    dataset_config: Union[Dict, str, Path],
-    pipeline_config: Union[Dict, str, Path],
-    logging_config: Union[Dict, str, Path] = None,
-    storage_options: Union[Dict, Block] = None,
-    options: Optional[Dict] = {},
+    dataset_config: Union[dict, str, Path],
+    pipeline_config: Union[dict, str, Path],
+    logging_config: Union[dict, str, Path] = None,
+    storage_options: Optional[dict] = None,
+    options: Optional[dict] = {},
     json_data_path: Union[str, Path] = None
 ):
     """
     Trigger the initialization and execution of the processing pipeline.
 
     Args:
-        dataset_config (Union[Dict, str, Path]): Configuration for the dataset to be 
+        dataset_config (Union[dict, str, Path]): Configuration for the dataset to be 
         processed.
-        pipeline_config (Union[Dict, str, Path]): Configuration for the processing 
+        pipeline_config (Union[dict, str, Path]): Configuration for the processing 
         pipeline.
-        logging_config (Union[Dict, str, Path], optional): Configuration for logging. 
+        logging_config (Union[dict, str, Path], optional): Configuration for logging. 
         Defaults to None.
-        storage_options (Optional[Dict], optional): Takes block_name and type, similar to yaml. 
+        storage_options (Optional[dict], optional): Takes block_name and type, similar to yaml. 
         Defaults to {}.
-        options: Optional[Dict]: Set of options for centralized configuration. 
+        options: Optional[dict]: Set of options for centralized configuration. 
         Defaults to {}
         json_data_path (str, Path): Takes external json data path to process the files. 
         Defaults to None
@@ -76,13 +76,11 @@ def echoflow_trigger(
 
     if storage_options is not None:
         # Check if storage_options is a Block (fsspec storage) and convert it to a dictionary
-        if isinstance(storage_options, Block):
-            storage_options = get_storage_options(
-                storage_options=storage_options)
-        elif isinstance(storage_options, dict):
+        if isinstance(storage_options, dict) and storage_options.get("block_name") is not None:
             block = load_block(
                 name=storage_options.get("block_name"), type=storage_options.get("type"))
             storage_options = get_storage_options(block)
+        
     else:
         storage_options = {}
 
@@ -119,7 +117,8 @@ def echoflow_trigger(
     # Do any config checks on config dicts
     # Should be done in pydantic class
     check_config(dataset_config_dict, pipeline_config_dict)
-
+    print(pipeline_config_dict)
+    print(dataset_config_dict)
     pipeline = Recipe(**pipeline_config_dict)
     dataset = Dataset(**dataset_config_dict)
     if options.get('storage_options_override') is not None and options['storage_options_override'] is False:
@@ -146,8 +145,9 @@ def echoflow_trigger(
                 dataset.args.storage_options_dict = {
                     "anon": dataset.args.storage_options.anon}
 
+        print(dataset.args.transect)
         if dataset.args.transect.storage_options is not None:
-            if dataset.args.transect.storage_options.anon == False:
+            if dataset.args.transect.storage_options.anon is False:
                 block = load_block(
                     name=dataset.args.transect.storage_options.block_name, type=dataset.args.transect.storage_options.type)
                 dataset.args.transect.storage_options_dict = get_storage_options(

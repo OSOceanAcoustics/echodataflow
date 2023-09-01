@@ -42,7 +42,7 @@ from pydantic import SecretStr
 from echoflow.models.datastore import StorageType
 from echoflow.models.echoflow_config import (BaseConfig, EchoflowConfig,
                                              EchoflowPrefectConfig)
-from echoflow.utils.config_utils import load_block
+from echoflow.utils.config_utils import get_storage_options, load_block
 
 from echoflow.stages.echoflow_trigger import echoflow_trigger
 
@@ -150,8 +150,9 @@ def load_profile(name: str):
 
     # Check if the specified profile exists
     if config.get("profiles").get(name) is None:
-        raise ValueError("No such profile exists. Please try creating profile with this name")
-    
+        raise ValueError(
+            "No such profile exists. Please try creating profile with this name")
+
     # Set the specified profile as the active profile
     config["active"] = name
 
@@ -195,7 +196,6 @@ def echoflow_start(
     options: Optional[Dict[str, Any]] = {},
     json_data_path: Union[str, Path] = None
 ):
-    
     """
     Start an Echoflow pipeline execution.
 
@@ -230,11 +230,13 @@ def echoflow_start(
 
     # Try loading the Prefect config block
     try:
-        echoflow_config = load_block(name="echoflow-config", type=StorageType.ECHOFLOW)
+        echoflow_config = load_block(
+            name="echoflow-config", type=StorageType.ECHOFLOW)
     except ValueError as e:
         print("No Prefect Cloud Configuration found. Creating Prefect Local named 'echoflow-local'. Please add your prefect cloud ")
         # Add local profile to echoflow config but keep default as active since user might configure using Prefect setup
-        echoflow_create_prefect_profile(name="echoflow-local", set_active=False)
+        echoflow_create_prefect_profile(
+            name="echoflow-local", set_active=False)
 
     # Check if program can connect to the Internet.
     if check_internet_connection() == False:
@@ -246,6 +248,8 @@ def echoflow_start(
         else:
             print("Using a local prefect environment. To go back to your cloud workspace call load_profile(<name>) with <name> of your cloud profile.")
 
+    if isinstance(storage_options, Block):
+        storage_options = get_storage_options(storage_options=storage_options)
     # Call the actual pipeline
     return echoflow_trigger(
         dataset_config=dataset_config,
@@ -309,7 +313,7 @@ def update_prefect_config(
             current_config = asyncio.run(current_config)
         if current_config.prefect_configs is not None:
 
-            if active_profile is None:            
+            if active_profile is None:
                 active_profile = current_config.active
 
             profiles = current_config.prefect_configs
@@ -318,7 +322,7 @@ def update_prefect_config(
                 if p == profile_name:
                     profiles.remove(p)
             profiles.append(profile_name)
-        
+
         ecfg = EchoflowConfig(active=active_profile, prefect_configs=profiles, blocks=current_config.blocks).save(
             "echoflow-config", overwrite=True
         )
@@ -355,14 +359,15 @@ def update_base_config(name: str, b_type: StorageType, active: bool = False, opt
             options={"option_key": "option_value"}
         )
     """
-    aws_base = BaseConfig(name=name, type=b_type, active=active, options=options)
+    aws_base = BaseConfig(name=name, type=b_type,
+                          active=active, options=options)
     ecfg: Any = None
     try:
         blocks: List[BaseConfig] = []
         current_config = EchoflowConfig.load("echoflow-config", validate=False)
         if isinstance(current_config, Coroutine):
             current_config = asyncio.run(current_config)
-        
+
         if current_config.blocks is not None:
             blocks = current_config.blocks
             for b in blocks:
@@ -427,7 +432,9 @@ def echoflow_config_AWS(
         coro = asyncio.run(coro)
     if isinstance(options, str):
         options = json.loads(options)
-    update_base_config(name=name, active=active, options=options, b_type=StorageType.AWS)
+    update_base_config(name=name, active=active,
+                       options=options, b_type=StorageType.AWS)
+
 
 def echoflow_config_AZ_cosmos(
     name: str = "echoflow-az-credentials",
@@ -466,7 +473,9 @@ def echoflow_config_AZ_cosmos(
         coro = asyncio.run(coro)
     if isinstance(options, str):
         options = json.loads(options)
-    update_base_config(name=name, active=active, options=options, b_type=StorageType.AZCosmos)
+    update_base_config(name=name, active=active,
+                       options=options, b_type=StorageType.AZCosmos)
+
 
 def load_credential_configuration(sync: bool = False):
     """
@@ -519,13 +528,14 @@ def load_credential_configuration(sync: bool = False):
     if sync:
         current_config: EchoflowConfig = None
         try:
-            current_config = EchoflowConfig.load("echoflow-config", validate=False)
+            current_config = EchoflowConfig.load(
+                "echoflow-config", validate=False)
             if isinstance(current_config, Coroutine):
                 current_config = asyncio.run(current_config)
             if current_config is not None:
 
                 for base in current_config.blocks:
-       
+
                     block = load_block(base.name, base.type)
                     block_dict = dict(block)
                     block_dict['name'] = base.name
@@ -541,11 +551,11 @@ def load_credential_configuration(sync: bool = False):
                         converted_dict[key] = str(value)
                     config[base.name] = converted_dict
                 with open(ini_file_path, "w") as config_file:
-                    config.write(config_file) 
+                    config.write(config_file)
         except ValueError:
-            raise("No Echoflow configuration found.")      
+            raise ("No Echoflow configuration found.")
     for section in config.sections():
-        provider = config.get(section,'provider')
+        provider = config.get(section, 'provider')
         data_dict = dict(config[section])
         data_dict['name'] = section
         data_dict.pop('provider')
@@ -555,4 +565,3 @@ def load_credential_configuration(sync: bool = False):
             echoflow_config_AZ_cosmos(**data_dict)
         else:
             print(f"Unknown section: {provider}")
-
