@@ -117,8 +117,6 @@ def echoflow_trigger(
     # Do any config checks on config dicts
     # Should be done in pydantic class
     check_config(dataset_config_dict, pipeline_config_dict)
-    print(pipeline_config_dict)
-    print(dataset_config_dict)
     pipeline = Recipe(**pipeline_config_dict)
     dataset = Dataset(**dataset_config_dict)
     if options.get('storage_options_override') is not None and options['storage_options_override'] is False:
@@ -145,7 +143,6 @@ def echoflow_trigger(
                 dataset.args.storage_options_dict = {
                     "anon": dataset.args.storage_options.anon}
 
-        print(dataset.args.transect)
         if dataset.args.transect.storage_options is not None:
             if dataset.args.transect.storage_options.anon is False:
                 block = load_block(

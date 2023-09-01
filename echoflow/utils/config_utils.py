@@ -527,11 +527,11 @@ def load_block(name: str = None, type: StorageType = None):
     if name is None or type is None:
         raise ValueError("Cannot load block without name")
 
-    if type == StorageType.AWS:
+    if type == StorageType.AWS or type == StorageType.AWS.value:
         coro = AwsCredentials.load(name=name)
-    elif type == StorageType.AZCosmos:
+    elif type == StorageType.AZCosmos or type == StorageType.AZCosmos.value:
         coro = AzureCosmosDbCredentials.load(name=name)
-    elif type == StorageType.ECHOFLOW:
+    elif type == StorageType.ECHOFLOW or type == StorageType.ECHOFLOW.value:
         coro = EchoflowConfig.load(name=name)
 
     if isinstance(coro, Coroutine):
