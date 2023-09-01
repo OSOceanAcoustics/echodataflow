@@ -31,7 +31,7 @@ from echoflow.utils.file_utils import (get_ed_list, get_output,
 
 
 @flow
-@echoflow(processing_stage="compute-ts", type="FLOW")
+@echoflow(processing_stage="Compute-TS", type="FLOW")
 def echoflow_compute_TS(config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
     """
     Compute Target strength (TS) from echodata.

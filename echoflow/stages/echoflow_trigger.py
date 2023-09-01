@@ -30,8 +30,8 @@ from echoflow.utils.config_utils import (check_config, extract_config,
 from .subflows.initialization_flow import init_flow
 
 
-@flow(name="Pipeline-Trigger", task_runner=SequentialTaskRunner())
-def pipeline_trigger(
+@flow(name="Echoflow-Trigger", task_runner=SequentialTaskRunner())
+def echoflow_trigger(
     dataset_config: Union[Dict, str, Path],
     pipeline_config: Union[Dict, str, Path],
     logging_config: Union[Dict, str, Path] = None,
@@ -49,7 +49,7 @@ def pipeline_trigger(
         pipeline.
         logging_config (Union[Dict, str, Path], optional): Configuration for logging. 
         Defaults to None.
-        storage_options (Optional[Dict], optional): Storage options configuration. 
+        storage_options (Optional[Dict], optional): Takes block_name and type, similar to yaml. 
         Defaults to {}.
         options: Optional[Dict]: Set of options for centralized configuration. 
         Defaults to {}
@@ -79,6 +79,10 @@ def pipeline_trigger(
         if isinstance(storage_options, Block):
             storage_options = get_storage_options(
                 storage_options=storage_options)
+        elif isinstance(storage_options, dict):
+            block = load_block(
+                name=storage_options.get("block_name"), type=storage_options.get("type"))
+            storage_options = get_storage_options(block)
     else:
         storage_options = {}
 

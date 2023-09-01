@@ -31,7 +31,7 @@ from echoflow.utils.file_utils import (get_output, get_working_dir,
 
 
 @flow
-@echoflow(processing_stage="compute-mvbs", type="FLOW")
+@echoflow(processing_stage="Compute-MVBS", type="FLOW")
 def echoflow_compute_MVBS(
         config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):

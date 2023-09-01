@@ -33,7 +33,7 @@ from echoflow.utils.file_utils import (download_temp_file, get_output,
 
 
 @flow
-@echoflow(processing_stage="open-raw", type="FLOW")
+@echoflow(processing_stage="Open-Raw", type="FLOW")
 def echoflow_open_raw(config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
     """
     Process raw sonar data files and convert them to zarr format.

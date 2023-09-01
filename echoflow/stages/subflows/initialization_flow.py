@@ -33,7 +33,7 @@ from echoflow.utils.file_utils import (cleanup, extract_fs,
 from echoflow.utils.function_utils import dynamic_function_call
 
 
-@flow(name="Main-Flow", task_runner=SequentialTaskRunner())
+@flow(name="Init-Flow", task_runner=SequentialTaskRunner())
 @echoflow(type="FLOW")
 def init_flow(
         pipeline: Recipe,

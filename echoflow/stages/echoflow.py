@@ -44,7 +44,7 @@ from echoflow.models.echoflow_config import (BaseConfig, EchoflowConfig,
                                              EchoflowPrefectConfig)
 from echoflow.utils.config_utils import load_block
 
-from echoflow.stages.pipeline_trigger import pipeline_trigger
+from echoflow.stages.echoflow_trigger import pipeline_trigger
 
 
 def check_internet_connection(host="8.8.8.8", port=53, timeout=5):

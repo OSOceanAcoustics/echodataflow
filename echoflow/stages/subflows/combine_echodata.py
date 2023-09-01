@@ -31,7 +31,7 @@ from echoflow.utils.file_utils import (get_ed_list, get_output,
 
 
 @flow
-@echoflow(processing_stage="combine-echodata", type="FLOW")
+@echoflow(processing_stage="Combine-Echodata", type="FLOW")
 def echoflow_combine_echodata(
     config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
