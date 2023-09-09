@@ -48,12 +48,12 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
         def before_function_call(
             gea: Singleton_Echoflow, type: str, processing_stage: str, *args, **kwargs
         ):
-            mod_args = []
-            if type == "FLOW" and processing_stage != "DEFAULT":
-                run_history = get_last_run_history(name=processing_stage)
-                mod_args = [arg for arg in args]
-            else:
-                mod_args = [arg for arg in args]
+            # mod_args = []
+            # if type == "FLOW" and processing_stage != "DEFAULT":
+            #     # run_history = get_last_run_history(name=processing_stage)
+            #     mod_args = [arg for arg in args]
+            # else:
+            #     mod_args = [arg for arg in args]
                 
             if type != "TASK":
                 gea.log(
@@ -71,7 +71,6 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
                     if stage.name not in possible_functions:
                         raise ValueError(stage.name, " cannot be executed after ", prev_stage.name, ". Please consider configuring rules if this validation is wrong.")
 
-            return mod_args
 
         def after_function_call(gea: Singleton_Echoflow, *args, **kwargs):
             if type != "TASK":
@@ -86,9 +85,9 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
         def wrapper(*args, **kwargs):
             gea = Singleton_Echoflow.get_instance()
             try:
-                mod_args = before_function_call(
+                before_function_call(
                     gea, type, processing_stage, *args, **kwargs)
-                result = func(*mod_args, **kwargs)
+                result = func(*args, **kwargs)
                 after_function_call(gea, *args, **kwargs)
                 return result
             except Exception as e:
