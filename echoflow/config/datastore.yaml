@@ -14,7 +14,7 @@ args: # Input arguments
     storage_options: # Transect file storage options
       block_name: echoflow-aws-credentials # Block name. For more information on Blocks refer blocks.md
       type: AWS # Block type 
-    default_transect_num: 1 # Set when not using a file to pass transect information
+  default_transect_num: 1 # Set when not using a file to pass transect information
   json_export: true # Export raw json metadata of files to be processed
   raw_json_path: s3://echoflow-workground/combined_files/raw_json # Path to store the raw json metadata. Can also work to skip the process of parsing the files at source directory and fetch files present in this json instead.
 output: # Output arguments
