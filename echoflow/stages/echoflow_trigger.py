@@ -73,7 +73,7 @@ def echoflow_trigger(
         )
         print("Pipeline output:", pipeline_output)
     """
-
+    print(storage_options)
     if storage_options is not None:
         # Check if storage_options is a Block (fsspec storage) and convert it to a dictionary
         if isinstance(storage_options, dict) and storage_options.get("block_name") is not None:
@@ -83,7 +83,7 @@ def echoflow_trigger(
         
     else:
         storage_options = {}
-
+    
     if isinstance(dataset_config, Path):
         dataset_config = str(dataset_config)
     if isinstance(logging_config, Path):
@@ -114,14 +114,18 @@ def echoflow_trigger(
     else:
         logging_config_dict = logging_config
 
+    print(dataset_config_dict)
+    print(pipeline_config_dict)
     # Do any config checks on config dicts
     # Should be done in pydantic class
     check_config(dataset_config_dict, pipeline_config_dict)
     pipeline = Recipe(**pipeline_config_dict)
     dataset = Dataset(**dataset_config_dict)
+
+    
+
     if options.get('storage_options_override') is not None and options['storage_options_override'] is False:
         storage_options = {}
-
     if not storage_options:
         if dataset.output.storage_options is not None:
             if dataset.output.storage_options.anon is False:
@@ -142,16 +146,16 @@ def echoflow_trigger(
             else:
                 dataset.args.storage_options_dict = {
                     "anon": dataset.args.storage_options.anon}
-
-        if dataset.args.transect.storage_options is not None:
-            if dataset.args.transect.storage_options.anon is False:
-                block = load_block(
-                    name=dataset.args.transect.storage_options.block_name, type=dataset.args.transect.storage_options.type)
-                dataset.args.transect.storage_options_dict = get_storage_options(
-                    block)
-            else:
-                dataset.args.transect.storage_options_dict = {
-                    "anon": dataset.args.transect.storage_options.anon}
+        if dataset.args.transect is not None:
+            if dataset.args.transect.storage_options is not None:
+                if dataset.args.transect.storage_options.anon is False:
+                    block = load_block(
+                        name=dataset.args.transect.storage_options.block_name, type=dataset.args.transect.storage_options.type)
+                    dataset.args.transect.storage_options_dict = get_storage_options(
+                        block)
+                else:
+                    dataset.args.transect.storage_options_dict = {
+                        "anon": dataset.args.transect.storage_options.anon}
     else:
         dataset.output.storage_options_dict = storage_options
         dataset.args.storage_options_dict = storage_options

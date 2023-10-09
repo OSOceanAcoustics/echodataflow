@@ -79,7 +79,6 @@ class Transect(BaseModel):
     file: Optional[str]
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}  
-    default_transect_num: int = None
 
 
 class Args(BaseModel):
@@ -101,6 +100,7 @@ class Args(BaseModel):
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}
     transect: Optional[Transect]
+    default_transect_num: int = None
     zarr_store: Optional[str]
     json_export: Optional[bool] = False
     raw_json_path: Optional[str] = None

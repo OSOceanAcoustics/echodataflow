@@ -72,7 +72,7 @@ def download_temp_file(raw, working_dir: str, stage: Stage, config: Dataset):
 
     urlpath = raw.get("file_path")
     fname = os.path.basename(urlpath)
-    out_path = working_dir+"/"+fname
+    out_path = working_dir+"/raw_files/"+fname
     working_dir_fs = extract_fs(
         out_path, storage_options=config.output.storage_options_dict)
 

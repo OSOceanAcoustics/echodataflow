@@ -371,7 +371,7 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
         # When transect info is available, extract it
         file_input = config.args.transect.file
         storage_options = config.args.transect.storage_options_dict
-        default_transect = config.args.transect.default_transect_num
+        default_transect = config.args.default_transect_num
         if isinstance(file_input, str):
             filename = os.path.basename(file_input)
             _, ext = os.path.splitext(filename)
@@ -391,7 +391,7 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
         # get transect info from the transect_dict above
         transect = transect_dict.get(os.path.basename(raw_file), {})
         transect_num = transect.get(
-        "num", config.args.transect.default_transect_num)
+        "num", config.args.default_transect_num)
         if (config.args.transect is None) or (
             config.args.transect is not None and transect_num is not None and bool(transect)
         ):
