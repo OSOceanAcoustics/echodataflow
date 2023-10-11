@@ -1,75 +1,101 @@
-# echoflow
+## Echoflow: Streamlined Data Pipeline Orchestration
 
-**NOTE: This project is currently under heavy development,
-and has not been tested or deployed on the cloud**
+Welcome to **Echoflow**! Echoflow is a powerful data pipeline orchestration tool designed to simplify and enhance the execution of data processing tasks. Leveraging the capabilities of [Prefect 2.0](https://www.prefect.io/) and YAML configuration files, Echoflow caters to the needs of scientific research and data analysis. It provides an efficient way to define, configure, and execute complex data processing workflows.
 
-Sonar conversion pipeline tool with echopype.
-This tool allows for users to quickly setup sonar data processing pipelines,
-and deploy it locally or on the cloud. It uses [Prefect 2.0](https://www.prefect.io/),
-a data workflow orchestration tool to run these flows on various platforms.
+Echoflow integrates with **echopype**, a renowned package for sonar data analysis, to provide a versatile solution for researchers, analysts, and engineers. With Echoflow, users can seamlessly process and analyze sonar data using a modular and user-friendly approach.
 
-## Development
 
-To develop the code, simply install the package in a python virtual environment in editable mode.
+# Getting Started with Echoflow
+
+This guide will walk you through the initial steps to set up and run your Echoflow pipelines.
+
+## 1. Create a Virtual Environment
+
+To keep your Echoflow environment isolated, it's recommended to create a virtual environment using Conda or Python's built-in `venv` module. Here's an example using Conda:
 
 ```bash
-pip install -e .[all]
+conda create --name echoflow-env
+conda activate echoflow-env
 ```
 
-This will install all of the dependencies that the package need.
+Or, using Python's venv:
 
-**Check out the [Hake Flow Demo](./notebooks/HakeFlowDemo.ipynb) notebook to get started.**
+```bash
+python -m venv echoflow-env
+source echoflow-env/bin/activate  # On Windows, use `echoflow-env\Scripts\activate`
+```
 
-## Package structure
+## 2. Clone the Project
+Now that you have a virtual environment set up, you can clone the Echoflow project repository to your local machine using the following command:
 
-All of the code lives in a directory called [echoflow](./echoflow/).
+```bash
+git clone <repository_url>
+```
 
-Under that directory, there are currently 4 main subdirectory:
+## 3. Install the Package
+Navigate to the project directory you've just cloned and install the Echoflow package. The -e flag is crucial as it enables editable mode, which is especially helpful during development and testing. Now, take a moment and let the echoflow do its thing while you enjoy your coffee.
 
-- [settings](./echoflow/settings/): This is where pipeline configurations object models are found,
-as well as a home for any package configurations.
-  - [models](./echoflow/settings/models/): This sub-directory to `settings` contains [pydantic](https://docs.pydantic.dev/) models to validate the configuration file specified by the user.
-  This can look like below in [YAML](https://yaml.org/) format.
+```bash
+cd <project_directory>
+pip install -e .
+```
 
-    ```yaml
-    name: Bell_M._Shimada-SH1707-EK60
-    sonar_model: EK60
-    raw_regex: (.*)-?D(?P<date>\w{1,8})-T(?P<time>\w{1,6})
-    args:
-      urlpath: s3://ncei-wcsd-archive/data/raw/{{ ship_name }}/{{ survey_name }}/{{ sonar_model }}/*.raw
-      # Set default parameter values as found in urlpath
-      parameters:
-        ship_name: Bell_M._Shimada
-        survey_name: SH1707
-        sonar_model: EK60
-      storage_options:
-        anon: true
-    transect:
-        # Transect file spec
-        # can be either single or multiple files
-        file: ./hake_transects_2017.zip
-    output:
-      urlpath: ./combined_files
-      overwrite: true
-    ```
+## 4. Echoflow and Prefect Initialization
 
-    This yaml file turns into a `MainConfig` object that looks like:
+To kickstart your journey with Echoflow and Prefect, follow these simple initialization steps:
 
-    ```python
-    MainConfig(name='Bell_M._Shimada-SH1707-EK60', sonar_model='EK60', raw_regex='(.*)-?D(?P<date>\\w{1,8})-T(?P<time>\\w{1,6})', args=Args(urlpath='s3://ncei-wcsd-archive/data/raw/{{ ship_name }}/{{ survey_name }}/{{ sonar_model }}/*.raw', parameters={'ship_name': 'Bell_M._Shimada', 'survey_name': 'SH1707', 'sonar_model': 'EK60'}, storage_options={'anon': True}, transect=Transect(file='./hake_transects_2017.zip', storage_options={})), output=Output(urlpath='./combined_files', storage_options={}, overwrite=True), echopype=None)
-    ```
+### 4.1 Initializing Echoflow
+Begin by initializing Echoflow with the following command:
 
-- [stages](./echoflow/stages/): Within this directory lives the code for various stages within the sonar data processing pipeline, which is currently sketched out and discussed [here](https://github.com/uw-echospace/data-processing-levels/blob/main/discussion_2022-07-12.md).
-- [subflows](./echoflow/subflows/): Subflows contains flows that support processing level flows.
-Essentially this is the individual smaller flows that need to run within a data processing level.
-  - Currently, each subflow is a directory that contains the following python files:
-    - `flows.py`: Code regarding to flow lives here
-    - `tasks.py`: Code regarding to task lives here
-    - `utils.py`: Code that is used for utility functions lives here
-    - `__init__.py`: File to import flow so the subflow directory can become a module and flow to be easily imported.
-- [tests](./echoflow/tests/): Tests code lives in this directory.
+```bash
+echoflow init
+```
+This command sets up the groundwork for your Echoflow environment, preparing it for seamless usage.
 
-For more details about prefect, go to their extensive [documentation](https://docs.prefect.io/).
+### 4.2 Initializing Prefect
+For Prefect, initialization involves a few extra steps, including secure authentication. Enter the following command to initiate the Prefect authentication process:
+
+- If you have a Prefect Cloud account, provide your Prefect API key to securely link your account. Type your API key when prompted and press Enter.
+
+```bash
+prefect cloud login
+```
+
+- If you don't have a Prefect Cloud account yet, you can use local prefect account. This is especially useful for those who are just starting out and want to explore Prefect without an account.
+
+```bash
+prefect profiles create echoflow-local
+```
+
+The initialization process will ensure that both Echoflow and Prefect are properly set up and ready for you to dive into your cloud-based workflows.
+
+## 5. Configure Blocks
+Echoflow utilizes the concept of [blocks](./docs/configuration/blocks.md) which are secure containers for storing credentials and sensitive data. If you're running the entire flow locally, feel free to bypass this step.To set up your cloud credentials, configure blocks according to your cloud provider. For detailed instructions, refer to the [Blocks Configuration Guide](./docs/configuration/blocks.md#creating-credential-blocks).
+
+## 6. Edit the Pipeline Configuration
+Open the [pipeline.yaml](./docs/configuration/pipeline.md) file. This YAML configuration file defines the processes you want to execute as part of your pipeline. Customize it by adding the necessary stages and functions from echopype that you wish to run.
+
+## 7. Define Data Sources and Destinations
+Customize the [datastore.yaml](./docs/configuration/datastore.md) file to define the source and destination for your pipeline's data. This is where Echoflow will fetch and store data as it executes the pipeline.
+
+## 8. Execute the Pipeline
+You're now ready to execute your Echoflow pipeline! Use the echoflow_start function, which is a central piece of Echoflow, to kick off your pipeline. Import this function from Echoflow and provide the paths or URLs of the configuration files. You can also pass additional options or storage options as needed. Here's an example:
+
+Customize the paths, block name, storage type, and options based on your requirements.
+
+
+```python
+from echoflow import echoflow_start, StorageType, load_block
+
+dataset_config = # url or path of datastore.yaml
+pipeline_config = # url or path of pipeline.yaml
+logfile_config = # url or path of logging.yaml (Optional)
+
+aws = load_block(name="<block_name>", type=<StorageType>)
+
+options = {"storage_options_override": False} # Enabling this assigns the block for universal use, avoiding the need for repetitive configurations when employing a single credential block throughout the application.
+data  = echoflow_start(dataset_config=dataset_config, pipeline_config=pipeline_config, logging_config=logfile_config, storage_options=aws, options=options)
+```
 
 ## License
 

@@ -1,0 +1,83 @@
+active_recipe: standard # Specify the recipe to execute on input data
+use_local_dask: true # Spin up a local dask cluster of 3 workers if n_workers is not used
+n_workers: 4 # Number of workers for local dask cluster
+scheduler_address: tcp://127.0.0.1:61918 # Specify scheduler address or use_local_dask to control cluster creation. For more granular control, under prefect_config, use DaskTaskRunner(address=<scheduler_address>)
+pipeline: # List of pipeline configurations; only the active_recipe will be executed.
+- recipe_name: standard # Name of the recipe
+  stages: # list of processes to execute on the data
+  - name: echoflow_open_raw # Name of the function
+    module: echoflow.stages.subflows.open_raw # Module of the function
+    options: # Echoflow configuration options
+      save_raw_file: true # Save the downloaded raw file to output directory. Refer <link> for more information on how to configure output directory.
+      use_raw_offline: true # Skip the download process and take the raw file present in the output directory. Note: Missing files will be downloaded in the output directory.
+      use_offline: true # Skip this process if zarr files are already present in the output directory.
+      out_path: ./temp_files # Configure the output directory for this process 
+    prefect_config: # Configure any prefect related settings for a flow. For an exhaustive list of configurations refer <https://docs.prefect.io/2.11.5/concepts/flows/#flow-settings>. Task based configurations are optimized and handled by echoflow 
+      retries: 3 # Number of retries before failing the flow
+      task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487) # Configure Runner setting for this specific stage
+      persist_result: true # Persist the prefect results. Note: By default the output will be stored in the output directory, this option should only be used if dealing with advanced prefect configuration and integration
+      result_storage: LocalFileSystem(basepath=my-results) # Location and type of serializer to be used for storing the result
+    external_params: # External parameters relevant to the function can be configured using below. Currently only primitive types are supported under this configuration
+      sonar_model: EK60
+      xml_path: s3//
+  - name: echoflow_combine_echodata
+    module: echoflow.stages.subflows.combine_echodata
+    options:
+      use_offline: true
+    prefect_config:
+      retries: 0
+      task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
+  - name: echoflow_compute_SV
+    module: echoflow.stages.subflows.compute_SV
+    options:
+      use_offline: true
+  - name: echoflow_compute_MVBS
+    module: echoflow.stages.subflows.compute_MVBS
+    options:
+      use_offline: true
+    external_params:
+      range_meter_bin: 20 
+      ping_time_bin: 20S
+- recipe_name: target_strength
+  stages:
+  - name: echoflow_open_raw
+    module: echoflow.stages.subflows.open_raw
+    external_params:
+      sonar_model: EK60
+      xml_path: s3//
+    options:
+      save_raw_file: true
+      use_raw_offline: true
+      use_offline: true
+      # out_path: ./temp_files
+    prefect_config:
+      retries: 0
+      # task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
+      # persist_result: true
+      # result_storage: LocalFileSystem(basepath=my-results)
+  - name: echoflow_compute_TS
+    module: echoflow.stages.subflows.compute_TS
+    options:
+      use_offline: true
+- recipe_name: invalid
+  stages:
+  - name: echoflow_open_raw
+    module: echoflow.stages.subflows.open_raw
+    external_params:
+      sonar_model: EK60
+      xml_path: s3//
+    options:
+      save_raw_file: true
+      use_raw_offline: true
+      use_offline: true
+      # out_path: ./temp_files
+    prefect_config:
+      retries: 0
+      # task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
+      # persist_result: true
+      # result_storage: LocalFileSystem(basepath=my-results)
+  - name: echoflow_compute_MVBS
+    module: echoflow.stages.subflows.compute_MVBS
+    options:
+      use_offline: true
+

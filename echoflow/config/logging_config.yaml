@@ -1,0 +1,43 @@
+# version: 1
+# handlers:
+#   file:
+#     class: logging.FileHandler
+#     level: DEBUG
+#     formatter: simpleFormatter
+#     filename: demo.log
+#     mode: a  # 'a' for append, 'w' for overwrite
+# formatters:
+#   simpleFormatter:
+#     format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# root:
+#   level: DEBUG
+#   handlers: [file]
+
+version: 1
+disable_existing_loggers: False
+formatters:
+  json:
+    format: "[%(asctime)s] %(process)d %(levelname)s %(mod_name)s:%(func_name)s:%(lineno)s - %(message)s"
+  plaintext:
+    format: "[%(asctime)s] %(process)d %(levelname)s %(mod_name)s:%(func_name)s:%(lineno)s - %(message)s"
+handlers:
+  logfile:
+    class: logging.handlers.RotatingFileHandler
+    formatter: plaintext
+    level: DEBUG
+    filename: echoflow.log
+    maxBytes: 1000000
+    backupCount: 3
+  # echoflow_watchtower:
+  #   class: watchtower.CloudWatchLogHandler
+  #   formatter: json
+  #   level: DEBUG
+  #   log_group_name: echoflow_logs
+  #   log_stream_name: echoflow_stream
+  #   send_interval: 10
+  #   create_log_group: False
+loggers:
+  echoflow:
+    level: DEBUG
+    propagate: False
+    handlers: [logfile]
