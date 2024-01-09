@@ -1,0 +1,23 @@
+# Table of contents
+# Learn more at https://jupyterbook.org/customize/toc.html
+
+format: jb-book
+root: intro
+parts:
+  - caption: Getting Started
+    chapters:
+      - file: gettingstarted        
+  - caption: Demo
+    chapters:
+      - file: local/intro
+        sections:
+        - file: local/setup
+        - file: local/notebook
+          sections:
+          - file: local/pipelineconfiguration
+          - file: local/datastoreconfiguration
+  - caption: Appendix
+    chapters:
+      - file: configuration/blocks.md
+      - file: configuration/datastore.md
+      - file: configuration/pipeline.md
