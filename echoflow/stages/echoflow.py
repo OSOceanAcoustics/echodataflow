@@ -45,6 +45,7 @@ from echoflow.models.echoflow_config import (BaseConfig, EchoflowConfig,
 from echoflow.utils.config_utils import get_storage_options, load_block
 
 from echoflow.stages.echoflow_trigger import echoflow_trigger
+from echoflow.utils.file_utils import format_windows_path
 
 
 def check_internet_connection(host="8.8.8.8", port=53, timeout=5):
@@ -101,7 +102,7 @@ def echoflow_create_prefect_profile(
             set_active=True,
         )
     """
-    config_path = os.path.expanduser("~/.prefect/profiles.toml")
+    config_path = os.path.expanduser(format_windows_path("~/.prefect/profiles.toml"))
     with open(config_path, "r") as f:
         config = toml.load(f)
 
@@ -228,16 +229,19 @@ def echoflow_start(
         print("Pipeline execution result:", result)
     """
 
+    print("\nChecking Configuration")
     # Try loading the Prefect config block
     try:
         echoflow_config = load_block(
             name="echoflow-config", type=StorageType.ECHOFLOW)
     except ValueError as e:
-        print("No Prefect Cloud Configuration found. Creating Prefect Local named 'echoflow-local'. Please add your prefect cloud ")
+        print("\nNo Prefect Cloud Configuration found. Creating Prefect Local named 'echoflow-local'. Please add your prefect cloud ")
         # Add local profile to echoflow config but keep default as active since user might configure using Prefect setup
         echoflow_create_prefect_profile(
             name="echoflow-local", set_active=False)
+    print("\nConfiguration Check Completed")
 
+    print("\nChecking Connection to Prefect Server")
     # Check if program can connect to the Internet.
     if check_internet_connection() == False:
         active_profile = get_active_profile()
@@ -246,10 +250,12 @@ def echoflow_start(
                 "Please connect to internet or consider switching to a local prefect environment. This can be done by calling load_profile(name_of_local_prefect_profile or 'echoflow-local' if no prefect profile was created) method."
             )
         else:
-            print("Using a local prefect environment. To go back to your cloud workspace call load_profile(<name>) with <name> of your cloud profile.")
+            print("\nUsing a local prefect environment. To go back to your cloud workspace call load_profile(<name>) with <name> of your cloud profile.")
 
     if isinstance(storage_options, Block):
         storage_options = get_storage_options(storage_options=storage_options)
+
+    print("\nStarting the Pipeline")
     # Call the actual pipeline
     return echoflow_trigger(
         dataset_config=dataset_config,

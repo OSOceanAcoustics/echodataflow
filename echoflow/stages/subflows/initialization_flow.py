@@ -69,6 +69,7 @@ def init_flow(
         if config.args.raw_json_path is None:  
             total_files = glob_all_files(config=config)
             file_dicts = parse_raw_paths(all_raw_files=total_files, config=config)
+            print("Files To Be Processed", total_files)
         data = club_raw_files(
             config=config,
             raw_dicts=file_dicts,
@@ -110,6 +111,7 @@ def init_flow(
             prefect_config_dict["task_runner"] = DaskTaskRunner(
                 address=client.scheduler.address)
             print(client)
+            print("Scheduler at : ", client.scheduler.address)
 
         function = function.with_options(**prefect_config_dict)
         print("-"*50)
