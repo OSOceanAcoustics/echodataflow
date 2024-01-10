@@ -16,6 +16,14 @@ parts:
           sections:
           - file: local/pipelineconfiguration
           - file: local/datastoreconfiguration
+      - file: aws/intro
+        sections:
+        - file: aws/prereq
+        - file: aws/setup
+        - file: aws/notebook
+          sections:
+          - file: aws/pipelineconfiguration
+          - file: aws/datastoreconfiguration
   - caption: Appendix
     chapters:
       - file: configuration/blocks.md
