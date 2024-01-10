@@ -23,5 +23,5 @@ pipeline:
     options:
       use_offline: true
     external_params:
-      range_meter_bin: 20 
+      range_meter_bin: 20m 
       ping_time_bin: 20S

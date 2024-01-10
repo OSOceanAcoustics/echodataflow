@@ -11,7 +11,7 @@ args:
     anon: true
   transect:
     file: ./EK60_SH1707_Shimada.txt
-    default_transect_num: 2017
+  default_transect_num: 2017
   json_export: true 
 output: # Output arguments
   urlpath: <YOUR-S3-BUCKET>

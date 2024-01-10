@@ -137,7 +137,7 @@ def process_compute_MVBS(
         ed_list = get_zarr_list.fn(transect_data=out_data, storage_options=config.output.storage_options_dict)
         xr_d_mvbs = ep.commongrid.compute_MVBS(
                     ds_Sv=ed_list[0],
-                    range_meter_bin=stage.external_params.get(
+                    range_bin=stage.external_params.get(
                         "range_meter_bin"),
                     ping_time_bin=stage.external_params.get("ping_time_bin")
                 )

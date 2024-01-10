@@ -73,7 +73,6 @@ def echoflow_trigger(
         )
         print("Pipeline output:", pipeline_output)
     """
-    print(storage_options)
     if storage_options is not None:
         # Check if storage_options is a Block (fsspec storage) and convert it to a dictionary
         if isinstance(storage_options, dict) and storage_options.get("block_name") is not None:
@@ -114,15 +113,17 @@ def echoflow_trigger(
     else:
         logging_config_dict = logging_config
 
+    print("\n\nDataset Configuration Loaded For This Run")
+    print("-"*50)
     print(dataset_config_dict)
+    print("\n\nPipeline Configuration Loaded For This Run")
+    print("-"*50)
     print(pipeline_config_dict)
     # Do any config checks on config dicts
     # Should be done in pydantic class
     check_config(dataset_config_dict, pipeline_config_dict)
     pipeline = Recipe(**pipeline_config_dict)
-    dataset = Dataset(**dataset_config_dict)
-
-    
+    dataset = Dataset(**dataset_config_dict)    
 
     if options.get('storage_options_override') is not None and options['storage_options_override'] is False:
         storage_options = {}
@@ -161,6 +162,9 @@ def echoflow_trigger(
         dataset.args.storage_options_dict = storage_options
         dataset.args.transect.storage_options_dict = storage_options
 
+    print("\nInitiliazing Singleton Object")
     Singleton_Echoflow(log_file=logging_config_dict,
                        pipeline=pipeline, dataset=dataset)
+    
+    print("\nReading Configurations")
     return init_flow(config=dataset, pipeline=pipeline, json_data_path=json_data_path)
