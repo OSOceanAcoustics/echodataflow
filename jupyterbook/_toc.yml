@@ -6,7 +6,9 @@ root: intro
 parts:
   - caption: Getting Started
     chapters:
-      - file: gettingstarted        
+      - file: gettingstarted
+      - file: configuration/datastore.md
+      - file: configuration/pipeline.md        
   - caption: Demo
     chapters:
       - file: local/intro
@@ -26,6 +28,4 @@ parts:
           - file: aws/datastoreconfiguration
   - caption: Appendix
     chapters:
-      - file: configuration/blocks.md
-      - file: configuration/datastore.md
-      - file: configuration/pipeline.md
+      - file: configuration/blocks.md      

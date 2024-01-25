@@ -38,7 +38,7 @@ from echoflow.utils.function_utils import dynamic_function_call
 def init_flow(
         pipeline: Recipe,
         config: Dataset,
-        json_data_path: str = None
+        json_data_path: Optional[str] = None
 ):
     """
     Initialize and execute the processing pipeline using Prefect.

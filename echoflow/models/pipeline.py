@@ -29,10 +29,10 @@ class Stage(BaseModel):
         prefect_config (Optional[Dict[str, Any]]): Prefect configuration for the stage.
     """
     name: str
-    module: Optional[str]
-    external_params: Optional[Dict[str, Any]]
-    options: Optional[Dict[str, Any]]
-    prefect_config: Optional[Dict[str, Any]]
+    module: Optional[str] = None
+    external_params: Optional[Dict[str, Any]] = None
+    options: Optional[Dict[str, Any]] = None
+    prefect_config: Optional[Dict[str, Any]] = None
 
 class Pipeline(BaseModel):
     """

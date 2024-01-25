@@ -18,6 +18,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+import json
 from typing import Any, Dict, List, Optional
 
 from prefect.blocks.core import Block
@@ -39,10 +40,14 @@ class EchoflowPrefectConfig(Block):
     Methods:
         get_api_url(self): Get the API URL based on configuration.
     """
-    prefect_api_key: Optional[SecretStr] = None
-    prefect_account_id: Optional[SecretStr] = None
-    prefect_workspace_id: Optional[SecretStr] = None
+    class Config:
+        arbitrary_types_allowed = True
+    
+    prefect_account_id: str = None
+    prefect_api_key: str = None
+    prefect_workspace_id: str = None
     profile_name: str = None
+
 
     def get_api_url(self):
         """
@@ -52,7 +57,7 @@ class EchoflowPrefectConfig(Block):
             str: The API URL.
         """
         if self.prefect_api_key is not None:
-            return f"https://api.prefect.cloud/api/accounts/{ self.prefect_account_id.get_secret_value() }/workspaces/{ self.prefect_workspace_id.get_secret_value() }" 
+            return f"https://api.prefect.cloud/api/accounts/{ self.prefect_account_id }/workspaces/{ self.prefect_workspace_id }" 
         elif self.profile_name == "echoflow_prefect_local":
             return "127.0.0.1:4200"
 

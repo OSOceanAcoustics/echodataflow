@@ -3,6 +3,7 @@
 
 title: Echoflow Local Demo
 author: Echoflow Developers
+copyright: '2023-2024'
 logo: logo.png
 
 # Force re-execution of notebooks on each build.

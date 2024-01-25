@@ -551,7 +551,7 @@ def load_credential_configuration(sync: bool = False):
                     converted_dict = {}
                     for key, value in block_dict.items():
                         if isinstance(value, SecretStr):
-                            value = value.get_secret_value()
+                            value = value
                         if isinstance(value, Enum):
                             value = value.value
                         converted_dict[key] = str(value)
