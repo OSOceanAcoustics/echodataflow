@@ -1,4 +1,4 @@
-# Pipeline Configuration: Mean Volume Backscattering Strength
+# Pipeline Configuration: Mean Volume Backscattering Strength on AWS
 In this section, we will provide you with the pipeline configuration that we'll be using for our MVBS processing. The configuration is presented in YAML format, which is a structured and human-readable way to define settings for data processing.
 
 Here's the configuration we'll be using:
