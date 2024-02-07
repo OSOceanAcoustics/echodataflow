@@ -22,7 +22,7 @@ pipeline:
       use_offline: true
 ```
 
-Let's break down the components of this configuration:
+<!-- Let's break down the components of this configuration:
 
 - **active_recipe**: Specifies the recipe to be used for processing, which is set as "target_strength" in this case.
 
@@ -34,9 +34,9 @@ Let's break down the components of this configuration:
 
 - **echoflow_open_raw**: This stage utilizes the `open_raw` subflow module to open raw data files. It includes options such as saving raw files, using raw data in offline mode, and utilizing offline data.
 
-- **echoflow_compute_TS**: This stage employs the `compute_TS` subflow module to compute target strength. It includes an option to use offline data.
+- **echoflow_compute_TS**: This stage employs the `compute_TS` subflow module to compute target strength. It includes an option to use offline data. -->
 
-**Note**: For a more comprehensive understanding of each option and its functionality, you can refer to the [Pipeline documentation](https://github.com/OSOceanAcoustics/echoflow/blob/dev/docs/configuration/pipeline.md).
+**Note**: For a more comprehensive understanding of each option and its functionality, you can refer to the [Pipeline documentation](../configuration/pipeline.md).
 
 Keep in mind that in this example, we'll be setting up a local Dask Cluster with 5 workers for parallel processing. This configuration will enable us to efficiently process our data for target strength analysis. To turn it off, toggle `use_local_dask` to false.
 

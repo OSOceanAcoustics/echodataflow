@@ -57,3 +57,10 @@ output: # Output arguments
     block_name: echoflow-aws-credentials
     type: AWS
 ```
+
+
+Here are a couple of example configurations used during the demo:
+1. [Local Configuration](../local/datastoreconfiguration.md) 
+2. [AWS Configuration](../aws/datastoreconfiguration.md)
+
+

@@ -1,4 +1,4 @@
-# Datastore Configuration: Organizing Data for Processing
+# Datastore Configuration: Organizing Data for Processing on AWS
 
 In this section, we'll delve into the configuration that defines how the data will be organized and managed for processing. This configuration is provided in YAML format and plays a crucial role in structuring data inputs and outputs.
 
@@ -29,7 +29,7 @@ output:
     type: AWS
 ```
 
-Let's delve into the individual components of the configuration presented here:
+<!-- Let's delve into the individual components of the configuration presented here:
 
 - **name**: Specifies a descriptive name for the configuration, aiding in identifying its purpose.
 
@@ -53,10 +53,10 @@ Let's delve into the individual components of the configuration presented here:
 
   - **retention**: Disables data retention, indicating that only MVBS data will be stored in this case.
 
-  - **overwrite**: Allows data overwriting if the data already exists.
+  - **overwrite**: Allows data overwriting if the data already exists. -->
 
 **Note**: 
-- For a more comprehensive understanding of each option and its functionality, you can refer to the [Datast documentation](https://github.com/OSOceanAcoustics/echoflow/blob/dev/docs/configuration/datastore.md).
+- For a more comprehensive understanding of each option and its functionality, you can refer to the [Datastore documentation](../configuration/datastore.md/).
 - The pipeline will store MVBS Strength output under `<YOUR-S3-BUCKET>`. As the retention is set to false, only MVBS Strength files will be stored. To specify files for processing, create a list of file names and store it in `EK60_SH1707_Shimada.txt`, which should be placed under the transect directory.
 
 This configuration facilitates efficient data organization and management for the processing pipeline. Feel free to tailor it to your specific data and processing requirements.

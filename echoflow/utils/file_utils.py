@@ -30,6 +30,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+from collections import defaultdict
 import json
 import os
 import platform
@@ -336,21 +337,18 @@ def process_output_transects(name: str, config: Dataset, ed_list: List[Dict[str,
 
     """
     error_flag = False
-    transect_dict = {}
+    transect_dict = defaultdict(list)
     outputs: List[Output] = []
     for ed in ed_list:
         if ed["error"] == True:
             error_flag = True
             print(ed['error_desc'])
-        transect = ed['transect']
-        if transect in transect_dict:
-            transect_dict[transect].append(ed)
         else:
-            transect_dict[transect] = [ed]
+            transect = ed['transect']
+            transect_dict[transect].append(ed)            
 
     for transect in transect_dict.keys():
-        output = Output()
-        output.data = transect_dict[transect]
+        output = Output(data=transect_dict[transect])
         outputs.append(output)
     if error_flag:
         store_json_output(data=outputs, config=config, name=name)
@@ -398,7 +396,7 @@ def store_json_output(data, config: Dataset, name: str):
         out_path = make_temp_folder(
             config.output.urlpath+"/json_metadata", config.output.storage_options_dict)
         out_path = out_path+"/"+name+".json"
-        print("Out path is ",out_path)
+        print("Output will be loaded to ",out_path)
         fs = extract_fs(out_path, config.output.storage_options_dict)
         with fs.open(out_path, mode="w") as f:
             f.write(json_data)

@@ -47,8 +47,8 @@ class StorageOptions(BaseModel):
         block_name (Optional[str]): The name of the block.
         anon (Optional[bool]): Whether to use anonymous access. Default is False.
     """
-    type: Optional[StorageType]
-    block_name: Optional[str]
+    type: Optional[StorageType] = None
+    block_name: Optional[str] = None
     anon: Optional[bool] = False
 
 
@@ -76,7 +76,7 @@ class Transect(BaseModel):
         storage_options_dict (Optional[Dict[str, Any]]): Additional storage options as a dictionary.
         default_transect_num (int): Default transect number.
     """
-    file: Optional[str]
+    file: Optional[str] = None
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}  
 
@@ -99,9 +99,9 @@ class Args(BaseModel):
     parameters: Parameters
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}
-    transect: Optional[Transect]
+    transect: Optional[Transect] = None
     default_transect_num: int = None
-    zarr_store: Optional[str]
+    zarr_store: Optional[str] = None
     json_export: Optional[bool] = False
     raw_json_path: Optional[str] = None
 
@@ -155,4 +155,4 @@ class Dataset(BaseModel):
     raw_regex: str
     args: Args
     output: Output
-    passing_params: Optional[Dict[str, Any]]
+    passing_params: Optional[Dict[str, Any]] = None

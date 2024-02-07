@@ -23,5 +23,7 @@ class Output(BaseModel):
         data (Any): The output data.
         passing_params (Dict[str, Any]): A dictionary of passing parameters. Default is an empty dictionary.
     """
-    data: Any
+    
+
+    data: Any = None
     passing_params: Dict[str, Any] = {}

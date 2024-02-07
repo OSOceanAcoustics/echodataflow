@@ -101,3 +101,7 @@ pipeline: # List of pipeline configurations; only the active_recipe will be exec
       range_meter_bin: 20 
       ping_time_bin: 20S
 ```
+
+Here are a couple of example configurations used during the demo:
+1. [Local Configuration](../local/pipelineconfiguration.md) 
+2. [AWS Configuration](../aws/pipelineconfiguration.md)
