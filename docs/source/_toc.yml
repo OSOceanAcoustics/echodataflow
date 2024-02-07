@@ -1,0 +1,31 @@
+# Table of contents
+# Learn more at https://jupyterbook.org/customize/toc.html
+
+format: jb-book
+root: intro
+parts:
+  - caption: Getting Started
+    chapters:
+      - file: gettingstarted
+      - file: configuration/datastore.md
+      - file: configuration/pipeline.md        
+  - caption: Demo
+    chapters:
+      - file: local/intro
+        sections:
+        - file: local/setup
+        - file: local/notebook
+          sections:
+          - file: local/pipelineconfiguration
+          - file: local/datastoreconfiguration
+      - file: aws/intro
+        sections:
+        - file: aws/prereq
+        - file: aws/setup
+        - file: aws/notebook
+          sections:
+          - file: aws/pipelineconfiguration
+          - file: aws/datastoreconfiguration
+  - caption: Appendix
+    chapters:
+      - file: configuration/blocks.md      
