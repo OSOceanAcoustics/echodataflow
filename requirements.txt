@@ -10,3 +10,4 @@ prefect-dask
 jupyter
 jupyter-book
 fastapi
+sphinx

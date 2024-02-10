@@ -91,7 +91,8 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
                 after_function_call(gea, *args, **kwargs)
                 return result
             except Exception as e:
-                if type == "TASK":
+                print("Args and Kwargs", *args, **kwargs)
+                if type == "TASK":                    
                     return {'error': True, 'error_desc': e}
                 else:
                     raise e

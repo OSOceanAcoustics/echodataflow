@@ -25,7 +25,7 @@ from echoflow.aspects.echoflow_aspect import echoflow
 from echoflow.models.datastore import Dataset
 from echoflow.models.output_model import Output
 from echoflow.models.pipeline import Stage
-from echoflow.utils.file_utils import (get_ed_list, get_output,
+from echoflow.utils.file_utils import (get_ed_list, get_out_zarr, get_output,
                                        get_working_dir, isFile,
                                        process_output_transects)
 
@@ -133,7 +133,8 @@ def process_compute_TS(
         file_name = str(out_data.data.get("file_name")).split(".")[0] + "_TS.zarr"
         transect = str(out_data.data.get("transect"))
         
-    out_zarr = os.path.join(working_dir, transect, file_name)
+    out_zarr = get_out_zarr(group = stage.options.get('group', True), working_dir=working_dir, transect=transect, file_name=file_name, storage_options=config.output.storage_options_dict)
+    
     if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
         ed_list = get_ed_list.fn(
                 config=config, stage=stage, transect_data=out_data)

@@ -102,7 +102,7 @@ def echoflow_create_prefect_profile(
             set_active=True,
         )
     """
-    config_path = os.path.expanduser(format_windows_path("~/.prefect/profiles.toml"))
+    config_path = os.path.expanduser(os.path.join("~", ".prefect", "profiles.toml"))
     with open(config_path, "r") as f:
         config = toml.load(f)
 
@@ -145,7 +145,7 @@ def load_profile(name: str):
     """
 
     # Load the existing Prefect configuration file
-    config_path = os.path.expanduser("~/.prefect/profiles.toml")
+    config_path = os.path.expanduser(os.path.join("~", ".prefect", "profiles.toml"))
     with open(config_path, "r") as f:
         config = toml.load(f)
 
@@ -175,7 +175,7 @@ def get_active_profile():
         print("Active profile configuration:", active_profile)
     """
     # Load the existing Prefect configuration file
-    config_path = os.path.expanduser("~/.prefect/profiles.toml")
+    config_path = os.path.expanduser(os.path.join("~", ".prefect", "profiles.toml"))
     with open(config_path, "r") as f:
         config = toml.load(f)
 
@@ -521,10 +521,9 @@ def load_credential_configuration(sync: bool = False):
         ValueError: If no Echoflow configuration is found when `sync` is True.
     """
     config = configparser.ConfigParser()
-    home_directory = os.path.expanduser("~")
 
     # Create the directory if it doesn't exist
-    config_directory = os.path.join(home_directory, ".echoflow")
+    config_directory = os.path.expanduser(os.path.join("~", ".echoflow"))
     os.makedirs(config_directory, exist_ok=True)
 
     # Write the .ini file
