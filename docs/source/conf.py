@@ -18,11 +18,11 @@
 # -- Project information -----------------------------------------------------
 
 project = 'Echoflow'
-copyright = '2024, Soham Butala and Landung Setiawan'
-author = 'Soham Butala and Landung Setiawan'
+copyright = '2024'
+author = 'Echoflow Developers'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.1'
+release = '0.1.2'
 
 
 # -- General configuration ---------------------------------------------------
@@ -31,17 +31,21 @@ release = '0.1.1'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
+    'nbsphinx',  # For Jupyter Notebook support
+    'recommonmark',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
+external_toc_path = '_toc.yml'
+master_doc = 'index'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
 exclude_patterns = []
 
-
+use_jupyterbook_latex = True
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for

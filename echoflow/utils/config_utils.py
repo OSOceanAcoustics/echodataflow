@@ -50,7 +50,7 @@ from prefect_azure import AzureCosmosDbCredentials
 from echoflow.aspects.echoflow_aspect import echoflow
 from echoflow.models.datastore import Dataset, StorageOptions, StorageType
 from echoflow.models.pipeline import Recipe, Stage
-from echoflow.utils.file_utils import extract_fs, make_temp_folder
+from echoflow.utils.file_utils import extract_fs, isFile, make_temp_folder
 
 TRANSECT_FILE_REGEX = r"x(?P<transect_num>\d+)"
 nest_asyncio.apply()
@@ -537,4 +537,47 @@ def load_block(name: str = None, type: StorageType = None):
     else:
         block = coro
     return block
+
+def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
+    """
+    Validates external parameters to ensure they do not contain invalid file paths.
+
+    This function iterates through a dictionary of external parameters and checks each value
+    to ensure that if it contains path separators ('\\' or '/'), the value represents a valid
+    file path according to the specified configuration. It uses the `isFile` function to
+    validate file paths against the storage options specified in the `config` object.
+
+    Parameters:
+        config (Dataset): A configuration object that includes storage options (e.g.,
+                          output directory, storage options dictionary) to validate the
+                          file paths against.
+        external_params (Dict[str, Any]): A dictionary of external parameters where keys
+                                          are parameter names and values are parameter values.
+                                          This function specifically checks values that appear
+                                          to be file paths.
+
+    Returns:
+        bool: True if all external parameters that look like file paths are valid according to
+              the provided configuration. False if at least one parameter value contains path
+              separators but does not correspond to a valid file path as determined by the
+              `isFile` function.
+
+    Raises:
+        The function does not explicitly raise any exceptions but relies on the behavior of
+        the `isFile` function, which may raise exceptions related to file path validation or
+        access permissions.
+
+    Note:
+        The function assumes that any parameter value containing '\\' or '/' is intended to be
+        a file path and subjects it to validation. This may not be accurate for all use cases,
+        so consider the context in which this function is used.
+    """
+    if external_params:
+        for k, v in external_params.items():
+            if '\\' in v or '/':
+                if not isFile(v, config.output.storage_options_dict):
+                    return False
+    
+    return True
+                
     

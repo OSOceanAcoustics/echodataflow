@@ -130,7 +130,6 @@ def extract_fs(
         return file_system, parsed_path.scheme
     return file_system
 
-
 def make_temp_folder(folder_name: str, storage_options: Dict[str, Any]) -> str:
     """
     Creates a temporary folder locally or remotely using fsspec.
@@ -151,7 +150,6 @@ def make_temp_folder(folder_name: str, storage_options: Dict[str, Any]) -> str:
     if isinstance(fsmap.fs, LocalFileSystem):
         return str(Path(folder_name).resolve())
     return folder_name
-
 
 @task
 def get_output_file_path(raw_dicts, config: Dataset):
@@ -188,7 +186,6 @@ def get_output_file_path(raw_dicts, config: Dataset):
         out_fname = f"x{transect_num:04}-{date_name}.zarr"
     return format_windows_path("/".join([config.output.urlpath, out_fname]))
 
-
 def isFile(file_path: str, storage_options: Dict[str, Any] = {}):
     """
     Check if a file exists at the specified path using the fsspec file system.
@@ -207,7 +204,6 @@ def isFile(file_path: str, storage_options: Dict[str, Any] = {}):
     if file_path.endswith(".zarr"):
         return fs.isdir(file_path)
     return fs.isfile(file_path)
-
 
 def get_working_dir(stage: Stage, config: Dataset):
     """
@@ -236,7 +232,6 @@ def get_working_dir(stage: Stage, config: Dataset):
             "Echoflow_working_dir"+"/"+stage.name, config.output.storage_options_dict)
 
     return working_dir
-
 
 @task
 def get_ed_list(config: Dataset, stage: Stage, transect_data: Union[Output, List[Dict], Dict]):
@@ -279,7 +274,6 @@ def get_ed_list(config: Dataset, stage: Stage, transect_data: Union[Output, List
         )
         ed_list.append(ed)
     return ed_list
-
 
 @task
 def get_zarr_list(transect_data: Union[Output, Dict], storage_options: Dict[str, Any] = {}):
@@ -405,9 +399,7 @@ def store_json_output(data, config: Dataset, name: str):
         fs = extract_fs(out_path, config.output.storage_options_dict)
         with fs.open(out_path, mode="w") as f:
             f.write(json_data)
-
-
-    
+   
 def get_output(type : str = "Output"):
     """
     Retrieve stored output data from the Echoflow working directory.
@@ -471,7 +463,6 @@ def cleanup(config: Dataset, stage: Stage, data: List[Output]):
         except Exception as e:
             print(e)
             print("Failed to cleanup "+working_dir)
-
 
 def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any]={}):
     """

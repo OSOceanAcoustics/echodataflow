@@ -37,6 +37,72 @@ import textwrap
 
 from echoflow.stages.echoflow import load_credential_configuration
 
+def fetch_ruleset():
+    """
+    Retrieves the path to the Echoflow rules text file.
+
+    This function constructs the path to the 'echoflow_rules.txt' file located within
+    a '.echoflow' directory in the user's home directory. The function assumes that
+    the '.echoflow' directory is already present in the user's home directory. If the
+    directory does not exist, this function will still return the constructed path,
+    but accessing the file may result in an error if further action is not taken
+    to either create the directory or place the 'echoflow_rules.txt' file in the expected
+    location.
+
+    Returns:
+        str: The absolute path to the 'echoflow_rules.txt' file within the '.echoflow'
+             directory in the user's home directory.
+    """
+    # Get the user's home directory and expand ~
+    home_directory = os.path.expanduser("~")
+
+    # Create the directory if it doesn't exist
+    config_directory = os.path.join(home_directory, ".echoflow")
+    rules_path = os.path.join(config_directory, "echoflow_rules.txt")
+    
+    return rules_path
+
+def clean_ruleset(rules: set):
+    """
+    Cleans the existing ruleset file and repopulates it with a given set of rules.
+
+    This function first deletes the current 'echoflow_rules.txt' file located within
+    the '.echoflow' directory in the user's home directory. It then creates a new
+    'echoflow_rules.txt' file and populates it with the rules provided in the input set.
+    The function performs a sanity check on each rule to ensure it follows the expected 
+    format "parent_flow:child_flow". If any rule does not comply, a ValueError is raised,
+    and the operation is aborted. 
+
+    Parameters:
+        rules (set): A set of strings, each representing a rule in the format
+                     "parent_flow:child_flow". This set of rules will replace any
+                     existing rules in the 'echoflow_rules.txt' file.
+
+    Returns:
+        set: The same set of rules provided as input, indicating the rules now
+             present in the 'echoflow_rules.txt' file.
+
+    Raises:
+        ValueError: If any rule in the input set does not contain a colon (':'),
+                    indicating it does not follow the "parent_flow:child_flow" format.
+
+    Side effects:
+        - The existing 'echoflow_rules.txt' file is deleted, and its contents are lost.
+        - A new 'echoflow_rules.txt' file is created with the contents set to the input rules.
+        - If the input rules contain any format errors, the entire operation is aborted,
+          and the 'echoflow_rules.txt' file remains deleted.
+
+    Notes:
+        - This function relies on `fetch_ruleset` to determine the path to the rules file and
+          `add_rules_from_set` to repopulate the new rules file. It is assumed that both
+          functions handle any required validations and exceptions beyond format checking.
+    """
+    rules_path = fetch_ruleset()
+    
+    os.remove(rules_path)
+    
+    add_rules_from_set(rule_set=rules)
+    return rules
 
 def fetch_all_rules():
     """
@@ -49,16 +115,11 @@ def fetch_all_rules():
     Returns:
         list of str: A list containing all the rules defined in 'echoflow_rules.txt'.
     """
-    # Get the user's home directory and expand ~
-    home_directory = os.path.expanduser("~")
-
-    # Create the directory if it doesn't exist
-    config_directory = os.path.join(home_directory, ".echoflow")
-    
-    rules_path = os.path.join(config_directory, "echoflow_rules.txt")
+    rules_path = fetch_ruleset()
     with open(rules_path, 'r') as file:
-        return file.readlines()
-    
+        rules = file.readlines()
+    return clean_ruleset(set(rules))
+        
 def add_new_rule(new_rule) -> None:
     """
     Appends a new rule to the 'echoflow_rules.txt' file within the '.echoflow' directory.
@@ -74,17 +135,44 @@ def add_new_rule(new_rule) -> None:
     Returns:
         None
     """
-    # Get the user's home directory and expand ~
-    home_directory = os.path.expanduser("~")
-
-    # Create the directory if it doesn't exist
-    config_directory = os.path.join(home_directory, ".echoflow")
-    rules_path = os.path.join(config_directory, "echoflow_rules.txt")
-    
+    rules_path = fetch_ruleset()
     """Append a new rule to the existing rules file."""
     with open(rules_path, 'a') as file:
-        file.write(new_rule + '\n')
+        file.write(new_rule)
     print("New rule added successfully.")
+    
+def add_rules_from_set(rule_set: set):
+    """
+    Writes a set of rules to the Echoflow rules file, replacing any existing content.
+
+    This function takes a set of rules and writes them to the 'echoflow_rules.txt' file,
+    located within the '.echoflow' directory in the user's home directory. Each rule is 
+    written on a new line. Before writing, the function performs a sanity check on each rule
+    to ensure it follows the expected format ("parent_flow:child_flow"). If any rule does not
+    comply with this format, the function raises a ValueError and aborts the operation.
+
+    Parameters:
+        rule_set (set): A set of strings, each representing a rule in the format
+                        "parent_flow:child_flow".
+
+    Raises:
+        ValueError: If any rule in the `rule_set` does not contain a colon (':'),
+                    indicating it does not follow the "parent_flow:child_flow" format.
+
+    Returns:
+        None
+    
+    """
+    rules_path = fetch_ruleset()
+    
+    for rule in rule_set:
+        if ':' not in rule:
+            print("Sanity check failed. Please make sure all rules follow the convention : One rule per line. Format -> parent_flow:child_flow")
+            raise ValueError("Error adding rules. Sanity Check failed.") 
+                   
+    with open(rules_path, 'w') as ruleset:        
+        for rule in rule_set:
+            ruleset.write(rule)    
 
 def add_rules_from_file(file_path) -> None:
     """
@@ -105,17 +193,17 @@ def add_rules_from_file(file_path) -> None:
     Returns:
         None
     """
+    rules_path = fetch_ruleset()
+    
     try:
-        with open(file_path, 'r') as file:
+        with open(rules_path, 'r') as file:
             new_rules = [line.strip() for line in file if line.strip()]
-        for rule in new_rules:
-            if ':' not in rule:
-                print("Sanity check failed. Please make sure all rules follow the convention : One rule per line. Format -> parent_flow:child_flow")
-                raise ValueError("Error adding rules. Sanity Check failed.")
-            add_new_rule(rule)
-        print(f"Added {len(new_rules)} new rule(s) from {file_path}.")
+        
+        add_rules_from_set(set(new_rules))
+        
+        print(f"Added {len(new_rules)} new rule(s) from {rules_path}.")
     except Exception as e:
-        print(f"Error reading from file {file_path}: {e}")
+        print(f"Error reading from file {rules_path}: {e}")
 
 def generate_ini_file():
     """
@@ -178,7 +266,6 @@ def generate_ini_file():
     rules_file.close()
 
     print("Initilization complete")
-
 
 def generate_stage_file(stage_name: str):
         file_content = f"""
@@ -444,6 +531,7 @@ def main():
             else:
                 rules = fetch_all_rules()
                 print("These are the current rules configured:")
+                
                 [print(r, end='') for r in rules]
         else:
             print("Unknown Command")
