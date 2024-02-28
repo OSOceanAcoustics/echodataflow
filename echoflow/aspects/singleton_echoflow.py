@@ -225,9 +225,7 @@ class Singleton_Echoflow:
             loaded_rengine = executor.load()
         """
         rengine: DependencyEngine = DependencyEngine()
-        home_directory = os.path.expanduser("~")
-        config_directory = os.path.join(home_directory, ".echoflow")
-        rules_file_path = os.path.join(config_directory, "echoflow_rules.txt")
+        rules_file_path = os.path.expanduser(os.path.join("~", ".echoflow", "echoflow_rules.txt"))
 
         with open(rules_file_path, 'r') as file:
             for line in file:

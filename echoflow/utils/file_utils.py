@@ -35,7 +35,7 @@ import json
 import os
 import platform
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 import fsspec
@@ -74,8 +74,14 @@ def download_temp_file(raw, working_dir: str, stage: Stage, config: Dataset):
 
     urlpath = raw.get("file_path")
     fname = os.path.basename(urlpath)
-    out_path = format_windows_path(working_dir+"/"+ str(raw.get("transect_num")) +"_raw_files/"+fname, slash=True)
-    make_temp_folder(format_windows_path(working_dir+"/"+ str(raw.get("transect_num")) +"_raw_files\\", slash=True), config.output.storage_options_dict)
+    
+    if stage.options['group'] == False:
+       out_path = format_windows_path(working_dir+"/raw_files/"+fname, slash=True)
+       make_temp_folder(format_windows_path(working_dir+"/raw_files/", slash=True), config.output.storage_options_dict)
+    else: 
+        out_path = format_windows_path(working_dir+"/"+ str(raw.get("transect_num")) +"_raw_files/"+fname, slash=True)
+        make_temp_folder(format_windows_path(working_dir+"/"+ str(raw.get("transect_num")) +"_raw_files/", slash=True), config.output.storage_options_dict)    
+    
     print(out_path)
     working_dir_fs = extract_fs(
         out_path, storage_options=config.output.storage_options_dict)
@@ -124,7 +130,6 @@ def extract_fs(
         return file_system, parsed_path.scheme
     return file_system
 
-
 def make_temp_folder(folder_name: str, storage_options: Dict[str, Any]) -> str:
     """
     Creates a temporary folder locally or remotely using fsspec.
@@ -145,7 +150,6 @@ def make_temp_folder(folder_name: str, storage_options: Dict[str, Any]) -> str:
     if isinstance(fsmap.fs, LocalFileSystem):
         return str(Path(folder_name).resolve())
     return folder_name
-
 
 @task
 def get_output_file_path(raw_dicts, config: Dataset):
@@ -182,7 +186,6 @@ def get_output_file_path(raw_dicts, config: Dataset):
         out_fname = f"x{transect_num:04}-{date_name}.zarr"
     return format_windows_path("/".join([config.output.urlpath, out_fname]))
 
-
 def isFile(file_path: str, storage_options: Dict[str, Any] = {}):
     """
     Check if a file exists at the specified path using the fsspec file system.
@@ -201,7 +204,6 @@ def isFile(file_path: str, storage_options: Dict[str, Any] = {}):
     if file_path.endswith(".zarr"):
         return fs.isdir(file_path)
     return fs.isfile(file_path)
-
 
 def get_working_dir(stage: Stage, config: Dataset):
     """
@@ -230,7 +232,6 @@ def get_working_dir(stage: Stage, config: Dataset):
             "Echoflow_working_dir"+"/"+stage.name, config.output.storage_options_dict)
 
     return working_dir
-
 
 @task
 def get_ed_list(config: Dataset, stage: Stage, transect_data: Union[Output, List[Dict], Dict]):
@@ -273,7 +274,6 @@ def get_ed_list(config: Dataset, stage: Stage, transect_data: Union[Output, List
         )
         ed_list.append(ed)
     return ed_list
-
 
 @task
 def get_zarr_list(transect_data: Union[Output, Dict], storage_options: Dict[str, Any] = {}):
@@ -342,6 +342,7 @@ def process_output_transects(name: str, config: Dataset, ed_list: List[Dict[str,
     for ed in ed_list:
         if ed["error"] == True:
             error_flag = True
+            print("Encountered Some Error")
             print(ed['error_desc'])
         else:
             transect = ed['transect']
@@ -380,9 +381,7 @@ def store_json_output(data, config: Dataset, name: str):
 
     """
     print("Storing JSON Metadata")
-    home_directory = os.path.expanduser("~")
-    config_directory = os.path.join(home_directory, ".echoflow")
-    json_data_path = os.path.join(config_directory, "echoflow_working_data.json")
+    json_data_path = os.path.expanduser(os.path.join("~", ".echoflow", "echoflow_working_data.json"))
     
     serialized_data_list = jsonable_encoder(data)
 
@@ -395,14 +394,12 @@ def store_json_output(data, config: Dataset, name: str):
     if config.args.json_export:
         out_path = make_temp_folder(
             config.output.urlpath+"/json_metadata", config.output.storage_options_dict)
-        out_path = out_path+"/"+name+".json"
-        print("Output will be loaded to ",out_path)
+        out_path = out_path+"/"+name+".json" # Changed Needed
+        print("Output metdata will be loaded to ",out_path)
         fs = extract_fs(out_path, config.output.storage_options_dict)
         with fs.open(out_path, mode="w") as f:
             f.write(json_data)
-
-
-    
+   
 def get_output(type : str = "Output"):
     """
     Retrieve stored output data from the Echoflow working directory.
@@ -426,10 +423,8 @@ def get_output(type : str = "Output"):
         {"key": "value", ...}
 
     """
-    data = None
-    home_directory = os.path.expanduser("~")
-    config_directory = os.path.join(home_directory, ".echoflow")
-    json_data_path = os.path.join(config_directory, "echoflow_working_data.json")
+    data = None    
+    json_data_path = os.path.expanduser(os.path.join('~', '.echoflow', 'echoflow_working_data.json'))
     with open(json_data_path, "r") as outfile:
         data = json.load(outfile)
 
@@ -468,7 +463,6 @@ def cleanup(config: Dataset, stage: Stage, data: List[Output]):
         except Exception as e:
             print(e)
             print("Failed to cleanup "+working_dir)
-
 
 def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any]={}):
     """
@@ -510,3 +504,43 @@ def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, An
             return data
     else:
         return data
+
+def get_out_zarr(group: bool, working_dir: str, file_name: str, storage_options: Dict[str, Any], transect: str) -> str:
+    """
+    Constructs the output path for a Zarr file based on the provided parameters and storage options.
+
+    Depending on the file system (local or remote) determined by `storage_options` and the presence
+    of a group structure (`group` parameter), this function constructs and returns the appropriate 
+    file path for storing Zarr datasets.
+
+    Parameters:
+        group (bool): Indicates whether the output is part of a group structure. If True, `transect`
+                      will be included in the path.
+        working_dir (str): The base directory for the output file.
+        file_name (str): The name of the file to be generated.
+        storage_options (Dict[str, Any]): Options to configure access to the file system, such as credentials.
+        transect (str): The name of the transect (group) under which the file should be organized.
+                        This is only used if `group` is True.
+
+    Returns:
+        str: The fully constructed file path where the Zarr file should be saved.
+
+    Note:
+        This function supports both local and remote file systems as determined by `fsspec.get_mapper`
+        and the provided `storage_options`.
+    """
+    fsmap = fsspec.get_mapper(working_dir, **storage_options)
+    
+    print("File System is : ", fsmap.fs)
+    
+    if isinstance(fsmap.fs, LocalFileSystem):
+        if group:        
+            return os.path.join(working_dir, transect, file_name)
+        else:
+            return os.path.join(working_dir,file_name)
+    else:
+        slash_pattern = '/' if '/' in working_dir else '\\'
+        if group:
+            return slash_pattern.join([working_dir, transect, file_name])
+        else:
+            return slash_pattern.join([working_dir, file_name])

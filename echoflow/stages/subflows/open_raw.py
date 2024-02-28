@@ -27,7 +27,7 @@ from echoflow.aspects.echoflow_aspect import echoflow
 from echoflow.models.datastore import Dataset
 from echoflow.models.output_model import Output
 from echoflow.models.pipeline import Stage
-from echoflow.utils.file_utils import (download_temp_file, get_output,
+from echoflow.utils.file_utils import (download_temp_file, get_out_zarr, get_output,
                                        get_working_dir, isFile,
                                        process_output_transects)
 
@@ -68,6 +68,9 @@ def echoflow_open_raw(config: Dataset, stage: Stage, prev_stage: Optional[Stage]
     ed_list = []
     futures = []
     outputs: List[Output] = []
+    
+    if stage.options.get('group') is None:
+        stage.options['group'] = True
 
     # Dealing with single file
     if type(data) == str or type(data) == Path:
@@ -125,8 +128,11 @@ def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
     temp_file = download_temp_file(raw, working_dir, stage, config)
     local_file = temp_file.get("local_path")
     local_file_name = os.path.basename(temp_file.get("local_path"))
-    out_zarr = os.path.join(working_dir, str(
-        raw.get("transect_num")), local_file_name.replace(".raw", ".zarr"))
+    
+    
+    out_zarr = get_out_zarr(group = stage.options.get('group', True), working_dir=working_dir, transect=str(
+            raw.get("transect_num")), file_name=local_file_name.replace(".raw", ".zarr"), storage_options=config.output.storage_options_dict)
+    
     if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
         ed = open_raw(raw_file=local_file, sonar_model=raw.get(
             "instrument"), storage_options=config.output.storage_options_dict)

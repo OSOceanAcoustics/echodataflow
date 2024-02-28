@@ -27,7 +27,7 @@ from echoflow.models.datastore import Dataset
 from echoflow.models.pipeline import Recipe
 from echoflow.utils.config_utils import (club_raw_files,
                                          get_prefect_config_dict,
-                                         glob_all_files, parse_raw_paths)
+                                         glob_all_files, parse_raw_paths, sanitize_external_params)
 from echoflow.utils.file_utils import (cleanup, extract_fs,
                                        get_last_run_output, store_json_output)
 from echoflow.utils.function_utils import dynamic_function_call
@@ -112,6 +112,9 @@ def init_flow(
                 address=client.scheduler.address)
             print(client)
             print("Scheduler at : ", client.scheduler.address)
+
+        if not sanitize_external_params(config, stage.external_params):
+            raise ValueError("Sanity Check Failed. One or more external parameters passed have a problem.")
 
         function = function.with_options(**prefect_config_dict)
         print("-"*50)

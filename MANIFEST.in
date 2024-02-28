@@ -1,5 +1,7 @@
 include LICENSE
 include README.md
+include requirements.txt
+
 recursive-exclude jupyterbook *
 recursive-exclude docs *
 recursive-exclude notebooks *
