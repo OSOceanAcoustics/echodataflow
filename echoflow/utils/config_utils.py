@@ -574,7 +574,7 @@ def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
     """
     if external_params:
         for k, v in external_params.items():
-            if '\\' in v or '/':
+            if '\\' in v or '/' in v:
                 if not isFile(v, config.output.storage_options_dict):
                     return False
     

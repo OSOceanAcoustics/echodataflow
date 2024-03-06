@@ -14,8 +14,10 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+import json
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
+from fastapi.encoders import jsonable_encoder
 
 from prefect import flow
 from prefect.blocks.core import Block
@@ -24,6 +26,7 @@ from prefect.task_runners import SequentialTaskRunner
 from echoflow.aspects.singleton_echoflow import Singleton_Echoflow
 from echoflow.models.datastore import Dataset
 from echoflow.models.pipeline import Recipe
+from echoflow.utils import log_util
 from echoflow.utils.config_utils import (check_config, extract_config,
                                          get_storage_options, load_block)
 
@@ -113,12 +116,16 @@ def echoflow_trigger(
     else:
         logging_config_dict = logging_config
 
-    print("\n\nDataset Configuration Loaded For This Run")
-    print("-"*50)
+    
+    log_util.log(msg={'msg':f'Dataset Configuration Loaded For This Run', 'mod_name':__file__, 'func_name':'Echoflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
+    log_util.log(msg={'msg':f'-'*50, 'mod_name':__file__, 'func_name':'Echoflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
+    log_util.log(msg={'msg':json.dumps(jsonable_encoder(dataset_config_dict)), 'mod_name':__file__, 'func_name':'Echoflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
     print(dataset_config_dict)
-    print("\n\nPipeline Configuration Loaded For This Run")
-    print("-"*50)
-    print(pipeline_config_dict)
+    
+    log_util.log(msg={'msg':f'Pipeline Configuration Loaded For This Run', 'mod_name':__file__, 'func_name':'Echoflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
+    log_util.log(msg={'msg':f'-'*50, 'mod_name':__file__, 'func_name':'Echoflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
+    log_util.log(msg={'msg':json.dumps(jsonable_encoder(pipeline_config_dict)), 'mod_name':__file__, 'func_name':'Echoflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
+    
     # Do any config checks on config dicts
     # Should be done in pydantic class
     check_config(dataset_config_dict, pipeline_config_dict)

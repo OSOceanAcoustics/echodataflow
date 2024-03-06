@@ -16,21 +16,24 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
+from distributed import Client, get_client
 
 from echopype import open_raw
 from prefect import flow, task
 
 from echoflow.aspects.echoflow_aspect import echoflow
+from echoflow.aspects.singleton_echoflow import Singleton_Echoflow
 from echoflow.models.datastore import Dataset
 from echoflow.models.output_model import Output
 from echoflow.models.pipeline import Stage
+from echoflow.utils import log_util
 from echoflow.utils.file_utils import (download_temp_file, get_out_zarr, get_output,
                                        get_working_dir, isFile,
                                        process_output_transects)
-
 
 @flow
 @echoflow(processing_stage="Open-Raw", type="FLOW")
@@ -125,17 +128,26 @@ def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
         )
         print("Processed output:", processed_output)
     """
+    log_util.log(msg={'msg':f' ---- Entering ----', 'mod_name':__file__, 'func_name':os.path.basename(raw.get("file_path"))}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+   
     temp_file = download_temp_file(raw, working_dir, stage, config)
     local_file = temp_file.get("local_path")
     local_file_name = os.path.basename(temp_file.get("local_path"))
     
+    log_util.log(msg={'msg':f'Dowloaded RAW file at {local_file}', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
     
     out_zarr = get_out_zarr(group = stage.options.get('group', True), working_dir=working_dir, transect=str(
             raw.get("transect_num")), file_name=local_file_name.replace(".raw", ".zarr"), storage_options=config.output.storage_options_dict)
     
+    log_util.log(msg={'msg':f'Processing RAW file, output will be at {out_zarr}', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+    
     if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
+        log_util.log(msg={'msg':f'File not found in the destination folder / use_offline flag is False.', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
         ed = open_raw(raw_file=local_file, sonar_model=raw.get(
             "instrument"), storage_options=config.output.storage_options_dict)
+        
+        log_util.log(msg={'msg':f'Converting to Zarr', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+        
         ed.to_zarr(
             save_path=str(out_zarr),
             overwrite=True,
@@ -143,8 +155,12 @@ def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
             compute=False
         )
         del ed
-
+        
         if stage.options.get("save_raw_file") == False:
+            log_util.log(msg={'msg':f'Deleting local raw file since `save_raw_file` flag is false', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
             local_file.unlink()
-
+    else:
+        log_util.log(msg={'msg':f'Skipped processing {local_file_name}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
+    log_util.log(msg={'msg':f' ---- Exiting ----', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
     return {'out_path': out_zarr, 'transect': raw.get("transect_num"), 'file_name': local_file_name, 'error': False}

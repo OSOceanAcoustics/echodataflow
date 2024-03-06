@@ -11,12 +11,15 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+import asyncio
+from collections import defaultdict
 import json
 import logging
-from typing import Any, Dict
+from typing import Any, Coroutine, Dict
 
 import dask
 from distributed import Client, LocalCluster
+from fastapi.encoders import jsonable_encoder
 from prefect import flow
 from prefect.filesystems import *
 from prefect.task_runners import SequentialTaskRunner
@@ -25,6 +28,7 @@ from prefect_dask import DaskTaskRunner
 from echoflow.aspects.echoflow_aspect import echoflow
 from echoflow.models.datastore import Dataset
 from echoflow.models.pipeline import Recipe
+from echoflow.utils import log_util
 from echoflow.utils.config_utils import (club_raw_files,
                                          get_prefect_config_dict,
                                          glob_all_files, parse_raw_paths, sanitize_external_params)
@@ -69,7 +73,8 @@ def init_flow(
         if config.args.raw_json_path is None:  
             total_files = glob_all_files(config=config)
             file_dicts = parse_raw_paths(all_raw_files=total_files, config=config)
-            print("Files To Be Processed", total_files)
+            log_util.log(msg={'msg':f'Files To Be Processed', 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
+            log_util.log(msg={'msg':json.dumps(jsonable_encoder(total_files)), 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)            
         data = club_raw_files(
             config=config,
             raw_dicts=file_dicts,
@@ -97,34 +102,41 @@ def init_flow(
         function = dynamic_function_call(stage.module, stage.name)
         prefect_config_dict = get_prefect_config_dict(
             stage, pipeline, prefect_config_dict)
-
+        stage.options['use_dask'] = False
         if pipeline.scheduler_address is not None and pipeline.use_local_dask == False:
             if client is None:
                 client = Client(pipeline.scheduler_address)
             prefect_config_dict["task_runner"] = DaskTaskRunner(
                 address=client.scheduler.address)
-            print(client)
+            log_util.log(msg={'msg':f'{client}', 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)            
+            client.forward_logging('echoflow')
+            stage.options['use_dask'] = True
         elif pipeline.use_local_dask == True and prefect_config_dict is not None and prefect_config_dict.get("task_runner") is None:
             if client is None:
-                cluster = LocalCluster(n_workers=pipeline.n_workers)
+                cluster = LocalCluster(n_workers=pipeline.n_workers, nanny=False)
                 client = Client(cluster.scheduler_address)
             prefect_config_dict["task_runner"] = DaskTaskRunner(
                 address=client.scheduler.address)
-            print(client)
-            print("Scheduler at : ", client.scheduler.address)
+            log_util.log(msg={'msg':f'{client}', 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
+            
+            log_util.log(msg={'msg':f'Scheduler at : {client.scheduler.address}', 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
+            
+            client.forward_logging('echoflow_logs')
+            stage.options['use_dask'] = True
 
         if not sanitize_external_params(config, stage.external_params):
             raise ValueError("Sanity Check Failed. One or more external parameters passed have a problem.")
 
         function = function.with_options(**prefect_config_dict)
-        print("-"*50)
-        print("\nExecuting stage : ", stage)
-        output = function(config, stage, prev_stage)
-        print("\nCompleted stage", stage)
-        print("-"*50)
+        log_util.log(msg={'msg':f'-'*50, 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
+        log_util.log(msg={'msg':f'Executing stage : {stage}', 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
+        output = function(config, stage, prev_stage)        
+        log_util.log(msg={'msg':f'Completed stage : {stage}', 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
+        log_util.log(msg={'msg':f'-'*50, 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
 
         store_json_output(data=output, name=stage.name+"_output", config=config)
-
+        log_util.log(msg={'msg':json.dumps(jsonable_encoder(output)), 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
+        
         if prev_stage is not None:
             if config.output.retention == False:
                 if (prev_stage.options.get("save_offline") is None or prev_stage.options.get("save_offline") == False):
@@ -134,11 +146,13 @@ def init_flow(
                     cleanup(config, prev_stage, data)
         
         prev_stage = stage
-
+    
+    log_util.log_stream()
+    
     # Close the local cluster but not the cluster hosted.
     if pipeline.scheduler_address is None and pipeline.use_local_dask == True:
-        client.close()
-        print("Local Client has been closed")
+        client.close()      
+        log_util.log(msg={'msg':f'Local Client has been closed', 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
     
     output = get_last_run_output(data=output, storage_options=config.output.storage_options_dict)
 

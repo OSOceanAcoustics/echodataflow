@@ -145,6 +145,8 @@ class Singleton_Echoflow:
             self.logger.log(level=logging.ERROR, msg=msg, extra=extra)
             self.logger.log(level=logging.INFO, msg=msg, extra=extra)
             self.logger.log(level=logging.WARNING, msg=msg, extra=extra)
+        else:
+            print(f"{extra} : {msg}")
 
     def add_new_process(self, process: Process, name: str):
         """
