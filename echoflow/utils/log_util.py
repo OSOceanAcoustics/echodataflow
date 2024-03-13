@@ -47,21 +47,24 @@ def log(stream_name: str = 'echoflow', msg=Any, use_dask = False, eflogging:Echo
                             "func_name": msg['func_name']},
                         level=logging.DEBUG,
                     )
-    
-    if eflogging and eflogging.kafka:
-        if eflogging.kafka.topic and len(eflogging.kafka.servers) != 0:
-            producer = None
-            try:
-                producer = KafkaProducer(bootstrap_servers=eflogging.kafka.servers,
-                         value_serializer=lambda v: json.dumps(v).encode('utf-8'))        
-                producer.send(eflogging.kafka.topic, msg)
-            except Exception as e:
-                print("Failed logging to Kafka due to", e)
-            finally:
-                if producer:
-                    producer.flush()
-                    producer.close()
-    
+            
+    if eflogging:
+        if isinstance(eflogging, dict):
+            eflogging = EchoflowLogs(**eflogging)
+        if eflogging.kafka:
+            if eflogging.kafka.topic and len(eflogging.kafka.servers) != 0:
+                producer = None
+                try:
+                    producer = KafkaProducer(bootstrap_servers=eflogging.kafka.servers,
+                            value_serializer=lambda v: json.dumps(v).encode('utf-8'))        
+                    producer.send(eflogging.kafka.topic, msg)
+                except Exception as e:
+                    print("Failed logging to Kafka due to", e)
+                finally:
+                    if producer:
+                        producer.flush()
+                        producer.close()
+        
     print(f"{msg.get('mod_name')}  {msg.get('func_name')} : {msg.get('msg')}")
 
 
