@@ -25,6 +25,7 @@ from echoflow.aspects.echoflow_aspect import echoflow
 from echoflow.models.datastore import Dataset
 from echoflow.models.output_model import Output
 from echoflow.models.pipeline import Stage
+from echoflow.utils import log_util
 from echoflow.utils.file_utils import (get_ed_list, get_out_zarr, get_output,
                                        get_working_dir, isFile,
                                        process_output_transects)
@@ -124,14 +125,28 @@ def process_combine_echodata(
         )
         print("Combined output:", combined_output)
     """
+    log_util.log(msg={'msg':f' ---- Entering ----', 'mod_name':__file__, 'func_name':'Combine Echodata'}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+       
     ed_list = []
     if type(out_data) == list and type(out_data[0]) == dict:
+        file_name = out_data[0].get("transect")
         out_zarr = get_out_zarr(group = stage.options.get('group', True), working_dir=working_dir, transect=str(out_data[0].get(
             "transect")), file_name=str(out_data[0].get("transect")) + ".zarr", storage_options=config.output.storage_options_dict)        
+    
+        log_util.log(msg={'msg':f'Processing file, output will be at {out_zarr}', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+    
         if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
+            log_util.log(msg={'msg':f'File not found in the destination folder / use_offline flag is False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+        
             ed_list = get_ed_list.fn(
                 config=config, stage=stage, transect_data=out_data)
+            
+            log_util.log(msg={'msg':f'Combining Zarr', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
             ceds = combine_echodata(echodata_list=ed_list)
+        
+            log_util.log(msg={'msg':f'Converting to Zarr', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+        
             ceds.to_zarr(
                 save_path=out_zarr,
                 overwrite=True,
@@ -140,15 +155,32 @@ def process_combine_echodata(
                 compute=False
             )
             del ceds
+        else:
+            log_util.log(msg={'msg':f'Skipped processing {file_name}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
+        log_util.log(msg={'msg':f' ---- Exiting ----', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+        
         return {'out_path': out_zarr, 'transect': out_data[0].get(
             "transect"), 'file_name': str(out_data[0].get("transect")) + ".zarr", 'error': False}
     else:        
         out_zarr = get_out_zarr(group = stage.options.get('group', True), working_dir=working_dir, transect="default", file_name="Default_Transect.zarr", storage_options=config.output.storage_options_dict)
+    
+        log_util.log(msg={'msg':f'Processing file, output will be at {out_zarr}', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+    
         if stage.options.get("use_offline") == False or isFile(out_zarr) == False:
+        
+            log_util.log(msg={'msg':f'File not found in the destination folder / use_offline flag is False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+        
             for output_obj in out_data:
                 ed_list.extend(get_ed_list.fn(
                     config=config, stage=stage, transect_data=output_obj))
+                
+            log_util.log(msg={'msg':f'Combining Zarr', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
             ceds = combine_echodata(echodata_list=ed_list)
+            
+            log_util.log(msg={'msg':f'Converting to Zarr', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
             ceds.to_zarr(
                 save_path=out_zarr,
                 overwrite=True,
@@ -157,5 +189,9 @@ def process_combine_echodata(
                 compute=False
             )
             del ceds
+        else:
+            log_util.log(msg={'msg':f'Skipped processing {file_name}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
+        log_util.log(msg={'msg':f' ---- Exiting ----', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
         return {'out_path': out_zarr, 'transect': "Default_Transect",
                         'file_name': 'Default_Transect.zarr', 'error': False}

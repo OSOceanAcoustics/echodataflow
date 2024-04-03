@@ -13,8 +13,12 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+import asyncio
 import functools
 import logging
+from typing import Coroutine
+
+from distributed import get_client
 
 from echoflow.utils.rest_utils import get_last_run_history
 
@@ -48,14 +52,8 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
         def before_function_call(
             gea: Singleton_Echoflow, type: str, processing_stage: str, *args, **kwargs
         ):
-            # mod_args = []
-            # if type == "FLOW" and processing_stage != "DEFAULT":
-            #     # run_history = get_last_run_history(name=processing_stage)
-            #     mod_args = [arg for arg in args]
-            # else:
-            #     mod_args = [arg for arg in args]
                 
-            if type != "TASK":
+            if gea:
                 gea.log(
                     msg=f"Entering with memory at {gea.log_memory_usage()}: ",
                     extra={"mod_name": func.__module__,
@@ -73,7 +71,7 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
 
 
         def after_function_call(gea: Singleton_Echoflow, *args, **kwargs):
-            if type != "TASK":
+            if gea:
                 gea.log(
                     msg=f"Exiting with memory at {gea.log_memory_usage()}: ",
                     extra={"mod_name": func.__module__,
@@ -91,10 +89,27 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
                 after_function_call(gea, *args, **kwargs)
                 return result
             except Exception as e:
-                print("Args and Kwargs", *args, **kwargs)
                 if type == "TASK":                    
                     return {'error': True, 'error_desc': e}
                 else:
+                    try: 
+                        client = get_client()
+                        if client:
+                            ev = client.get_events('echoflow')
+                        if isinstance(ev, Coroutine):
+                            ev = asyncio.run(ev)
+                        for log in ev:
+                            if gea:
+                                gea.log(
+                                    msg= log[1]['msg'],
+                                    extra={"mod_name": log[1]['mod_name'],
+                                        "func_name": log[1]['func_name']},
+                                    level=logging.DEBUG,
+                                )
+                            else:
+                                print(log)
+                    except Exception as e:
+                        pass
                     raise e
 
         return wrapper

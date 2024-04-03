@@ -17,7 +17,7 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 from enum import Enum
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import jinja2
 from pydantic import BaseModel
@@ -137,6 +137,12 @@ class Output(BaseModel):
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}
 
+class Kafka(BaseModel):
+    topic: str
+    servers: List[str]
+
+class EchoflowLogs(BaseModel):
+    kafka: Kafka = None
 
 class Dataset(BaseModel):
     """
@@ -156,3 +162,4 @@ class Dataset(BaseModel):
     args: Args
     output: Output
     passing_params: Optional[Dict[str, Any]] = None
+    logging: EchoflowLogs = None

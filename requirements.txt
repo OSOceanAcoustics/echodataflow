@@ -11,3 +11,4 @@ jupyter
 jupyter-book
 fastapi
 sphinx
+kafka-python

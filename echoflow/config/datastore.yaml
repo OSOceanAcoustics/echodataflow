@@ -24,3 +24,8 @@ output: # Output arguments
   storage_options: # Destination data storage options
     block_name: echoflow-aws-credentials
     type: AWS
+logging:
+  kafka:
+    topic: echoflow_logs
+    servers:
+    - localhost:9092
