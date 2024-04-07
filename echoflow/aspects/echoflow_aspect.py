@@ -108,9 +108,9 @@ def echoflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
                                 )
                             else:
                                 print(log)
-                    except Exception as e:
+                    except Exception as ex:
                         pass
-                    raise e
+                raise e
 
         return wrapper
 

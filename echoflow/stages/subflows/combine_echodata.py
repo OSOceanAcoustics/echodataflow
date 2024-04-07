@@ -85,7 +85,7 @@ def echoflow_combine_echodata(
             futures.append(future)
 
         ed_list = [f.result() for f in futures]
-        outputs = process_output_transects(name=stage.name, config=config, ed_list=ed_list)
+        outputs = process_output_transects(name=stage.name, config=config, stage=stage, ed_list=ed_list)
     return outputs
 
 
