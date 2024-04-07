@@ -342,10 +342,11 @@ def process_output_transects(name: str, config: Dataset, stage: Stage, ed_list: 
     outputs: List[Output] = []
     for ed in ed_list:
         if ed["error"] == True:
-            error_flag = True
-            print("Encountered Some Error")
-            print(ed['error_desc'])   
-            log_util.log(msg={'msg':f'Encountered Some Error', 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)         
+            error_flag = True         
+            error_description = str(ed.get('error_desc', 'Unknown error')) 
+            file = str(ed['file_name'])
+            log_util.log(msg={'msg':f'Encountered Some Error in {file}', 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)         
+            log_util.log(msg={'msg':error_description, 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)         
         else:
             transect = ed['transect']
             transect_dict[transect].append(ed)
