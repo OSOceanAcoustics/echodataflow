@@ -1,6 +1,6 @@
 active_recipe: target_strength 
 use_local_dask: true
-n_workers: 5
+n_workers: 2
 pipeline:
 - recipe_name: target_strength
   stages:
@@ -10,7 +10,27 @@ pipeline:
       save_raw_file: true
       use_raw_offline: true
       use_offline: true
-  - name: echoflow_compute_TS
-    module: echoflow.stages.subflows.compute_TS
+      group: False
+  - name: echoflow_compute_SV
+    module: echoflow.stages.subflows.compute_SV
     options:
       use_offline: true
+  # - name: echoflow_compute_MVBS
+  #   module: echoflow.stages.subflows.compute_MVBS
+  #   options:
+  #     use_offline: true
+  #   external_params:
+  #     range_meter_bin: 20m 
+  #     ping_time_bin: 20S
+  - name: echoflow_frequency_differencing
+    module: echoflow.stages.subflows.frequency_differencing
+    options:
+      use_offline: true
+    external_params:
+      freqABEq: 120000.0Hz - 38000.0Hz > 0dB
+  - name: echoflow_apply_mask
+    module: echoflow.stages.subflows.apply_mask
+    options:
+      use_offline: true
+    dependson:
+      frequency_diff: mask
