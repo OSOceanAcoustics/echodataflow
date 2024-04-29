@@ -33,6 +33,7 @@ class Stage(BaseModel):
     external_params: Optional[Dict[str, Any]] = None
     options: Optional[Dict[str, Any]] = None
     prefect_config: Optional[Dict[str, Any]] = None
+    dependson: Optional[Dict[str, Any]] = None
 
 class Pipeline(BaseModel):
     """
