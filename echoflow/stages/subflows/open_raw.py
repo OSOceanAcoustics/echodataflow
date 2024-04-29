@@ -33,7 +33,7 @@ from echoflow.models.pipeline import Stage
 from echoflow.utils import log_util
 from echoflow.utils.file_utils import (download_temp_file, get_out_zarr, get_output,
                                        get_working_dir, isFile,
-                                       process_output_transects)
+                                       process_output_groups)
 
 @flow
 @echoflow(processing_stage="Open-Raw", type="FLOW")
@@ -93,7 +93,7 @@ def echoflow_open_raw(config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 
         ed_list = [f.result() for f in futures]
 
-        outputs = process_output_transects(name=stage.name, config=config, ed_list=ed_list)
+        outputs = process_output_groups(name=stage.name, config=config, ed_list=ed_list)
     return outputs
 
 

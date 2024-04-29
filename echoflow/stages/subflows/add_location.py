@@ -29,7 +29,7 @@ from echoflow.utils import log_util
 from echoflow.utils.config_utils import sanitize_external_params
 from echoflow.utils.file_utils import (get_out_zarr, get_output, get_working_dir,
                                        get_zarr_list, isFile,
-                                       process_output_transects)
+                                       process_output_groups)
 
 
 @flow
@@ -88,7 +88,7 @@ def echoflow_add_location(
                 futures.append(future)
 
         ed_list = [f.result() for f in futures]
-        outputs = process_output_transects(name=stage.name, config=config, ed_list=ed_list)
+        outputs = process_output_groups(name=stage.name, config=config, ed_list=ed_list)
     return outputs
 
 

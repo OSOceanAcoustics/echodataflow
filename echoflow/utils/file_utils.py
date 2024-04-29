@@ -306,7 +306,7 @@ def get_zarr_list(transect_data: Union[Output, Dict], storage_options: Dict[str,
 
     return zarr_list
 
-def process_output_transects(name: str, config: Dataset, stage: Stage, ed_list: List[Dict[str, Any]]) -> List[Output]:
+def process_output_groups(name: str, config: Dataset, stage: Stage, ed_list: List[Dict[str, Any]]) -> List[Output]:
     """
     Process and aggregate output transects.
 
@@ -333,7 +333,7 @@ def process_output_transects(name: str, config: Dataset, stage: Stage, ed_list: 
             {"transect": 2, "data": {...}, "error": True}
         ]
 
-        output_list = process_output_transects("Data Processing", ed_list)
+        output_list = process_output_groups("Data Processing", ed_list)
         # Returns a list of Output instances with aggregated data per transect.
 
     """
