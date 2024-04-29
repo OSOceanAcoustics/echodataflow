@@ -298,7 +298,7 @@ def generate_stage_file(stage_name: str):
     from echoflow.utils import log_util
     from echoflow.utils.file_utils import (get_output, get_working_dir,
                                         get_zarr_list, isFile,
-                                        process_output_transects, get_out_zarr)
+                                        process_output_groups, get_out_zarr)
 
 
     @flow
@@ -357,7 +357,7 @@ def generate_stage_file(stage_name: str):
                     futures.append(future)
 
             ed_list = [f.result() for f in futures]
-            outputs = process_output_transects(name=stage.name, config=config, ed_list=ed_list)
+            outputs = process_output_groups(name=stage.name, config=config, ed_list=ed_list)
         return outputs
 
 
