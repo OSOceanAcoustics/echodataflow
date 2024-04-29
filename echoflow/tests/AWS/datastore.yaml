@@ -9,9 +9,9 @@ args:
     sonar_model: EK60
   storage_options:
     anon: true
-  transect:
+  group:
     file: ./EK60_SH1707_Shimada.txt
-  default_transect_num: 2017
+  group_name: 2017
   json_export: true 
 output: # Output arguments
   urlpath: <YOUR-S3-BUCKET>
