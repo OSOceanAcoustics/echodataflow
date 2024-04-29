@@ -1,3 +1,6 @@
+from collections import defaultdict
+
+
 class DependencyEngine:
     """
     Dependency Engine for Managing Function Dependencies
@@ -25,7 +28,7 @@ class DependencyEngine:
         next_functions = engine.get_possible_next_functions(current_function="download_data")
     """
     def __init__(self):
-        self.dependencies = {}
+        self.dependencies = defaultdict(list)
 
     def add_dependency(self, target_function, dependent_function):
         """
@@ -42,9 +45,7 @@ class DependencyEngine:
         Example:
             # Add a dependency relationship
             engine.add_dependency(target_function="data_download", dependent_function="data_preprocess")
-        """
-        if target_function not in self.dependencies:
-            self.dependencies[target_function] = []
+        """        
         self.dependencies[target_function].append(dependent_function)
 
     def get_possible_next_functions(self, current_function):

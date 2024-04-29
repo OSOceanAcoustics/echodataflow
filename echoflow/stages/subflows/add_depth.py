@@ -88,7 +88,9 @@ def echoflow_add_depth(
                 futures.append(future)
 
         ed_list = [f.result() for f in futures]
+
         outputs = process_output_groups(name=stage.name, config=config, ed_list=ed_list)
+
     return outputs
 
 
@@ -132,29 +134,31 @@ def process_add_depth(
     else:
         file_name = str(out_data.data.get("file_name"))
         transect = str(out_data.data.get("transect"))
-
-    log_util.log(msg={'msg':f' ---- Entering ----', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-     
-    out_zarr = get_out_zarr(group = stage.options.get('group', True), working_dir=working_dir, transect=transect, file_name=file_name, storage_options=config.output.storage_options_dict)
-    
-    log_util.log(msg={'msg':f'Processing file, output will be at {out_zarr}', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-    
-    if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
-        log_util.log(msg={'msg':f'File not found in the destination folder / use_offline flag is False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+    try:
+        log_util.log(msg={'msg':f' ---- Entering ----', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
         
-        ed_list = get_zarr_list.fn(transect_data=out_data, storage_options=config.output.storage_options_dict)
+        out_zarr = get_out_zarr(group = stage.options.get('group', True), working_dir=working_dir, transect=transect, file_name=file_name, storage_options=config.output.storage_options_dict)
         
-        log_util.log(msg={'msg':f'Computing TS', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+        log_util.log(msg={'msg':f'Processing file, output will be at {out_zarr}', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
         
-        xr_d_loc = ep.consolidate.add_depth(ds=ed_list[0], depth_offset=stage.external_params.get('depth_offset'), 
-                                            tilt=stage.external_params.get('tilt'),
-                                            downward=stage.external_params.get('downward'))
-        log_util.log(msg={'msg':f'Converting to Zarr', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-        
-        xr_d_loc.to_zarr(store=out_zarr, mode="w", consolidated=True,
-                        storage_options=config.output.storage_options_dict)
-    else:
-        log_util.log(msg={'msg':f'Skipped processing {file_name}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-        
-    log_util.log(msg={'msg':f' ---- Exiting ----', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-    return {'out_path': out_zarr, 'transect': transect, 'file_name': file_name, 'error': False}
+        if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
+            log_util.log(msg={'msg':f'File not found in the destination folder / use_offline flag is False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
+            ed_list = get_zarr_list.fn(transect_data=out_data, storage_options=config.output.storage_options_dict)
+            
+            log_util.log(msg={'msg':f'Computing TS', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
+            xr_d_loc = ep.consolidate.add_depth(ds=ed_list[0], depth_offset=stage.external_params.get('depth_offset'), 
+                                                tilt=stage.external_params.get('tilt'),
+                                                downward=stage.external_params.get('downward'))
+            log_util.log(msg={'msg':f'Converting to Zarr', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
+            xr_d_loc.to_zarr(store=out_zarr, mode="w", consolidated=True,
+                            storage_options=config.output.storage_options_dict)
+        else:
+            log_util.log(msg={'msg':f'Skipped processing {file_name}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
+        log_util.log(msg={'msg':f' ---- Exiting ----', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+        return {'out_path': out_zarr, 'transect': transect, 'file_name': file_name, 'error': False}
+    except Exception as e:
+        return {'transect': transect, 'file_name': file_name, 'error': True, 'error_desc': e}
