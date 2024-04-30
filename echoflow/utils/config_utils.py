@@ -29,7 +29,6 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-import asyncio
 import itertools as it
 import json
 import os
@@ -42,15 +41,14 @@ import nest_asyncio
 import yaml
 from dateutil import parser
 from prefect import task
-from prefect.filesystems import *
-from prefect.task_runners import *
+from prefect.filesystems import Block
 from prefect_aws import AwsCredentials
 from prefect_azure import AzureCosmosDbCredentials
 
 from echoflow.aspects.echoflow_aspect import echoflow
 from echoflow.models.datastore import Dataset, StorageOptions, StorageType
 from echoflow.models.pipeline import Recipe, Stage
-from echoflow.utils.file_utils import extract_fs, isFile, make_temp_folder
+from echoflow.utils.file_utils import extract_fs, isFile
 
 TRANSECT_FILE_REGEX = r"x(?P<transect_num>\d+)"
 nest_asyncio.apply()
@@ -137,7 +135,7 @@ def extract_transect_files(
     file_format: Literal["txt", "zip"],
     file_path: str,
     storage_options: Dict[str, Any] = {},
-    default_transect: int = 0
+    default_transect: str = 0
 ) -> Dict[str, Dict[str, Any]]:
     """
     Extracts raw file names and transect numbers from transect file(s).
@@ -190,7 +188,7 @@ def _extract_from_zip(file_system, file_path: str) -> Dict[str, Dict[str, Any]]:
             zip_infos = zf.infolist()
             for zi in zip_infos:
                 m = re.match(TRANSECT_FILE_REGEX, zi.filename)
-                transect_num = int(m.groupdict()["transect_num"])
+                transect_num = str(m.groupdict()["transect_num"])
                 if zi.is_dir():
                     raise ValueError(
                         "Directory found in zip file. This is not allowed!")
@@ -204,7 +202,7 @@ def _extract_from_zip(file_system, file_path: str) -> Dict[str, Dict[str, Any]]:
     return transect_dict
 
 
-def _extract_from_text(file_system, file_path: str, default_transect: int = 0) -> Dict[str, Dict[str, Any]]:
+def _extract_from_text(file_system, file_path: str, default_transect: str = "DefaultGroup") -> Dict[str, Dict[str, Any]]:
     """
     Extracts raw files from transect file text format.
 
@@ -227,7 +225,7 @@ def _extract_from_text(file_system, file_path: str, default_transect: int = 0) -
     if m is None:
         transect_num = default_transect
     else:
-        transect_num = int(m.groupdict()["transect_num"])
+        transect_num = str(m.groupdict()["transect_num"])
 
     transect_dict = {}
 
@@ -367,11 +365,11 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
     fname_pattern = config.raw_regex
     transect_dict = {}
 
-    if config.args.transect is not None and config.args.transect.file is not None:
+    if config.args.group is not None and config.args.group.file is not None:
         # When transect info is available, extract it
-        file_input = config.args.transect.file
-        storage_options = config.args.transect.storage_options_dict
-        default_transect = config.args.default_transect_num
+        file_input = config.args.group.file
+        storage_options = config.args.group.storage_options_dict
+        default_transect = str(config.args.group_name if config.args.group_name else "DefaultGroup")
         if isinstance(file_input, str):
             filename = os.path.basename(file_input)
             _, ext = os.path.splitext(filename)
@@ -391,8 +389,8 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
         # get transect info from the transect_dict above
         transect = transect_dict.get(os.path.basename(raw_file), {})
         transect_num = transect.get(
-        "num", config.args.default_transect_num)
-        if (config.args.transect is None) or (transect_num is not None and bool(transect)):
+        "num", config.args.group_name)
+        if (config.args.group is None) or (transect_num is not None and bool(transect)):
             # Only adds to the list if not transect
             # if it's a transect, ensure it has a transect number
             raw_file_dicts.append(
@@ -443,7 +441,7 @@ def club_raw_files(
         with file_system.open(raw_url_file) as f:
             raw_dicts = json.load(f)
 
-    if config.args.transect is not None:
+    if config.args.group is not None:
         # Transect, split by transect spec
         raw_dct = {}
         for r in raw_dicts:

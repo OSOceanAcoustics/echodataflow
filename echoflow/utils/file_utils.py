@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import urlparse
 
+from echoflow.utils import log_util
 import fsspec
 import xarray as xr
 from dateutil import parser
@@ -49,6 +50,7 @@ from prefect import task
 from echoflow.models.datastore import Dataset
 from echoflow.models.output_model import Output
 from echoflow.models.pipeline import Stage
+from echoflow.utils import log_util
 
 
 def download_temp_file(raw, working_dir: str, stage: Stage, config: Dataset):
@@ -176,7 +178,7 @@ def get_output_file_path(raw_dicts, config: Dataset):
 
     first_file = raw_dicts[0]
     datetime_obj = parser.parse(first_file.get("datetime"))
-    if config.args.transect is None:
+    if config.args.group is None:
         # Only use datetime
         out_fname = datetime_obj.strftime("D%Y%m%d-T%H%M%S.zarr")
     else:
@@ -305,7 +307,7 @@ def get_zarr_list(transect_data: Union[Output, Dict], storage_options: Dict[str,
 
     return zarr_list
 
-def process_output_transects(name: str, config: Dataset, ed_list: List[Dict[str, Any]]) -> List[Output]:
+def process_output_groups(name: str, config: Dataset, stage: Stage, ed_list: List[Dict[str, Any]]) -> List[Output]:
     """
     Process and aggregate output transects.
 
@@ -332,7 +334,7 @@ def process_output_transects(name: str, config: Dataset, ed_list: List[Dict[str,
             {"transect": 2, "data": {...}, "error": True}
         ]
 
-        output_list = process_output_transects("Data Processing", ed_list)
+        output_list = process_output_groups("Data Processing", ed_list)
         # Returns a list of Output instances with aggregated data per transect.
 
     """
@@ -341,12 +343,14 @@ def process_output_transects(name: str, config: Dataset, ed_list: List[Dict[str,
     outputs: List[Output] = []
     for ed in ed_list:
         if ed["error"] == True:
-            error_flag = True
-            print("Encountered Some Error")
-            print(ed['error_desc'])
+            error_flag = True         
+            error_description = str(ed.get('error_desc', 'Unknown error')) 
+            file = str(ed['file_name'])
+            log_util.log(msg={'msg':f'Encountered Some Error in {file}', 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)         
+            log_util.log(msg={'msg':error_description, 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)         
         else:
             transect = ed['transect']
-            transect_dict[transect].append(ed)            
+            transect_dict[transect].append(ed)
 
     for transect in transect_dict.keys():
         output = Output(data=transect_dict[transect])

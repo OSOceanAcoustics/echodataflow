@@ -154,20 +154,20 @@ def echoflow_trigger(
             else:
                 dataset.args.storage_options_dict = {
                     "anon": dataset.args.storage_options.anon}
-        if dataset.args.transect is not None:
-            if dataset.args.transect.storage_options is not None:
-                if dataset.args.transect.storage_options.anon is False:
+        if dataset.args.group is not None:
+            if dataset.args.group.storage_options is not None:
+                if dataset.args.group.storage_options.anon is False:
                     block = load_block(
-                        name=dataset.args.transect.storage_options.block_name, type=dataset.args.transect.storage_options.type)
-                    dataset.args.transect.storage_options_dict = get_storage_options(
+                        name=dataset.args.group.storage_options.block_name, type=dataset.args.group.storage_options.type)
+                    dataset.args.group.storage_options_dict = get_storage_options(
                         block)
                 else:
-                    dataset.args.transect.storage_options_dict = {
-                        "anon": dataset.args.transect.storage_options.anon}
+                    dataset.args.group.storage_options_dict = {
+                        "anon": dataset.args.group.storage_options.anon}
     else:
         dataset.output.storage_options_dict = storage_options
         dataset.args.storage_options_dict = storage_options
-        dataset.args.transect.storage_options_dict = storage_options
+        dataset.args.group.storage_options_dict = storage_options
 
     print("\nInitiliazing Singleton Object")
     Singleton_Echoflow(log_file=logging_config_dict,

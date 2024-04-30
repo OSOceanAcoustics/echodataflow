@@ -20,7 +20,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 import jinja2
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 
 
 class StorageType(Enum):
@@ -74,7 +74,7 @@ class Transect(BaseModel):
         file (Optional[str]): The file associated with the transect.
         storage_options (Optional[StorageOptions]): Storage options for the transect.
         storage_options_dict (Optional[Dict[str, Any]]): Additional storage options as a dictionary.
-        default_transect_num (int): Default transect number.
+        group_name : Default transect name.
     """
     file: Optional[str] = None
     storage_options: Optional[StorageOptions] = None
@@ -99,8 +99,8 @@ class Args(BaseModel):
     parameters: Parameters
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}
-    transect: Optional[Transect] = None
-    default_transect_num: int = None
+    group: Optional[Transect] = None
+    group_name: Optional[str] = None
     zarr_store: Optional[str] = None
     json_export: Optional[bool] = False
     raw_json_path: Optional[str] = None
@@ -118,6 +118,12 @@ class Args(BaseModel):
             template = env.from_string(self.urlpath)
             return template.render(self.parameters)
         return self.urlpath
+    
+    @validator('group_name', pre=True, always=True)
+    def convert_number_to_string(cls, v):
+        if isinstance(v, int):
+            return str(v)
+        return v
 
 
 class Output(BaseModel):
