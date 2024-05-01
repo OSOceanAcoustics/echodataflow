@@ -86,7 +86,7 @@ def echoflow_combine_echodata(
 
         ed_list = [f.result() for f in futures]
 
-        outputs = process_output_groups(name=stage.name, config=config, ed_list=ed_list)
+        outputs = process_output_groups(name=stage.name, stage=stage, config=config, ed_list=ed_list)
 
     return outputs
 

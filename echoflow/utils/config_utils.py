@@ -193,10 +193,10 @@ def _extract_from_zip(file_system, file_path: str) -> Dict[str, Dict[str, Any]]:
                     raise ValueError(
                         "Directory found in zip file. This is not allowed!")
                 with zf.open(zi.filename) as txtfile:
-                    file_list = txtfile.read().decode("utf-8").split("\r\n")
+                    file_list = txtfile.readlines()
                     for rawfile in file_list:
                         transect_dict.setdefault(
-                            rawfile,
+                            rawfile.decode("utf-8").split("\n")[0].split("\r")[0],
                             {"filename": zi.filename, "num": transect_num},
                         )
     return transect_dict
@@ -230,10 +230,10 @@ def _extract_from_text(file_system, file_path: str, default_transect: str = "Def
     transect_dict = {}
 
     with file_system.open(file_path) as txtfile:
-        file_list = txtfile.read().decode("utf-8").splitlines()
+        file_list = txtfile.readlines()
         for rawfile in file_list:
             transect_dict.setdefault(
-                rawfile,
+                rawfile.decode("utf-8").split("\n")[0].split("\r")[0],
                 {"filename": filename, "num": transect_num},
             )
 
@@ -387,9 +387,8 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
     raw_file_dicts = []
     for raw_file in all_raw_files:
         # get transect info from the transect_dict above
-        transect = transect_dict.get(os.path.basename(raw_file), {})
-        transect_num = transect.get(
-        "num", config.args.group_name)
+        transect = transect_dict.get(os.path.basename(raw_file), transect_dict.get(os.path.basename(raw_file).split('.')[0], {}))
+        transect_num = transect.get("num", config.args.group_name)
         if (config.args.group is None) or (transect_num is not None and bool(transect)):
             # Only adds to the list if not transect
             # if it's a transect, ensure it has a transect number
