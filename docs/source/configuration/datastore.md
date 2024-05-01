@@ -1,10 +1,10 @@
 # Datastore Configuration
 
-This document provides detailed explanations for the keys used in the provided YAML configuration used to define an Echoflow run.
+This document provides detailed explanations for the keys used in the provided YAML configuration used to define an Echodataflow run.
 
 ## Run Details
 
-- `name`: This key specifies the name of the Echoflow run. It is used to identify and label the execution of the Echoflow process.
+- `name`: This key specifies the name of the Echodataflow run. It is used to identify and label the execution of the Echodataflow process.
 - `sonar_model`: This key indicates the model of the sonar used for data collection during the run.
 - `raw_regex`: This key indicates the regex to be used while parsing the source directory to match the files to be processed.
 
@@ -25,13 +25,13 @@ This document provides detailed explanations for the keys used in the provided Y
 
 ## Notes
 
-- The provided configuration serves as a structured setup for executing an Echoflow run, allowing customization through the specified keys.
+- The provided configuration serves as a structured setup for executing an Echodataflow run, allowing customization through the specified keys.
 - Dynamic placeholders like `ship_name`, `survey_name`, and `sonar_model` are replaced with actual values based on the context.
 
 Example:
 
 ```yaml
-name: Bell_M._Shimada-SH1707-EK60 # Name of the Echoflow Run
+name: Bell_M._Shimada-SH1707-EK60 # Name of the Echodataflow Run
 sonar_model: EK60 # Sonar Model
 raw_regex: (.*)-?D(?P<date>\w{1,8})-T(?P<time>\w{1,6}) # Regex to parse the filenames
 args: # Input arguments
@@ -45,16 +45,16 @@ args: # Input arguments
   group: # Source data transect information
     file: ./x0007_fileset.txt       # Transect file URL. Accepts .zip or .txt file
     storage_options: # Transect file storage options
-      block_name: echoflow-aws-credentials # Block name. For more information on Blocks refer blocks.md
+      block_name: echodataflow-aws-credentials # Block name. For more information on Blocks refer blocks.md
       type: AWS # Block type 
   group_name: 1 # Set when not using a file to pass transect information
   json_export: true # Export raw json metadata of files to be processed
-  raw_json_path: s3://echoflow-workground/combined_files/raw_json # Path to store the raw json metadata. Can also work to skip the process of parsing the files at source directory and fetch files present in this json instead.
+  raw_json_path: s3://echodataflow-workground/combined_files/raw_json # Path to store the raw json metadata. Can also work to skip the process of parsing the files at source directory and fetch files present in this json instead.
 output: # Output arguments
-  urlpath: s3://echoflow-workground/combined_files_dask # Destination data URL parameters
+  urlpath: s3://echodataflow-workground/combined_files_dask # Destination data URL parameters
   overwrite: true # Flag to overwrite the data if present in the output directory
   storage_options: # Destination data storage options
-    block_name: echoflow-aws-credentials
+    block_name: echodataflow-aws-credentials
     type: AWS
 ```
 

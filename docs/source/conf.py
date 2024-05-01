@@ -3,7 +3,7 @@
 # If you wish to continue using _config.yml, make edits to that file and
 # re-generate this one.
 ###############################################################################
-author = 'Echoflow Developers'
+author = 'Echodataflow Developers'
 bibtex_bibfiles = ['references.bib']
 comments_config = {'hypothesis': False, 'utterances': False}
 copyright = '2023-2024'
@@ -18,8 +18,8 @@ html_favicon = ''
 html_logo = 'logo.png'
 html_sourcelink_suffix = ''
 html_theme = 'sphinx_book_theme'
-html_theme_options = {'search_bar_text': 'Search this book...', 'launch_buttons': {'notebook_interface': 'classic', 'binderhub_url': '', 'jupyterhub_url': '', 'thebe': False, 'colab_url': ''}, 'path_to_docs': 'docs', 'repository_url': 'https://github.com/OSOceanAcoustics/echoflow', 'repository_branch': 'master', 'extra_footer': '', 'home_page_in_toc': True, 'announcement': '', 'analytics': {'google_analytics_id': ''}, 'use_repository_button': True, 'use_edit_page_button': False, 'use_issues_button': True}
-html_title = 'Echoflow Local Demo'
+html_theme_options = {'search_bar_text': 'Search this book...', 'launch_buttons': {'notebook_interface': 'classic', 'binderhub_url': '', 'jupyterhub_url': '', 'thebe': False, 'colab_url': ''}, 'path_to_docs': 'docs', 'repository_url': 'https://github.com/OSOceanAcoustics/echodataflow', 'repository_branch': 'master', 'extra_footer': '', 'home_page_in_toc': True, 'announcement': '', 'analytics': {'google_analytics_id': ''}, 'use_repository_button': True, 'use_edit_page_button': False, 'use_issues_button': True}
+html_title = 'Echodataflow Local Demo'
 jupyter_execute_notebooks = 'off'
 latex_engine = 'pdflatex'
 master_doc = 'index'

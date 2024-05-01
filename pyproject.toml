@@ -11,7 +11,7 @@ build-backend = 'setuptools.build_meta'
 [tool.setuptools_scm]
 fallback_version = "unknown"
 local_scheme = "no-local-version"
-write_to = "echoflow/version.py"
+write_to = "echodataflow/version.py"
 
 [tool.black]
 line-length = 100

@@ -1,33 +1,33 @@
 # Local Installation and Setup
 
-## Step 0: Setup and Install Echoflow
+## Step 0: Setup and Install Echodataflow
 
-Before we proceed with the instructions on using `echoflow`, let's ensure that we have properly set up and prepared our system with echoflow for usage. Feel free to skip this step if you have echoflow already set up.
+Before we proceed with the instructions on using `echodataflow`, let's ensure that we have properly set up and prepared our system with echodataflow for usage. Feel free to skip this step if you have echodataflow already set up.
 
 ### Step 0.1: Make a virtual environment
 
-To keep your Echoflow environment isolated, it's recommended to create a virtual environment using Conda or Python's built-in venv module. Here's an example using Conda:
+To keep your Echodataflow environment isolated, it's recommended to create a virtual environment using Conda or Python's built-in venv module. Here's an example using Conda:
 
 ```bash
-conda create --name echoflow-env
-conda activate echoflow-env
+conda create --name echodataflow-env
+conda activate echodataflow-env
 ```
 
 Or, using Python's venv:
 
 ```bash
-python -m venv echoflow-env
-source echoflow-env/bin/activate  # On Windows, use `echoflow-env\Scripts\activate`
+python -m venv echodataflow-env
+source echodataflow-env/bin/activate  # On Windows, use `echodataflow-env\Scripts\activate`
 ```
 ### Step 0.2: Clone the Repository
-Now that you have a virtual environment set up, you can clone the Echoflow project repository to your local machine using the following command:
+Now that you have a virtual environment set up, you can clone the Echodataflow project repository to your local machine using the following command:
 
 ```bash
-git clone <echoflow_repo>
+git clone <echodataflow_repo>
 ```
 
 ### Step 0.3: Install the Package
-Navigate to the project directory you've just cloned and install the Echoflow package. The -e flag is crucial as it enables editable mode, which is especially helpful during development and testing. Now, take a moment and let the echoflow do its thing while you enjoy your coffee.
+Navigate to the project directory you've just cloned and install the Echodataflow package. The -e flag is crucial as it enables editable mode, which is especially helpful during development and testing. Now, take a moment and let the echodataflow do its thing while you enjoy your coffee.
 
 ```bash
 cd <project_directory>
@@ -36,18 +36,18 @@ pip install -e .
 
 ---
 
-### Step 0.4: Initialize Echoflow and Prefect
+### Step 0.4: Initialize Echodataflow and Prefect
 
-To kickstart your journey with Echoflow and Prefect, follow these simple initialization steps:
+To kickstart your journey with Echodataflow and Prefect, follow these simple initialization steps:
 
-#### 0.4.1 Initializing Echoflow
-Begin by initializing Echoflow with the following command:
+#### 0.4.1 Initializing Echodataflow
+Begin by initializing Echodataflow with the following command:
 
 ```bash
-echoflow init
+echodataflow init
 ```
 
-This command sets up the groundwork for your Echoflow environment, preparing it for seamless usage.
+This command sets up the groundwork for your Echodataflow environment, preparing it for seamless usage.
 
 #### 0.4.2 Initializing Prefect
 For Prefect, initialization involves a few extra steps, including secure authentication. Enter the following command to initiate the Prefect authentication process:
@@ -61,8 +61,8 @@ prefect cloud login
 - If you don't have a Prefect Cloud account yet, you can use local prefect account. This is especially useful for those who are just starting out and want to explore Prefect without an account.
 
 ```bash
-prefect profiles create echoflow-local
+prefect profiles create echodataflow-local
 ```
 
 
-The initialization process will ensure that both Echoflow and Prefect are properly set up and ready for you to dive into your cloud-based workflows.
+The initialization process will ensure that both Echodataflow and Prefect are properly set up and ready for you to dive into your cloud-based workflows.

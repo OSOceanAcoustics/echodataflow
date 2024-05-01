@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
-    <title>Datastore Configuration &#8212; Echoflow Local Demo</title>
+    <title>Datastore Configuration &#8212; Echodataflow Local Demo</title>
   
   
   
@@ -66,7 +66,7 @@ const thebe_selector_output = ".output, .cell_output"
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
     <link rel="next" title="Data Processing Pipeline Configuration" href="pipeline.html" />
-    <link rel="prev" title="Echoflow Configuration and Credential Blocks" href="blocks.html" />
+    <link rel="prev" title="Echodataflow Configuration and Credential Blocks" href="blocks.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
   </head>
@@ -161,8 +161,8 @@ const thebe_selector_output = ".output, .cell_output"
       
     
     
-    <img src="../_static/logo.png" class="logo__image only-light" alt="Echoflow Local Demo - Home"/>
-    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="Echoflow Local Demo - Home"/>`);</script>
+    <img src="../_static/logo.png" class="logo__image only-light" alt="Echodataflow Local Demo - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="Echodataflow Local Demo - Home"/>`);</script>
   
   
 </a></div>
@@ -172,17 +172,17 @@ const thebe_selector_output = ".output, .cell_output"
         <ul class="nav bd-sidenav bd-sidenav__home-link">
             <li class="toctree-l1">
                 <a class="reference internal" href="../intro.html">
-                    Echoflow
+                    Echodataflow
                 </a>
             </li>
         </ul>
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../gettingstarted.html">Getting Started with Echoflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gettingstarted.html">Getting Started with Echodataflow</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Demo</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1 has-children"><a class="reference internal" href="../local/intro.html">Echoflow on Local Machine</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../local/intro.html">Echodataflow on Local Machine</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../local/setup.html">Local Installation and Setup</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../local/notebook.html">Processing EK60 Data to Extract Target Strength</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-2"><i class="fa-solid fa-chevron-down"></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="../local/pipelineconfiguration.html">Pipeline Configuration</a></li>
@@ -194,7 +194,7 @@ const thebe_selector_output = ".output, .cell_output"
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="blocks.html">Echoflow Configuration and Credential Blocks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="blocks.html">Echodataflow Configuration and Credential Blocks</a></li>
 
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Datastore Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="pipeline.html">Data Processing Pipeline Configuration</a></li>
@@ -252,7 +252,7 @@ const thebe_selector_output = ".output, .cell_output"
       
       
       
-      <li><a href="https://github.com/OSOceanAcoustics/echoflow" target="_blank"
+      <li><a href="https://github.com/OSOceanAcoustics/echodataflow" target="_blank"
    class="btn btn-sm btn-source-repository-button dropdown-item"
    title="Source repository"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -269,7 +269,7 @@ const thebe_selector_output = ".output, .cell_output"
       
       
       
-      <li><a href="https://github.com/OSOceanAcoustics/echoflow/issues/new?title=Issue%20on%20page%20%2Fconfiguration/datastore.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/OSOceanAcoustics/echodataflow/issues/new?title=Issue%20on%20page%20%2Fconfiguration/datastore.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -410,11 +410,11 @@ document.write(`
                   
   <section class="tex2jax_ignore mathjax_ignore" id="datastore-configuration">
 <h1>Datastore Configuration<a class="headerlink" href="#datastore-configuration" title="Permalink to this heading">#</a></h1>
-<p>This document provides detailed explanations for the keys used in the provided YAML configuration used to define an Echoflow run.</p>
+<p>This document provides detailed explanations for the keys used in the provided YAML configuration used to define an Echodataflow run.</p>
 <section id="run-details">
 <h2>Run Details<a class="headerlink" href="#run-details" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code>: This key specifies the name of the Echoflow run. It is used to identify and label the execution of the Echoflow process.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code>: This key specifies the name of the Echodataflow run. It is used to identify and label the execution of the Echodataflow process.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">sonar_model</span></code>: This key indicates the model of the sonar used for data collection during the run.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">raw_regex</span></code>: This key indicates the regex to be used while parsing the source directory to match the files to be processed.</p></li>
 </ul>
@@ -441,11 +441,11 @@ document.write(`
 <section id="notes">
 <h2>Notes<a class="headerlink" href="#notes" title="Permalink to this heading">#</a></h2>
 <ul class="simple">
-<li><p>The provided configuration serves as a structured setup for executing an Echoflow run, allowing customization through the specified keys.</p></li>
+<li><p>The provided configuration serves as a structured setup for executing an Echodataflow run, allowing customization through the specified keys.</p></li>
 <li><p>Dynamic placeholders like <code class="docutils literal notranslate"><span class="pre">ship_name</span></code>, <code class="docutils literal notranslate"><span class="pre">survey_name</span></code>, and <code class="docutils literal notranslate"><span class="pre">sonar_model</span></code> are replaced with actual values based on the context.</p></li>
 </ul>
 <p>Example:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Bell_M._Shimada-SH1707-EK60</span><span class="w"> </span><span class="c1"># Name of the Echoflow Run</span>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Bell_M._Shimada-SH1707-EK60</span><span class="w"> </span><span class="c1"># Name of the Echodataflow Run</span>
 <span class="nt">sonar_model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EK60</span><span class="w"> </span><span class="c1"># Sonar Model</span>
 <span class="nt">raw_regex</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">(.*)-?D(?P&lt;date&gt;\w{1,8})-T(?P&lt;time&gt;\w{1,6})</span><span class="w"> </span><span class="c1"># Regex to parse the filenames</span>
 <span class="nt">args</span><span class="p">:</span><span class="w"> </span><span class="c1"># Input arguments</span>
@@ -459,16 +459,16 @@ document.write(`
 <span class="w">  </span><span class="nt">transect</span><span class="p">:</span><span class="w"> </span><span class="c1"># Source data transect information</span>
 <span class="w">    </span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./x0007_fileset.txt</span><span class="w">       </span><span class="c1"># Transect file URL. Accepts .zip or .txt file</span>
 <span class="w">    </span><span class="nt">storage_options</span><span class="p">:</span><span class="w"> </span><span class="c1"># Transect file storage options</span>
-<span class="w">      </span><span class="nt">block_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow-aws-credentials</span><span class="w"> </span><span class="c1"># Block name. For more information on Blocks refer blocks.md</span>
+<span class="w">      </span><span class="nt">block_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow-aws-credentials</span><span class="w"> </span><span class="c1"># Block name. For more information on Blocks refer blocks.md</span>
 <span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AWS</span><span class="w"> </span><span class="c1"># Block type </span>
 <span class="w">    </span><span class="nt">default_transect_num</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w"> </span><span class="c1"># Set when not using a file to pass transect information</span>
 <span class="w">  </span><span class="nt">json_export</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># Export raw json metadata of files to be processed</span>
-<span class="w">  </span><span class="nt">raw_json_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">s3://echoflow-workground/combined_files/raw_json</span><span class="w"> </span><span class="c1"># Path to store the raw json metadata. Can also work to skip the process of parsing the files at source directory and fetch files present in this json instead.</span>
+<span class="w">  </span><span class="nt">raw_json_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">s3://echodataflow-workground/combined_files/raw_json</span><span class="w"> </span><span class="c1"># Path to store the raw json metadata. Can also work to skip the process of parsing the files at source directory and fetch files present in this json instead.</span>
 <span class="nt">output</span><span class="p">:</span><span class="w"> </span><span class="c1"># Output arguments</span>
-<span class="w">  </span><span class="nt">urlpath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">s3://echoflow-workground/combined_files_dask</span><span class="w"> </span><span class="c1"># Destination data URL parameters</span>
+<span class="w">  </span><span class="nt">urlpath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">s3://echodataflow-workground/combined_files_dask</span><span class="w"> </span><span class="c1"># Destination data URL parameters</span>
 <span class="w">  </span><span class="nt">overwrite</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># Flag to overwrite the data if present in the output directory</span>
 <span class="w">  </span><span class="nt">storage_options</span><span class="p">:</span><span class="w"> </span><span class="c1"># Destination data storage options</span>
-<span class="w">    </span><span class="nt">block_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow-aws-credentials</span>
+<span class="w">    </span><span class="nt">block_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow-aws-credentials</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AWS</span>
 </pre></div>
 </div>
@@ -511,7 +511,7 @@ document.write(`
       <i class="fa-solid fa-angle-left"></i>
       <div class="prev-next-info">
         <p class="prev-next-subtitle">previous</p>
-        <p class="prev-next-title">Echoflow Configuration and Credential Blocks</p>
+        <p class="prev-next-title">Echodataflow Configuration and Credential Blocks</p>
       </div>
     </a>
     <a class="right-next"
@@ -557,7 +557,7 @@ document.write(`
   <div class="footer-item">
     
 <p class="component-author">
-By Echoflow Developers
+By Echodataflow Developers
 </p>
 
   </div>

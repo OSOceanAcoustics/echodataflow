@@ -14,15 +14,15 @@ This guide will walk you through the initial steps to set up and run your Echoda
 To keep your Echodataflow environment isolated, it's recommended to create a virtual environment using Conda or Python's built-in `venv` module. Here's an example using Conda:
 
 ```bash
-conda create --name echoflow-env
-conda activate echoflow-env
+conda create --name echodataflow-env
+conda activate echodataflow-env
 ```
 
 Or, using Python's venv:
 
 ```bash
-python -m venv echoflow-env
-source echoflow-env/bin/activate  # On Windows, use `echoflow-env\Scripts\activate`
+python -m venv echodataflow-env
+source echodataflow-env/bin/activate  # On Windows, use `echodataflow-env\Scripts\activate`
 ```
 
 ## 2. Clone the Project
@@ -48,7 +48,7 @@ To kickstart your journey with Echodataflow and Prefect, follow these simple ini
 Begin by initializing Echodataflow with the following command:
 
 ```bash
-echoflow init
+echodataflow init
 ```
 This command sets up the groundwork for your Echodataflow environment, preparing it for seamless usage.
 
@@ -64,7 +64,7 @@ prefect cloud login
 - If you don't have a Prefect Cloud account yet, you can use local prefect account. This is especially useful for those who are just starting out and want to explore Prefect without an account.
 
 ```bash
-prefect profiles create echoflow-local
+prefect profiles create echodataflow-local
 ```
 
 The initialization process will ensure that both Echodataflow and Prefect are properly set up and ready for you to dive into your cloud-based workflows.
@@ -79,13 +79,13 @@ Open the [pipeline.yaml](./docs/configuration/pipeline.md) file. This YAML confi
 Customize the [datastore.yaml](./docs/configuration/datastore.md) file to define the source and destination for your pipeline's data. This is where Echodataflow will fetch and store data as it executes the pipeline.
 
 ## 8. Execute the Pipeline
-You're now ready to execute your Echodataflow pipeline! Use the echoflow_start function, which is a central piece of Echodataflow, to kick off your pipeline. Import this function from Echodataflow and provide the paths or URLs of the configuration files. You can also pass additional options or storage options as needed. Here's an example:
+You're now ready to execute your Echodataflow pipeline! Use the echodataflow_start function, which is a central piece of Echodataflow, to kick off your pipeline. Import this function from Echodataflow and provide the paths or URLs of the configuration files. You can also pass additional options or storage options as needed. Here's an example:
 
 Customize the paths, block name, storage type, and options based on your requirements.
 
 
 ```python
-from echoflow import echoflow_start, StorageType, load_block
+from echodataflow import echodataflow_start, StorageType, load_block
 
 dataset_config = # url or path of datastore.yaml
 pipeline_config = # url or path of pipeline.yaml
@@ -94,7 +94,7 @@ logfile_config = # url or path of logging.yaml (Optional)
 aws = load_block(name="<block_name>", type=<StorageType>)
 
 options = {"storage_options_override": False} # Enabling this assigns the block for universal use, avoiding the need for repetitive configurations when employing a single credential block throughout the application.
-data  = echoflow_start(dataset_config=dataset_config, pipeline_config=pipeline_config, logging_config=logfile_config, storage_options=aws, options=options)
+data  = echodataflow_start(dataset_config=dataset_config, pipeline_config=pipeline_config, logging_config=logfile_config, storage_options=aws, options=options)
 ```
 
 ## License

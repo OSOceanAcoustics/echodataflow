@@ -6,7 +6,7 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
-name: echoflow-dev
+name: echodataflow-dev
 
 on:
   release:
