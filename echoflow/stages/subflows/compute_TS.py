@@ -88,7 +88,7 @@ def echoflow_compute_TS(config: Dataset, stage: Stage, prev_stage: Optional[Stag
 
         ed_list = [f.result() for f in futures]
 
-        outputs = process_output_groups(name=stage.name, config=config, ed_list=ed_list)
+        outputs = process_output_groups(name=stage.name, stage=stage, config=config, ed_list=ed_list)
 
     return outputs
 

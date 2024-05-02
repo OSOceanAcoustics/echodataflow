@@ -68,8 +68,11 @@ def init_flow(
         if config.args.raw_json_path is None:  
             total_files = glob_all_files(config=config)
             file_dicts = parse_raw_paths(all_raw_files=total_files, config=config)
+            log_util.log(msg={'msg':f'Files Found in Source', 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
+            log_util.log(msg={'msg':json.dumps(jsonable_encoder(total_files)), 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging) 
+            
             log_util.log(msg={'msg':f'Files To Be Processed', 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)
-            log_util.log(msg={'msg':json.dumps(jsonable_encoder(total_files)), 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)            
+            log_util.log(msg={'msg':json.dumps(jsonable_encoder(file_dicts)), 'mod_name':__file__, 'func_name':'Init Flow'}, eflogging=config.logging)        
         data = club_raw_files(
             config=config,
             raw_dicts=file_dicts,
