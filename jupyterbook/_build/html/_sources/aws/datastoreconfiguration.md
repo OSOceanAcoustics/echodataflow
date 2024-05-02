@@ -25,7 +25,7 @@ output:
   retention: false
   overwrite: true
   storage_options: 
-    block_name: echoflow-aws-credentials
+    block_name: echodataflow-aws-credentials
     type: AWS
 ```
 
@@ -56,7 +56,7 @@ Let's delve into the individual components of the configuration presented here:
   - **overwrite**: Allows data overwriting if the data already exists.
 
 **Note**: 
-- For a more comprehensive understanding of each option and its functionality, you can refer to the [Datast documentation](https://github.com/OSOceanAcoustics/echoflow/blob/dev/docs/configuration/datastore.md).
+- For a more comprehensive understanding of each option and its functionality, you can refer to the [Datast documentation](https://github.com/OSOceanAcoustics/echodataflow/blob/dev/docs/configuration/datastore.md).
 - The pipeline will store MVBS Strength output under `<YOUR-S3-BUCKET>`. As the retention is set to false, only MVBS Strength files will be stored. To specify files for processing, create a list of file names and store it in `EK60_SH1707_Shimada.txt`, which should be placed under the transect directory.
 
 This configuration facilitates efficient data organization and management for the processing pipeline. Feel free to tailor it to your specific data and processing requirements.

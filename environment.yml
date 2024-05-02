@@ -1,4 +1,4 @@
-name: echoflow
+name: echodataflow
 channels:
   - defaults
 dependencies:
@@ -216,4 +216,4 @@ dependencies:
       - xarray-datatree==0.0.6
       - zarr==2.16.0
       - zict==3.0.0
-prefix: /Users/soham/anaconda3/envs/echoflow
+prefix: /Users/soham/anaconda3/envs/echodataflow

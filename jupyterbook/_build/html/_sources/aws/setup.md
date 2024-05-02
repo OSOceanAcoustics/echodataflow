@@ -10,32 +10,32 @@ Connect to your EC2 instance using SSH. You can follow the instructions in the [
 
 ---
 
-## Step 3: Install Echoflow
+## Step 3: Install Echodataflow
 
 ### Step 3.1: Make a virtual environment
 
-To keep your Echoflow environment isolated, it's recommended to create a virtual environment using Conda or Python's built-in venv module. Here's an example using Conda:
+To keep your Echodataflow environment isolated, it's recommended to create a virtual environment using Conda or Python's built-in venv module. Here's an example using Conda:
 
 ```bash
-conda create --name echoflow-env
-conda activate echoflow-env
+conda create --name echodataflow-env
+conda activate echodataflow-env
 ```
 
 Or, using Python's venv:
 
 ```bash
-python -m venv echoflow-env
-source echoflow-env/bin/activate  # On Windows, use `echoflow-env\Scripts\activate`
+python -m venv echodataflow-env
+source echodataflow-env/bin/activate  # On Windows, use `echodataflow-env\Scripts\activate`
 ```
 ### Step 3.2: Clone the Repository
-Now that you have a virtual environment set up, you can clone the Echoflow project repository to your local machine using the following command:
+Now that you have a virtual environment set up, you can clone the Echodataflow project repository to your local machine using the following command:
 
 ```bash
-git clone <echoflow_repo>
+git clone <echodataflow_repo>
 ```
 
 ### Step 3.3: Install the Package
-Navigate to the project directory you've just cloned and install the Echoflow package. The -e flag is crucial as it enables editable mode, which is especially helpful during development and testing. Now, take a moment and let the echoflow do its thing while you enjoy your coffee.
+Navigate to the project directory you've just cloned and install the Echodataflow package. The -e flag is crucial as it enables editable mode, which is especially helpful during development and testing. Now, take a moment and let the echodataflow do its thing while you enjoy your coffee.
 
 ```bash
 cd <project_directory>
@@ -44,18 +44,18 @@ pip install -e .
 
 ---
 
-## Step 4: Initialize Echoflow and Prefect
+## Step 4: Initialize Echodataflow and Prefect
 
-To kickstart your journey with Echoflow and Prefect, follow these simple initialization steps:
+To kickstart your journey with Echodataflow and Prefect, follow these simple initialization steps:
 
-#### 4.1 Initializing Echoflow
-Begin by initializing Echoflow with the following command:
+#### 4.1 Initializing Echodataflow
+Begin by initializing Echodataflow with the following command:
 
 ```bash
-echoflow init
+echodataflow init
 ```
 
-This command sets up the groundwork for your Echoflow environment, preparing it for seamless usage.
+This command sets up the groundwork for your Echodataflow environment, preparing it for seamless usage.
 
 #### 4.2 Initializing Prefect
 For Prefect, initialization involves a few extra steps, including secure authentication. Enter the following command to initiate the Prefect authentication process:
@@ -69,11 +69,11 @@ prefect cloud login
 - If you don't have a Prefect Cloud account yet, you can use local prefect account. This is especially useful for those who are just starting out and want to explore Prefect without an account.
 
 ```bash
-prefect profiles create echoflow-local
+prefect profiles create echodataflow-local
 ```
 
 
-The initialization process will ensure that both Echoflow and Prefect are properly set up and ready for you to dive into your cloud-based workflows.
+The initialization process will ensure that both Echodataflow and Prefect are properly set up and ready for you to dive into your cloud-based workflows.
 
 ---
 
@@ -87,7 +87,7 @@ output: # Output arguments
   urlpath: <YOUR_S3_URI> # Destination data URL parameters
   overwrite: true 
   storage_options: 
-    block_name: echoflow-aws-credentials
+    block_name: echodataflow-aws-credentials
     type: AWS
 ```
 
@@ -95,13 +95,13 @@ output: # Output arguments
 
 ## Step 6: Store AWS Credentials
 
-Edit the ~/.echoflow/credentials.ini file and add your AWS Key and Secret.
+Edit the ~/.echodataflow/credentials.ini file and add your AWS Key and Secret.
 
 ```bash
-nano ~/.echoflow/credentials.ini
+nano ~/.echodataflow/credentials.ini
 
 # add the following and save:
-[echoflow-aws-credentials]
+[echodataflow-aws-credentials]
 aws_access_key_id=my-aws-key
 aws_secret_access_key=my-aws-secret
 provider=AWS
@@ -111,10 +111,10 @@ provider=AWS
 
 ## Step 7: Create Credential blocks
 
-Once you have stored the credentials in the ini file, call the below command to create a block securedly stored in your prefect account. For more about blocks refer [Blocks] (https://github.com/OSOceanAcoustics/echoflow/blob/dev/docs/configuration/blocks.md). 
+Once you have stored the credentials in the ini file, call the below command to create a block securedly stored in your prefect account. For more about blocks refer [Blocks] (https://github.com/OSOceanAcoustics/echodataflow/blob/dev/docs/configuration/blocks.md). 
 
 ```bash
-echoflow load-credentials
+echodataflow load-credentials
 ```
 
 ---

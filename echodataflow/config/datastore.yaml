@@ -1,0 +1,31 @@
+name: Bell_M._Shimada-SH1707-EK60 # Name of the Echodataflow Run
+sonar_model: EK60 # Sonar Model
+raw_regex: (.*)-?D(?P<date>\w{1,8})-T(?P<time>\w{1,6}) # Regex to parse the filenames
+args: # Input arguments
+  urlpath: s3://ncei-wcsd-archive/data/raw/{{ ship_name }}/{{ survey_name }}/{{ sonar_model }}/*.raw # Source data URL
+  parameters: # Source data URL parameters
+    ship_name: Bell_M._Shimada
+    survey_name: SH1707
+    sonar_model: EK60
+  storage_options: # Source data storage options
+    anon: true
+  group: # Source data transect information
+    file: ./x0007_fileset.txt # Transect file URL. Accepts .zip or .txt file. File name Must follow r"x(?P<transect_num>\d+)" regex or set group_name to process without grouping. To process all the files at the source, remove the transect section from this yaml.
+    storage_options: # Transect file storage options
+      block_name: echodataflow-aws-credentials # Block name. For more information on Blocks refer blocks.md
+      type: AWS # Block type 
+  group_name: default_group # Set when not using a file to pass transect information
+  json_export: true # Export raw json metadata of files to be processed
+  raw_json_path: s3://echodataflow-workground/combined_files/raw_json # Path to store the raw json metadata. Can also work to skip the process of parsing the files at source directory and fetch files present in this json instead.
+output: # Output arguments
+  urlpath: s3://echodataflow-workground/combined_files_dask # Destination data URL parameters
+  overwrite: true # Flag to overwrite the data if present in the output directory
+  retention: false # Deletes all the data stored while executing the pipeline
+  storage_options: # Destination data storage options
+    block_name: echodataflow-aws-credentials
+    type: AWS
+logging:
+  kafka:
+    topic: echodataflow_logs
+    servers:
+    - localhost:9092

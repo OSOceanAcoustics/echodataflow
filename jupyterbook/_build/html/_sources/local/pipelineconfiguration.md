@@ -10,14 +10,14 @@ n_workers: 5
 pipeline:
 - recipe_name: target_strength
   stages:
-  - name: echoflow_open_raw
-    module: echoflow.stages.subflows.open_raw
+  - name: echodataflow_open_raw
+    module: echodataflow.stages.subflows.open_raw
     options:
       save_raw_file: true
       use_raw_offline: true
       use_offline: true
-  - name: echoflow_compute_TS
-    module: echoflow.stages.subflows.compute_TS
+  - name: echodataflow_compute_TS
+    module: echodataflow.stages.subflows.compute_TS
     options:
       use_offline: true
 ```
@@ -32,11 +32,11 @@ Let's break down the components of this configuration:
 
 - **pipeline**: This section defines the sequence of stages to execute. In this example, we're following the "target_strength" recipe, which comprises two stages.
 
-- **echoflow_open_raw**: This stage utilizes the `open_raw` subflow module to open raw data files. It includes options such as saving raw files, using raw data in offline mode, and utilizing offline data.
+- **echodataflow_open_raw**: This stage utilizes the `open_raw` subflow module to open raw data files. It includes options such as saving raw files, using raw data in offline mode, and utilizing offline data.
 
-- **echoflow_compute_TS**: This stage employs the `compute_TS` subflow module to compute target strength. It includes an option to use offline data.
+- **echodataflow_compute_TS**: This stage employs the `compute_TS` subflow module to compute target strength. It includes an option to use offline data.
 
-**Note**: For a more comprehensive understanding of each option and its functionality, you can refer to the [Pipeline documentation](https://github.com/OSOceanAcoustics/echoflow/blob/dev/docs/configuration/pipeline.md).
+**Note**: For a more comprehensive understanding of each option and its functionality, you can refer to the [Pipeline documentation](https://github.com/OSOceanAcoustics/echodataflow/blob/dev/docs/configuration/pipeline.md).
 
 Keep in mind that in this example, we'll be setting up a local Dask Cluster with 5 workers for parallel processing. This configuration will enable us to efficiently process our data for target strength analysis. To turn it off, toggle `use_local_dask` to false.
 

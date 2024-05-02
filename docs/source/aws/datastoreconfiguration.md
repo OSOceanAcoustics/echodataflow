@@ -25,7 +25,7 @@ output:
   retention: false
   overwrite: true
   storage_options: 
-    block_name: echoflow-aws-credentials
+    block_name: echodataflow-aws-credentials
     type: AWS
 ```
 

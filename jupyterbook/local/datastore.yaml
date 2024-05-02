@@ -14,6 +14,6 @@ args:
   default_transect_num: 2017
   json_export: true 
 output: 
-  urlpath: ./echoflow-output
+  urlpath: ./echodataflow-output
   retention: true
   overwrite: true
