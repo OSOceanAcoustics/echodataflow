@@ -1,6 +1,6 @@
-# Echoflow on Local Machine
+# Echodataflow on Local Machine
 
-Welcome to this beginner-friendly notebook that guides you through the process of using `echoflow` to process EK60 data from the SH1707 survey. `echoflow` is a powerful tool for ocean acoustics data processing. In this notebook, we'll walk through the following steps:
+Welcome to this beginner-friendly notebook that guides you through the process of using `echodataflow` to process EK60 data from the SH1707 survey. `echodataflow` is a powerful tool for ocean acoustics data processing. In this notebook, we'll walk through the following steps:
 
 1. **Setting Up**: Importing necessary libraries and setting up the configuration paths for the dataset and pipeline.
 
@@ -8,7 +8,7 @@ Welcome to this beginner-friendly notebook that guides you through the process o
 
 3. **Preparing Files**: Extracting file names from URLs and creating a file listing for the transect.
 
-4. **Processing with echoflow**: Starting the echoflow processing using the specified configurations.
+4. **Processing with echodataflow**: Starting the echodataflow processing using the specified configurations.
 
 5. **Results**: Displaying the first entry from the processed data.
 

@@ -26,7 +26,7 @@ Each stage contains:
 
 - **`name`**: The function to execute within this stage.
 - **`module`**: The module in which the function is located.
-- **`options`**: Configurable settings specific to the Echoflow functionality.
+- **`options`**: Configurable settings specific to the Echodataflow functionality.
 
 #### Options
 
@@ -53,10 +53,10 @@ The `prefect_config` section configures Prefect-related settings for the flow. R
 
 Here's an overview of some of the pipeline stages:
 
-1. **`echoflow_open_raw`**: Executes the `open_raw` function from the `echoflow.stages.subflows.open_raw` module. Allows various options and Prefect configurations.
-2. **`echoflow_combine_echodata`**: Utilizes the `combine_echodata` function from the designated module, with relevant options and configurations.
-3. **`echoflow_compute_SV`**: Executes the `compute_SV` function, supporting offline mode.
-4. **`echoflow_compute_MVBS`**: Executes the `compute_MVBS` function, supporting offline mode. External parameters like `range_meter_bin` and `ping_time_bin` can be set here.
+1. **`echodataflow_open_raw`**: Executes the `open_raw` function from the `echodataflow.stages.subflows.open_raw` module. Allows various options and Prefect configurations.
+2. **`echodataflow_combine_echodata`**: Utilizes the `combine_echodata` function from the designated module, with relevant options and configurations.
+3. **`echodataflow_compute_SV`**: Executes the `compute_SV` function, supporting offline mode.
+4. **`echodataflow_compute_MVBS`**: Executes the `compute_MVBS` function, supporting offline mode. External parameters like `range_meter_bin` and `ping_time_bin` can be set here.
 
 Example:
 
@@ -67,14 +67,14 @@ scheduler_address: tcp://127.0.0.1:61918 # Specify scheduler address or use_loca
 pipeline: # List of pipeline configurations; only the active_recipe will be executed.
 - recipe_name: standard # Name of the recipe
   stages: # list of processes to execute on the data
-  - name: echoflow_open_raw # Name of the function
-    module: echoflow.stages.subflows.open_raw # Module of the function
-    options: # Echoflow configuration options
+  - name: echodataflow_open_raw # Name of the function
+    module: echodataflow.stages.subflows.open_raw # Module of the function
+    options: # Echodataflow configuration options
       save_raw_file: true # Save the downloaded raw file to output directory. Refer <link> for more information on how to configure output directory.
       use_raw_offline: true # Skip the download process and take the raw file present in the output directory. Note: Missing files will be downloaded in the output directory.
       use_offline: true # Skip this process if zarr files are already present in the output directory.
       out_path: ./temp_files # Configure the output directory for this process 
-    prefect_config: # Configure any prefect related settings for a flow. For an exhaustive list of configurations refer <https://docs.prefect.io/2.11.5/concepts/flows/#flow-settings>. Task based configurations are optimized and handled by echoflow 
+    prefect_config: # Configure any prefect related settings for a flow. For an exhaustive list of configurations refer <https://docs.prefect.io/2.11.5/concepts/flows/#flow-settings>. Task based configurations are optimized and handled by echodataflow 
       retries: 3 # Number of retries before failing the flow
       task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487) # Configure Runner setting for this specific stage
       persist_result: true # Persist the prefect results. Note: By default the output will be stored in the output directory, this option should only be used if dealing with advanced prefect configuration and integration
@@ -82,19 +82,19 @@ pipeline: # List of pipeline configurations; only the active_recipe will be exec
     external_params: # External parameters relevant to the function can be configured using below. Currently only primitive types are supported under this configuration
       sonar_model: EK60
       xml_path: s3//
-  - name: echoflow_combine_echodata
-    module: echoflow.stages.subflows.combine_echodata
+  - name: echodataflow_combine_echodata
+    module: echodataflow.stages.subflows.combine_echodata
     options:
       use_offline: true
     prefect_config:
       retries: 0
       task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
-  - name: echoflow_compute_SV
-    module: echoflow.stages.subflows.compute_SV
+  - name: echodataflow_compute_SV
+    module: echodataflow.stages.subflows.compute_SV
     options:
       use_offline: true
-  - name: echoflow_compute_MVBS
-    module: echoflow.stages.subflows.compute_MVBS
+  - name: echodataflow_compute_MVBS
+    module: echodataflow.stages.subflows.compute_MVBS
     options:
       use_offline: true
     external_params:

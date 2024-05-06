@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
-    <title>Data Processing Pipeline Configuration &#8212; Echoflow Local Demo</title>
+    <title>Data Processing Pipeline Configuration &#8212; Echodataflow Local Demo</title>
   
   
   
@@ -160,8 +160,8 @@ const thebe_selector_output = ".output, .cell_output"
       
     
     
-    <img src="../_static/logo.png" class="logo__image only-light" alt="Echoflow Local Demo - Home"/>
-    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="Echoflow Local Demo - Home"/>`);</script>
+    <img src="../_static/logo.png" class="logo__image only-light" alt="Echodataflow Local Demo - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="Echodataflow Local Demo - Home"/>`);</script>
   
   
 </a></div>
@@ -171,17 +171,17 @@ const thebe_selector_output = ".output, .cell_output"
         <ul class="nav bd-sidenav bd-sidenav__home-link">
             <li class="toctree-l1">
                 <a class="reference internal" href="../intro.html">
-                    Echoflow
+                    Echodataflow
                 </a>
             </li>
         </ul>
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../gettingstarted.html">Getting Started with Echoflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gettingstarted.html">Getting Started with Echodataflow</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Demo</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1 has-children"><a class="reference internal" href="../local/intro.html">Echoflow on Local Machine</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../local/intro.html">Echodataflow on Local Machine</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../local/setup.html">Local Installation and Setup</a></li>
 <li class="toctree-l2 has-children"><a class="reference internal" href="../local/notebook.html">Processing EK60 Data to Extract Target Strength</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-2"><i class="fa-solid fa-chevron-down"></i></label><ul>
 <li class="toctree-l3"><a class="reference internal" href="../local/pipelineconfiguration.html">Pipeline Configuration</a></li>
@@ -193,7 +193,7 @@ const thebe_selector_output = ".output, .cell_output"
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="blocks.html">Echoflow Configuration and Credential Blocks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="blocks.html">Echodataflow Configuration and Credential Blocks</a></li>
 
 <li class="toctree-l1"><a class="reference internal" href="datastore.html">Datastore Configuration</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Data Processing Pipeline Configuration</a></li>
@@ -251,7 +251,7 @@ const thebe_selector_output = ".output, .cell_output"
       
       
       
-      <li><a href="https://github.com/OSOceanAcoustics/echoflow" target="_blank"
+      <li><a href="https://github.com/OSOceanAcoustics/echodataflow" target="_blank"
    class="btn btn-sm btn-source-repository-button dropdown-item"
    title="Source repository"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -268,7 +268,7 @@ const thebe_selector_output = ".output, .cell_output"
       
       
       
-      <li><a href="https://github.com/OSOceanAcoustics/echoflow/issues/new?title=Issue%20on%20page%20%2Fconfiguration/pipeline.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/OSOceanAcoustics/echodataflow/issues/new?title=Issue%20on%20page%20%2Fconfiguration/pipeline.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -446,7 +446,7 @@ document.write(`
 <ul class="simple">
 <li><p><strong><code class="docutils literal notranslate"><span class="pre">name</span></code></strong>: The function to execute within this stage.</p></li>
 <li><p><strong><code class="docutils literal notranslate"><span class="pre">module</span></code></strong>: The module in which the function is located.</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">options</span></code></strong>: Configurable settings specific to the Echoflow functionality.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">options</span></code></strong>: Configurable settings specific to the Echodataflow functionality.</p></li>
 </ul>
 <section id="options">
 <h4>Options<a class="headerlink" href="#options" title="Permalink to this heading">#</a></h4>
@@ -480,10 +480,10 @@ document.write(`
 <h2>Example Stages<a class="headerlink" href="#example-stages" title="Permalink to this heading">#</a></h2>
 <p>Here’s an overview of some of the pipeline stages:</p>
 <ol class="arabic simple">
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">echoflow_open_raw</span></code></strong>: Executes the <code class="docutils literal notranslate"><span class="pre">open_raw</span></code> function from the <code class="docutils literal notranslate"><span class="pre">echoflow.stages.subflows.open_raw</span></code> module. Allows various options and Prefect configurations.</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">echoflow_combine_echodata</span></code></strong>: Utilizes the <code class="docutils literal notranslate"><span class="pre">combine_echodata</span></code> function from the designated module, with relevant options and configurations.</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">echoflow_compute_SV</span></code></strong>: Executes the <code class="docutils literal notranslate"><span class="pre">compute_SV</span></code> function, supporting offline mode.</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">echoflow_compute_MVBS</span></code></strong>: Executes the <code class="docutils literal notranslate"><span class="pre">compute_MVBS</span></code> function, supporting offline mode. External parameters like <code class="docutils literal notranslate"><span class="pre">range_meter_bin</span></code> and <code class="docutils literal notranslate"><span class="pre">ping_time_bin</span></code> can be set here.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">echodataflow_open_raw</span></code></strong>: Executes the <code class="docutils literal notranslate"><span class="pre">open_raw</span></code> function from the <code class="docutils literal notranslate"><span class="pre">echodataflow.stages.subflows.open_raw</span></code> module. Allows various options and Prefect configurations.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">echodataflow_combine_echodata</span></code></strong>: Utilizes the <code class="docutils literal notranslate"><span class="pre">combine_echodata</span></code> function from the designated module, with relevant options and configurations.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">echodataflow_compute_SV</span></code></strong>: Executes the <code class="docutils literal notranslate"><span class="pre">compute_SV</span></code> function, supporting offline mode.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">echodataflow_compute_MVBS</span></code></strong>: Executes the <code class="docutils literal notranslate"><span class="pre">compute_MVBS</span></code> function, supporting offline mode. External parameters like <code class="docutils literal notranslate"><span class="pre">range_meter_bin</span></code> and <code class="docutils literal notranslate"><span class="pre">ping_time_bin</span></code> can be set here.</p></li>
 </ol>
 <p>Example:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">active_recipe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span><span class="w"> </span><span class="c1"># Specify the recipe to execute on input data</span>
@@ -492,14 +492,14 @@ document.write(`
 <span class="nt">pipeline</span><span class="p">:</span><span class="w"> </span><span class="c1"># List of pipeline configurations; only the active_recipe will be executed.</span>
 <span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">recipe_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span><span class="w"> </span><span class="c1"># Name of the recipe</span>
 <span class="w">  </span><span class="nt">stages</span><span class="p">:</span><span class="w"> </span><span class="c1"># list of processes to execute on the data</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow_open_raw</span><span class="w"> </span><span class="c1"># Name of the function</span>
-<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow.stages.subflows.open_raw</span><span class="w"> </span><span class="c1"># Module of the function</span>
-<span class="w">    </span><span class="nt">options</span><span class="p">:</span><span class="w"> </span><span class="c1"># Echoflow configuration options</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_open_raw</span><span class="w"> </span><span class="c1"># Name of the function</span>
+<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.open_raw</span><span class="w"> </span><span class="c1"># Module of the function</span>
+<span class="w">    </span><span class="nt">options</span><span class="p">:</span><span class="w"> </span><span class="c1"># Echodataflow configuration options</span>
 <span class="w">      </span><span class="nt">save_raw_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># Save the downloaded raw file to output directory. Refer &lt;link&gt; for more information on how to configure output directory.</span>
 <span class="w">      </span><span class="nt">use_raw_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># Skip the download process and take the raw file present in the output directory. Note: Missing files will be downloaded in the output directory.</span>
 <span class="w">      </span><span class="nt">use_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># Skip this process if zarr files are already present in the output directory.</span>
 <span class="w">      </span><span class="nt">out_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./temp_files</span><span class="w"> </span><span class="c1"># Configure the output directory for this process </span>
-<span class="w">    </span><span class="nt">prefect_config</span><span class="p">:</span><span class="w"> </span><span class="c1"># Configure any prefect related settings for a flow. For an exhaustive list of configurations refer &lt;https://docs.prefect.io/2.11.5/concepts/flows/#flow-settings&gt;. Task based configurations are optimized and handled by echoflow </span>
+<span class="w">    </span><span class="nt">prefect_config</span><span class="p">:</span><span class="w"> </span><span class="c1"># Configure any prefect related settings for a flow. For an exhaustive list of configurations refer &lt;https://docs.prefect.io/2.11.5/concepts/flows/#flow-settings&gt;. Task based configurations are optimized and handled by echodataflow </span>
 <span class="w">      </span><span class="nt">retries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span><span class="w"> </span><span class="c1"># Number of retries before failing the flow</span>
 <span class="w">      </span><span class="nt">task_runner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DaskTaskRunner(address=tcp://127.0.0.1:59487)</span><span class="w"> </span><span class="c1"># Configure Runner setting for this specific stage</span>
 <span class="w">      </span><span class="nt">persist_result</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w"> </span><span class="c1"># Persist the prefect results. Note: By default the output will be stored in the output directory, this option should only be used if dealing with advanced prefect configuration and integration</span>
@@ -507,19 +507,19 @@ document.write(`
 <span class="w">    </span><span class="nt">external_params</span><span class="p">:</span><span class="w"> </span><span class="c1"># External parameters relevant to the function can be configured using below. Currently only primitive types are supported under this configuration</span>
 <span class="w">      </span><span class="nt">sonar_model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EK60</span>
 <span class="w">      </span><span class="nt">xml_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">s3//</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow_combine_echodata</span>
-<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow.stages.subflows.combine_echodata</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_combine_echodata</span>
+<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.combine_echodata</span>
 <span class="w">    </span><span class="nt">options</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">use_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">    </span><span class="nt">prefect_config</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">retries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
 <span class="w">      </span><span class="nt">task_runner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DaskTaskRunner(address=tcp://127.0.0.1:59487)</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow_compute_SV</span>
-<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow.stages.subflows.compute_SV</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_compute_SV</span>
+<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.compute_SV</span>
 <span class="w">    </span><span class="nt">options</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">use_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow_compute_MVBS</span>
-<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow.stages.subflows.compute_MVBS</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_compute_MVBS</span>
+<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.compute_MVBS</span>
 <span class="w">    </span><span class="nt">options</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">use_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">    </span><span class="nt">external_params</span><span class="p">:</span>
@@ -612,7 +612,7 @@ document.write(`
   <div class="footer-item">
     
 <p class="component-author">
-By Echoflow Developers
+By Echodataflow Developers
 </p>
 
   </div>
