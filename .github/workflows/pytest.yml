@@ -3,10 +3,10 @@ name: Run pytest
 on:
   push:
     branches:
-      - TemplateWorkflows
+      - '*'
   pull_request:
     branches:
-      - TemplateWorkflows  
+      - '*'
 
 jobs:
   test:
