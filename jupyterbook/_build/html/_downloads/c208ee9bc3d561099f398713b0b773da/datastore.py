@@ -1,7 +1,7 @@
 """
-Echoflow Configuration Models
+Echodataflow Configuration Models
 
-This module defines Pydantic models that represent different aspects of the Echoflow configuration.
+This module defines Pydantic models that represent different aspects of the Echodataflow configuration.
 
 Classes:
     StorageType (Enum): An enumeration representing different storage types.
@@ -35,7 +35,7 @@ class StorageType(Enum):
     AWS = "AWS"
     AZCosmos = "AZCosmos"
     GCP = "GCP"
-    ECHOFLOW = "ECHOFLOW"
+    ECHODATAFLOW = "ECHODATAFLOW"
 
 
 class StorageOptions(BaseModel):

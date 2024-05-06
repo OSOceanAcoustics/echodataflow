@@ -1,11 +1,11 @@
-# Echoflow
+# Echodataflow
 
 ## Example notebook : [FlowDemo](FlowDemo.ipynb)
 
 ## Pre-requisite:
 ### Files :
-1. [pipeline.yaml](/echoflow/config/pipeline.yaml)
-2. [datastore.yaml](/echoflow/config/datastore.yaml)
+1. [pipeline.yaml](/echodataflow/config/pipeline.yaml)
+2. [datastore.yaml](/echodataflow/config/datastore.yaml)
 3. logging_config.yaml (optional; still in progress for setting up external logging)
 ### Dataset :
 - Hake.zip (contains two transects: x0007_fileset and x00010_fileset)

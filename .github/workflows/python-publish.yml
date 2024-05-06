@@ -6,7 +6,7 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
-name: echoflow-dev
+name: echodataflow-pypi-publish
 
 on:
   release:
@@ -37,3 +37,4 @@ jobs:
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
+    

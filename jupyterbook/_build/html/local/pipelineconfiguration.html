@@ -9,7 +9,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.18.1: http://docutils.sourceforge.net/" />
 
-    <title>Pipeline Configuration &#8212; Echoflow Local Demo</title>
+    <title>Pipeline Configuration &#8212; Echodataflow Local Demo</title>
   
   
   
@@ -159,8 +159,8 @@ const thebe_selector_output = ".output, .cell_output"
       
     
     
-    <img src="../_static/logo.png" class="logo__image only-light" alt="Echoflow Local Demo - Home"/>
-    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="Echoflow Local Demo - Home"/>`);</script>
+    <img src="../_static/logo.png" class="logo__image only-light" alt="Echodataflow Local Demo - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="Echodataflow Local Demo - Home"/>`);</script>
   
   
 </a></div>
@@ -170,17 +170,17 @@ const thebe_selector_output = ".output, .cell_output"
         <ul class="nav bd-sidenav bd-sidenav__home-link">
             <li class="toctree-l1">
                 <a class="reference internal" href="../intro.html">
-                    Echoflow
+                    Echodataflow
                 </a>
             </li>
         </ul>
         <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../gettingstarted.html">Getting Started with Echoflow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gettingstarted.html">Getting Started with Echodataflow</a></li>
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Demo</span></p>
 <ul class="current nav bd-sidenav">
-<li class="toctree-l1 current active has-children"><a class="reference internal" href="intro.html">Echoflow on Local Machine</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul class="current">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="intro.html">Echodataflow on Local Machine</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-1"><i class="fa-solid fa-chevron-down"></i></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="setup.html">Local Installation and Setup</a></li>
 <li class="toctree-l2 current active has-children"><a class="reference internal" href="notebook.html">Processing EK60 Data to Extract Target Strength</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" type="checkbox"/><label class="toctree-toggle" for="toctree-checkbox-2"><i class="fa-solid fa-chevron-down"></i></label><ul class="current">
 <li class="toctree-l3 current active"><a class="current reference internal" href="#">Pipeline Configuration</a></li>
@@ -192,7 +192,7 @@ const thebe_selector_output = ".output, .cell_output"
 </ul>
 <p aria-level="2" class="caption" role="heading"><span class="caption-text">Appendix</span></p>
 <ul class="nav bd-sidenav">
-<li class="toctree-l1"><a class="reference internal" href="../configuration/blocks.html">Echoflow Configuration and Credential Blocks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../configuration/blocks.html">Echodataflow Configuration and Credential Blocks</a></li>
 
 <li class="toctree-l1"><a class="reference internal" href="../configuration/datastore.html">Datastore Configuration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../configuration/pipeline.html">Data Processing Pipeline Configuration</a></li>
@@ -250,7 +250,7 @@ const thebe_selector_output = ".output, .cell_output"
       
       
       
-      <li><a href="https://github.com/OSOceanAcoustics/echoflow" target="_blank"
+      <li><a href="https://github.com/OSOceanAcoustics/echodataflow" target="_blank"
    class="btn btn-sm btn-source-repository-button dropdown-item"
    title="Source repository"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -267,7 +267,7 @@ const thebe_selector_output = ".output, .cell_output"
       
       
       
-      <li><a href="https://github.com/OSOceanAcoustics/echoflow/issues/new?title=Issue%20on%20page%20%2Flocal/pipelineconfiguration.html&body=Your%20issue%20content%20here." target="_blank"
+      <li><a href="https://github.com/OSOceanAcoustics/echodataflow/issues/new?title=Issue%20on%20page%20%2Flocal/pipelineconfiguration.html&body=Your%20issue%20content%20here." target="_blank"
    class="btn btn-sm btn-source-issues-button dropdown-item"
    title="Open an issue"
    data-bs-placement="left" data-bs-toggle="tooltip"
@@ -403,14 +403,14 @@ document.write(`
 <span class="nt">pipeline</span><span class="p">:</span>
 <span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">recipe_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">target_strength</span>
 <span class="w">  </span><span class="nt">stages</span><span class="p">:</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow_open_raw</span>
-<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow.stages.subflows.open_raw</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_open_raw</span>
+<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.open_raw</span>
 <span class="w">    </span><span class="nt">options</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">save_raw_file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">use_raw_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">      </span><span class="nt">use_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow_compute_TS</span>
-<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echoflow.stages.subflows.compute_TS</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_compute_TS</span>
+<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.compute_TS</span>
 <span class="w">    </span><span class="nt">options</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">use_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </pre></div>
@@ -421,10 +421,10 @@ document.write(`
 <li><p><strong>use_local_dask</strong>: This flag indicates that we’ll be utilizing a local Dask Cluster for parallel processing.</p></li>
 <li><p><strong>n_workers</strong>: Determines the number of worker processes in the Dask Cluster. Here, we’re using 5 workers for efficient parallelization.</p></li>
 <li><p><strong>pipeline</strong>: This section defines the sequence of stages to execute. In this example, we’re following the “target_strength” recipe, which comprises two stages.</p></li>
-<li><p><strong>echoflow_open_raw</strong>: This stage utilizes the <code class="docutils literal notranslate"><span class="pre">open_raw</span></code> subflow module to open raw data files. It includes options such as saving raw files, using raw data in offline mode, and utilizing offline data.</p></li>
-<li><p><strong>echoflow_compute_TS</strong>: This stage employs the <code class="docutils literal notranslate"><span class="pre">compute_TS</span></code> subflow module to compute target strength. It includes an option to use offline data.</p></li>
+<li><p><strong>echodataflow_open_raw</strong>: This stage utilizes the <code class="docutils literal notranslate"><span class="pre">open_raw</span></code> subflow module to open raw data files. It includes options such as saving raw files, using raw data in offline mode, and utilizing offline data.</p></li>
+<li><p><strong>echodataflow_compute_TS</strong>: This stage employs the <code class="docutils literal notranslate"><span class="pre">compute_TS</span></code> subflow module to compute target strength. It includes an option to use offline data.</p></li>
 </ul>
-<p><strong>Note</strong>: For a more comprehensive understanding of each option and its functionality, you can refer to the <a class="reference external" href="https://github.com/OSOceanAcoustics/echoflow/blob/dev/docs/configuration/pipeline.md">Pipeline documentation</a>.</p>
+<p><strong>Note</strong>: For a more comprehensive understanding of each option and its functionality, you can refer to the <a class="reference external" href="https://github.com/OSOceanAcoustics/echodataflow/blob/dev/docs/configuration/pipeline.md">Pipeline documentation</a>.</p>
 <p>Keep in mind that in this example, we’ll be setting up a local Dask Cluster with 5 workers for parallel processing. This configuration will enable us to efficiently process our data for target strength analysis. To turn it off, toggle <code class="docutils literal notranslate"><span class="pre">use_local_dask</span></code> to false.</p>
 <p>Feel free to explore and modify the configuration to understand better.</p>
 </section>
@@ -495,7 +495,7 @@ document.write(`
   <div class="footer-item">
     
 <p class="component-author">
-By Echoflow Developers
+By Echodataflow Developers
 </p>
 
   </div>

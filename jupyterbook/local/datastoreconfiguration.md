@@ -21,7 +21,7 @@ args:
   default_transect_num: 2017
   json_export: true 
 output: 
-  urlpath: ./echoflow-output
+  urlpath: ./echodataflow-output
   retention: false
   overwrite: true
 ```
@@ -46,7 +46,7 @@ output:
 
 - **output**: This section configures the output settings for processed data:
 
-  - **urlpath**: Determines the output directory (`./echoflow-output`) where the processed data will be stored.
+  - **urlpath**: Determines the output directory (`./echodataflow-output`) where the processed data will be stored.
 
   - **retention**: Disables data retention, indicating that only Target Strength data will be stored in this case.
 
@@ -54,6 +54,6 @@ output:
 
 **Note**: 
 - For a more comprehensive understanding of each option and its functionality, you can refer to the [Datast documentation](../configuration/datastore.md/).
-- The pipeline will store Target Strength output under `./echoflow-output`. As the retention is set to false, only Target Strength files will be stored. To specify files for processing, create a list of file names and store it in `EK60_SH1707_Shimada.txt`, which should be placed under the transect directory.
+- The pipeline will store Target Strength output under `./echodataflow-output`. As the retention is set to false, only Target Strength files will be stored. To specify files for processing, create a list of file names and store it in `EK60_SH1707_Shimada.txt`, which should be placed under the transect directory.
 
 This configuration facilitates efficient data organization and management for the processing pipeline. Feel free to tailor it to your specific data and processing requirements.

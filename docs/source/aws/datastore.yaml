@@ -14,9 +14,9 @@ args:
   group_name: 2017
   json_export: true 
 output: # Output arguments
-  urlpath: s3://echoflow-workground/test-flow-9-1-24
+  urlpath: s3://echodataflow-workground/test-flow-9-1-24
   retention: false
   overwrite: true 
   storage_options: 
-    block_name: echoflow-aws-credentials
+    block_name: echodataflow-aws-credentials
     type: AWS
