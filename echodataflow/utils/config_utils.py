@@ -50,7 +50,6 @@ from echodataflow.models.datastore import Dataset, StorageOptions, StorageType
 from echodataflow.models.pipeline import Recipe, Stage
 from echodataflow.utils.file_utils import extract_fs, isFile
 
-TRANSECT_FILE_REGEX = r"x(?P<transect_num>\d+)"
 nest_asyncio.apply()
 
 
