@@ -55,7 +55,7 @@ Here's an overview of some of the pipeline stages:
 
 1. **`echodataflow_open_raw`**: Executes the `open_raw` function from the `echodataflow.stages.subflows.open_raw` module. Allows various options and Prefect configurations.
 2. **`echodataflow_combine_echodata`**: Utilizes the `combine_echodata` function from the designated module, with relevant options and configurations.
-3. **`echodataflow_compute_SV`**: Executes the `compute_SV` function, supporting offline mode.
+3. **`echodataflow_compute_Sv`**: Executes the `compute_Sv` function, supporting offline mode.
 4. **`echodataflow_compute_MVBS`**: Executes the `compute_MVBS` function, supporting offline mode. External parameters like `range_meter_bin` and `ping_time_bin` can be set here.
 
 Example:
@@ -89,8 +89,8 @@ pipeline: # List of pipeline configurations; only the active_recipe will be exec
     prefect_config:
       retries: 0
       task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
-  - name: echodataflow_compute_SV
-    module: echodataflow.stages.subflows.compute_SV
+  - name: echodataflow_compute_Sv
+    module: echodataflow.stages.subflows.compute_Sv
     options:
       use_offline: true
   - name: echodataflow_compute_MVBS

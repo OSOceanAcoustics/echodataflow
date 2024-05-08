@@ -425,8 +425,8 @@ document.write(`
 <span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.combine_echodata</span>
 <span class="w">    </span><span class="nt">options</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">use_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_compute_SV</span>
-<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.compute_SV</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_compute_Sv</span>
+<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.compute_Sv</span>
 <span class="w">    </span><span class="nt">options</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">use_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_compute_MVBS</span>
@@ -447,7 +447,7 @@ document.write(`
 <ul>
 <li><p><strong>echodataflow_open_raw</strong>: This stage utilizes the <code class="docutils literal notranslate"><span class="pre">open_raw</span></code> subflow module to open raw data files. It includes options such as saving raw files, using raw data in offline mode, and utilizing offline data.</p></li>
 <li><p><strong>echodataflow_combine_echodata</strong>: This stage employs the <code class="docutils literal notranslate"><span class="pre">combine_echodata</span></code> subflow module to combine echodatas based on transect. It includes an option to use offline data.</p></li>
-<li><p><strong>compute_SV</strong>: This stage employs the <code class="docutils literal notranslate"><span class="pre">compute_SV</span></code> subflow module to compute Backscattering Strength. It includes an option to use offline data.</p></li>
+<li><p><strong>compute_Sv</strong>: This stage employs the <code class="docutils literal notranslate"><span class="pre">compute_Sv</span></code> subflow module to compute Backscattering Strength. It includes an option to use offline data.</p></li>
 <li><p><strong>compute_MVBS</strong>: This stage employs the <code class="docutils literal notranslate"><span class="pre">compute_MVBS</span></code> subflow module to calculate MVBS. It includes an option to use offline data.</p></li>
 </ul>
 </li>
