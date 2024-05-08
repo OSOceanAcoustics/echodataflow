@@ -4,7 +4,7 @@ from prefect import flow
 from prefect.task_runners import SequentialTaskRunner
 from typing import Any, Dict, Optional, Union
 
-@flow(name="docker-trigger", task_runner=SequentialTaskRunner())
+@flow(name="docker-trigger-latest", task_runner=SequentialTaskRunner())
 def docker_trigger(
     dataset_config: Union[dict, str, Path],
     pipeline_config: Union[dict, str, Path],
@@ -23,4 +23,4 @@ def docker_trigger(
     )
 
 if __name__ == "__main__":
-    docker_trigger.serve(name="docker-trigger")
+    docker_trigger.serve(name="docker-trigger-latest")
