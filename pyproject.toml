@@ -4,13 +4,14 @@ requires = [
     "setuptools_scm[toml] >= 4, <6",
     "setuptools_scm_git_archive",
     "wheel >= 0.29.0",
+    "setuptools-git-versioning"
 ]
 build-backend = 'setuptools.build_meta'
 
 [tool.setuptools_scm]
 fallback_version = "unknown"
-local_scheme = "node-and-date"
-write_to = "echoflow/version.py"
+local_scheme = "no-local-version"
+write_to = "echodataflow/version.py"
 
 [tool.black]
 line-length = 100

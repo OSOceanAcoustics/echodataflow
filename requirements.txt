@@ -1,0 +1,14 @@
+requests
+prefect>=2
+echopype>=0.6.3
+jinja2
+prefect-dask
+pydantic
+prefect-aws
+prefect-azure
+prefect-dask
+jupyter
+jupyter-book
+fastapi
+sphinx
+kafka-python
