@@ -1,8 +1,8 @@
-active_recipe: target_strength 
+active_recipe: mask_pipeline 
 use_local_dask: true
 n_workers: 2
 pipeline:
-- recipe_name: target_strength
+- recipe_name: mask_pipeline
   stages:
   - name: echodataflow_open_raw
     module: echodataflow.stages.subflows.open_raw

@@ -6,7 +6,7 @@ import pytest
 def dataset_config():
     return Path("datastore.yaml").resolve()
 
-@pytest.fixture(params=[Path("./MVBS_pipeline.yaml").resolve(), Path("./mask_pipeline.yaml").resolve()])
+@pytest.fixture(params=[Path("./MVBS_pipeline.yaml").resolve(), Path("./mask_pipeline.yaml").resolve(), Path("./TS_pipeline.yaml").resolve()])
 def pipeline_config(request):
     return request.param
 
