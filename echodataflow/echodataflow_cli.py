@@ -135,6 +135,9 @@ def add_new_rule(new_rule) -> None:
     Returns:
         None
     """
+    if len(new_rule.split(':')) != 2:
+        print("Sanity check failed. Please make sure all rules follow the convention : One rule per line. Format -> parent_flow:child_flow")
+        raise ValueError("Error adding rules. Sanity Check failed.")
     rules_path = fetch_ruleset()
     """Append a new rule to the existing rules file."""
     with open(rules_path, 'a') as file:
