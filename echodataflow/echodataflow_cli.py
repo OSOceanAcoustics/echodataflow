@@ -169,7 +169,9 @@ def add_rules_from_set(rule_set: set):
         if ':' not in rule:
             print("Sanity check failed. Please make sure all rules follow the convention : One rule per line. Format -> parent_flow:child_flow")
             raise ValueError("Error adding rules. Sanity Check failed.") 
-                   
+        if len(rule.split(':')) != 2:
+            print("Sanity check failed. Please make sure all rules follow the convention : One rule per line. Format -> parent_flow:child_flow")
+            raise ValueError("Error adding rules. Sanity Check failed.")
     with open(rules_path, 'w') as ruleset:        
         for rule in rule_set:
             ruleset.write(rule)    
