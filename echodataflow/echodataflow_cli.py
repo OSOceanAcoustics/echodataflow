@@ -62,7 +62,7 @@ def fetch_ruleset():
     
     return rules_path
 
-def clean_ruleset(rules: set):
+def clean_ruleset():
     """
     Cleans the existing ruleset file and repopulates it with a given set of rules.
 
@@ -72,11 +72,6 @@ def clean_ruleset(rules: set):
     The function performs a sanity check on each rule to ensure it follows the expected 
     format "parent_flow:child_flow". If any rule does not comply, a ValueError is raised,
     and the operation is aborted. 
-
-    Parameters:
-        rules (set): A set of strings, each representing a rule in the format
-                     "parent_flow:child_flow". This set of rules will replace any
-                     existing rules in the 'echodataflow_rules.txt' file.
 
     Returns:
         set: The same set of rules provided as input, indicating the rules now
@@ -99,10 +94,19 @@ def clean_ruleset(rules: set):
     """
     rules_path = fetch_ruleset()
     
+    with open(rules_path, 'r') as file:
+        backup_rules = file.readlines()
     os.remove(rules_path)
+        
+    try:
+        add_rules_from_set(rule_set=set(backup_rules))
+    except Exception as e:
+        with open(rules_path, 'w') as ruleset:        
+            for rule in backup_rules:
+                ruleset.write(rule)
+        raise e
     
-    add_rules_from_set(rule_set=rules)
-    return rules
+    return set(backup_rules)
 
 def fetch_all_rules():
     """
@@ -118,7 +122,7 @@ def fetch_all_rules():
     rules_path = fetch_ruleset()
     with open(rules_path, 'r') as file:
         rules = file.readlines()
-    return clean_ruleset(set(rules))
+    return rules
         
 def add_new_rule(new_rule) -> None:
     """
@@ -177,8 +181,8 @@ def add_rules_from_set(rule_set: set):
             raise ValueError("Error adding rules. Sanity Check failed.")
     with open(rules_path, 'w') as ruleset:        
         for rule in rule_set:
-            ruleset.write(rule)    
-
+            ruleset.write(rule)
+            
 def add_rules_from_file(file_path) -> None:
     """
     Reads rules from a specified file and adds them to the Echodataflow configuration.
@@ -492,6 +496,10 @@ def main():
       ```
       echodataflow rules --add-from-file path/to/rules.txt
       ```
+    - To cleanup rules:
+      ```
+      echodataflow rules --clean
+      ```
 
     Note:
     - Use the appropriate subcommand to perform desired actions related to Echodataflow configurations.
@@ -514,6 +522,7 @@ def main():
     rule_parser = subparsers.add_parser("rules", help="View or add flow rules.")
     rule_parser.add_argument('--add', action='store_true', help="Add a new rule. Format -> parent_flow:child_flow")
     rule_parser.add_argument('--add-from-file', action='store_true', help="Path to a file containing new rules to add. One rule per line. Format -> parent_flow:child_flow")
+    rule_parser.add_argument('--clean', action='store_true', help="Clean and validate rules in ruleset")
     
     
     args = parser.parse_args()
@@ -556,6 +565,10 @@ def main():
                     print("No File Path provided")
                 else:
                     add_rules_from_file(file_path)
+            elif args.clean:
+                print("Cleaning up rules...")
+                rules = clean_ruleset()
+                [print(r, end='') for r in rules]
             else:
                 rules = fetch_all_rules()
                 print("These are the current rules configured:")
