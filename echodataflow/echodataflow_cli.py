@@ -138,7 +138,7 @@ def add_new_rule(new_rule) -> None:
     rules_path = fetch_ruleset()
     """Append a new rule to the existing rules file."""
     with open(rules_path, 'a') as file:
-        file.write(new_rule)
+        file.write(new_rule+"\n")
     print("New rule added successfully.")
     
 def add_rules_from_set(rule_set: set):
