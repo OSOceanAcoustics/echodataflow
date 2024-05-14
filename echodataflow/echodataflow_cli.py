@@ -62,7 +62,7 @@ def fetch_ruleset():
     
     return rules_path
 
-def clean_ruleset(rules: set):
+def clean_ruleset():
     """
     Cleans the existing ruleset file and repopulates it with a given set of rules.
 
@@ -72,11 +72,6 @@ def clean_ruleset(rules: set):
     The function performs a sanity check on each rule to ensure it follows the expected 
     format "parent_flow:child_flow". If any rule does not comply, a ValueError is raised,
     and the operation is aborted. 
-
-    Parameters:
-        rules (set): A set of strings, each representing a rule in the format
-                     "parent_flow:child_flow". This set of rules will replace any
-                     existing rules in the 'echodataflow_rules.txt' file.
 
     Returns:
         set: The same set of rules provided as input, indicating the rules now
@@ -99,10 +94,19 @@ def clean_ruleset(rules: set):
     """
     rules_path = fetch_ruleset()
     
+    with open(rules_path, 'r') as file:
+        backup_rules = file.readlines()
     os.remove(rules_path)
+        
+    try:
+        add_rules_from_set(rule_set=set(backup_rules))
+    except Exception as e:
+        with open(rules_path, 'w') as ruleset:        
+            for rule in backup_rules:
+                ruleset.write(rule)
+        raise e
     
-    add_rules_from_set(rule_set=rules)
-    return rules
+    return set(backup_rules)
 
 def fetch_all_rules():
     """
@@ -118,7 +122,7 @@ def fetch_all_rules():
     rules_path = fetch_ruleset()
     with open(rules_path, 'r') as file:
         rules = file.readlines()
-    return clean_ruleset(set(rules))
+    return rules
         
 def add_new_rule(new_rule) -> None:
     """
@@ -135,10 +139,13 @@ def add_new_rule(new_rule) -> None:
     Returns:
         None
     """
+    if len(new_rule.split(':')) != 2:
+        print("Sanity check failed. Please make sure all rules follow the convention : One rule per line. Format -> parent_flow:child_flow")
+        raise ValueError("Error adding rules. Sanity Check failed.")
     rules_path = fetch_ruleset()
     """Append a new rule to the existing rules file."""
     with open(rules_path, 'a') as file:
-        file.write(new_rule)
+        file.write(new_rule+"\n")
     print("New rule added successfully.")
     
 def add_rules_from_set(rule_set: set):
@@ -169,11 +176,13 @@ def add_rules_from_set(rule_set: set):
         if ':' not in rule:
             print("Sanity check failed. Please make sure all rules follow the convention : One rule per line. Format -> parent_flow:child_flow")
             raise ValueError("Error adding rules. Sanity Check failed.") 
-                   
+        if len(rule.split(':')) != 2:
+            print("Sanity check failed. Please make sure all rules follow the convention : One rule per line. Format -> parent_flow:child_flow")
+            raise ValueError("Error adding rules. Sanity Check failed.")
     with open(rules_path, 'w') as ruleset:        
         for rule in rule_set:
-            ruleset.write(rule)    
-
+            ruleset.write(rule)
+            
 def add_rules_from_file(file_path) -> None:
     """
     Reads rules from a specified file and adds them to the Echodataflow configuration.
@@ -254,16 +263,15 @@ def generate_ini_file():
     print("Configuring pre-defined rules...")
     rules_path = os.path.join(config_directory, "echodataflow_rules.txt")
     rules_file = open(rules_path, "w")
-    rules = [
-    "echodataflow_open_raw:echodataflow_compute_Sv",
-    "echodataflow_open_raw:echodataflow_combine_echodata",
-    "echodataflow_open_raw:echodataflow_compute_TS",
-    "echodataflow_combine_echodata:echodataflow_compute_Sv",
-    "echodataflow_compute_Sv:echodataflow_compute_MVBS"
-    ]
-    for r in rules:
-        rules_file.write(r+"\n")
-    rules_file.close()
+    default_rules_path = os.path.join('echodataflow', 'rule_engine', 'echodataflow_rules.txt')
+    
+    with open(default_rules_path, "r") as default_rules_file:
+        default_rules = default_rules_file.readlines()
+    print(default_rules)
+    
+    with open(rules_path, "w") as rules_file:
+        for rule in default_rules:
+            rules_file.write(rule)
 
     print("Initilization complete")
 
@@ -487,6 +495,10 @@ def main():
       ```
       echodataflow rules --add-from-file path/to/rules.txt
       ```
+    - To cleanup rules:
+      ```
+      echodataflow rules --clean
+      ```
 
     Note:
     - Use the appropriate subcommand to perform desired actions related to Echodataflow configurations.
@@ -509,6 +521,7 @@ def main():
     rule_parser = subparsers.add_parser("rules", help="View or add flow rules.")
     rule_parser.add_argument('--add', action='store_true', help="Add a new rule. Format -> parent_flow:child_flow")
     rule_parser.add_argument('--add-from-file', action='store_true', help="Path to a file containing new rules to add. One rule per line. Format -> parent_flow:child_flow")
+    rule_parser.add_argument('--clean', action='store_true', help="Clean and validate rules in ruleset")
     
     
     args = parser.parse_args()
@@ -551,6 +564,10 @@ def main():
                     print("No File Path provided")
                 else:
                     add_rules_from_file(file_path)
+            elif args.clean:
+                print("Cleaning up rules...")
+                rules = clean_ruleset()
+                [print(r, end='') for r in rules]
             else:
                 rules = fetch_all_rules()
                 print("These are the current rules configured:")
