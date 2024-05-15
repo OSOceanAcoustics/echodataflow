@@ -20,8 +20,8 @@ pipeline:
     module: echodataflow.stages.subflows.combine_echodata
     options:
       use_offline: true
-  - name: echodataflow_compute_SV
-    module: echodataflow.stages.subflows.compute_SV
+  - name: echodataflow_compute_Sv
+    module: echodataflow.stages.subflows.compute_Sv
     options:
       use_offline: true
   - name: echodataflow_compute_MVBS
@@ -48,7 +48,7 @@ pipeline:
     
     - **echodataflow_combine_echodata**: This stage employs the `combine_echodata` subflow module to combine echodatas based on transect. It includes an option to use offline data.
     
-    - **compute_SV**: This stage employs the `compute_SV` subflow module to compute Backscattering Strength. It includes an option to use offline data.
+    - **compute_Sv**: This stage employs the `compute_Sv` subflow module to compute Backscattering Strength. It includes an option to use offline data.
     
     - **compute_MVBS**: This stage employs the `compute_MVBS` subflow module to calculate MVBS. It includes an option to use offline data. -->
 

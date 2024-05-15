@@ -57,8 +57,8 @@ def generate_ini_file():
     Rules Format:
         The `echodataflow_rules.txt` file contains lines with rule definitions. Each rule specifies
         the execution sequence of two workflow components, separated by a colon. For example:
-        "echodataflow_open_raw:echodataflow_compute_SV" means `echodataflow_open_raw` should be executed
-        before `echodataflow_compute_SV`.
+        "echodataflow_open_raw:echodataflow_compute_Sv" means `echodataflow_open_raw` should be executed
+        before `echodataflow_compute_Sv`.
 
     Note:
         If the `.echodataflow` directory or `credentials.ini` file already exists, this function will
@@ -87,11 +87,11 @@ def generate_ini_file():
     rules_path = os.path.join(config_directory, "echodataflow_rules.txt")
     rules_file = open(rules_path, "w")
     rules = [
-    "echodataflow_open_raw:echodataflow_compute_SV",
+    "echodataflow_open_raw:echodataflow_compute_Sv",
     "echodataflow_open_raw:echodataflow_combine_echodata",
     "echodataflow_open_raw:echodataflow_compute_TS",
-    "echodataflow_combine_echodata:echodataflow_compute_SV",
-    "echodataflow_compute_SV:echodataflow_compute_MVBS"
+    "echodataflow_combine_echodata:echodataflow_compute_Sv",
+    "echodataflow_compute_Sv:echodataflow_compute_MVBS"
     ]
     for r in rules:
         rules_file.write(r+"\n")

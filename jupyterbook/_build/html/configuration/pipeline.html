@@ -482,7 +482,7 @@ document.write(`
 <ol class="arabic simple">
 <li><p><strong><code class="docutils literal notranslate"><span class="pre">echodataflow_open_raw</span></code></strong>: Executes the <code class="docutils literal notranslate"><span class="pre">open_raw</span></code> function from the <code class="docutils literal notranslate"><span class="pre">echodataflow.stages.subflows.open_raw</span></code> module. Allows various options and Prefect configurations.</p></li>
 <li><p><strong><code class="docutils literal notranslate"><span class="pre">echodataflow_combine_echodata</span></code></strong>: Utilizes the <code class="docutils literal notranslate"><span class="pre">combine_echodata</span></code> function from the designated module, with relevant options and configurations.</p></li>
-<li><p><strong><code class="docutils literal notranslate"><span class="pre">echodataflow_compute_SV</span></code></strong>: Executes the <code class="docutils literal notranslate"><span class="pre">compute_SV</span></code> function, supporting offline mode.</p></li>
+<li><p><strong><code class="docutils literal notranslate"><span class="pre">echodataflow_compute_Sv</span></code></strong>: Executes the <code class="docutils literal notranslate"><span class="pre">compute_Sv</span></code> function, supporting offline mode.</p></li>
 <li><p><strong><code class="docutils literal notranslate"><span class="pre">echodataflow_compute_MVBS</span></code></strong>: Executes the <code class="docutils literal notranslate"><span class="pre">compute_MVBS</span></code> function, supporting offline mode. External parameters like <code class="docutils literal notranslate"><span class="pre">range_meter_bin</span></code> and <code class="docutils literal notranslate"><span class="pre">ping_time_bin</span></code> can be set here.</p></li>
 </ol>
 <p>Example:</p>
@@ -514,8 +514,8 @@ document.write(`
 <span class="w">    </span><span class="nt">prefect_config</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">retries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
 <span class="w">      </span><span class="nt">task_runner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DaskTaskRunner(address=tcp://127.0.0.1:59487)</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_compute_SV</span>
-<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.compute_SV</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_compute_Sv</span>
+<span class="w">    </span><span class="nt">module</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow.stages.subflows.compute_Sv</span>
 <span class="w">    </span><span class="nt">options</span><span class="p">:</span>
 <span class="w">      </span><span class="nt">use_offline</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">echodataflow_compute_MVBS</span>
