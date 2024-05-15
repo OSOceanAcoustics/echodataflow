@@ -8,15 +8,14 @@ Classes:
     None
 
 Functions:
-    echodataflow_compute_SV(config: Dataset, stage: Stage, data: List[Output])
-    process_compute_SV(config: Dataset, stage: Stage, out_data: Union[List[Dict], List[Output]], working_dir: str)
+    echodataflow_compute_Sv(config: Dataset, stage: Stage, data: List[Output])
+    process_compute_Sv(config: Dataset, stage: Stage, out_data: Union[List[Dict], List[Output]], working_dir: str)
 
 Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import echopype as ep
 from prefect import flow, task
@@ -33,7 +32,7 @@ from echodataflow.utils.file_utils import (get_ed_list, get_out_zarr, get_output
 
 @flow
 @echodataflow(processing_stage="Compute-SV", type="FLOW")
-def echodataflow_compute_SV(config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
+def echodataflow_compute_Sv(config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
     """
     Compute volume backscattering strength (Sv) from echodata.
 
@@ -52,7 +51,7 @@ def echodataflow_compute_SV(config: Dataset, stage: Stage, prev_stage: Optional[
         echodata_outputs = ...
 
         # Execute the Echodataflow Compute SV stage
-        computed_sv_outputs = echodataflow_compute_SV(
+        computed_sv_outputs = echodataflow_compute_Sv(
             config=dataset_config,
             stage=pipeline_stage,
             data=echodata_outputs
@@ -71,16 +70,16 @@ def echodataflow_compute_SV(config: Dataset, stage: Stage, prev_stage: Optional[
                 transect_list = output_data.data
                 for ed in transect_list:
                     transect = str(ed.get("out_path")).split(".")[0] + ".SV"
-                    process_compute_SV_wo = process_compute_SV.with_options(
+                    process_compute_Sv_wo = process_compute_Sv.with_options(
                         name=transect, task_run_name=transect, retries=3
                     )
-                    future = process_compute_SV_wo.submit(
+                    future = process_compute_Sv_wo.submit(
                         config=config, stage=stage, out_data=ed, working_dir=working_dir
                     )
                     futures.append(future)
         else:
             for output_data in data:
-                future = process_compute_SV.submit(
+                future = process_compute_Sv.submit(
                     config=config, stage=stage, out_data=output_data, working_dir=working_dir
                 )
                 futures.append(future)
@@ -96,7 +95,7 @@ def echodataflow_compute_SV(config: Dataset, stage: Stage, prev_stage: Optional[
 
 @task
 @echodataflow()
-def process_compute_SV(
+def process_compute_Sv(
     config: Dataset, stage: Stage, out_data: Union[Dict, Output], working_dir: str
 ):
     """
@@ -119,7 +118,7 @@ def process_compute_SV(
         working_directory = ...
 
         # Process and compute Sv
-        computed_sv_output = process_compute_SV(
+        computed_sv_output = process_compute_Sv(
             config=dataset_config,
             stage=pipeline_stage,
             out_data=processed_outputs,

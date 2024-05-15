@@ -14,8 +14,8 @@ pipeline:
     module: echodataflow.stages.subflows.combine_echodata
     options:
       use_offline: true
-  - name: echodataflow_compute_SV
-    module: echodataflow.stages.subflows.compute_SV
+  - name: echodataflow_compute_Sv
+    module: echodataflow.stages.subflows.compute_Sv
     options:
       use_offline: true
   - name: echodataflow_compute_MVBS

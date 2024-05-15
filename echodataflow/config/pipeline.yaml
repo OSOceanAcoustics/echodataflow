@@ -28,8 +28,8 @@ pipeline: # List of pipeline configurations; only the active_recipe will be exec
     prefect_config:
       retries: 0
       task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487)
-  - name: echodataflow_compute_SV
-    module: echodataflow.stages.subflows.compute_SV
+  - name: echodataflow_compute_Sv
+    module: echodataflow.stages.subflows.compute_Sv
     options:
       use_offline: true
   - name: echodataflow_compute_MVBS
