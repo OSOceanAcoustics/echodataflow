@@ -1,8 +1,8 @@
-active_recipe: target_strength 
+active_recipe: mask_pipeline 
 use_local_dask: true
 n_workers: 2
 pipeline:
-- recipe_name: target_strength
+- recipe_name: mask_pipeline
   stages:
   - name: echodataflow_open_raw
     module: echodataflow.stages.subflows.open_raw
@@ -19,12 +19,6 @@ pipeline:
     module: echodataflow.stages.subflows.compute_Sv
     options:
       use_offline: true
-  # - name: echodataflow_frequency_differencing
-  #   module: echodataflow.stages.subflows.frequency_differencing
-  #   options:
-  #     use_offline: true
-  #   external_params:
-  #     freqABEq: 120000.0Hz - 38000.0Hz > 0dB
   # - name: echodataflow_compute_MVBS
   #   module: echodataflow.stages.subflows.compute_MVBS
   #   options:
@@ -32,9 +26,17 @@ pipeline:
   #   external_params:
   #     range_meter_bin: 20m 
   #     ping_time_bin: 20S
-  # - name: echodataflow_apply_mask
-  #   module: echodataflow.stages.subflows.apply_mask
-  #   options:
-  #     use_offline: true
-  #   dependson:
-  #     frequency_diff: mask
+      
+  - name: echodataflow_frequency_differencing
+    module: echodataflow.stages.subflows.frequency_differencing
+    options:
+      use_offline: true
+    external_params:
+      freqABEq: 120000.0Hz - 38000.0Hz > 0dB
+  
+  - name: echodataflow_apply_mask
+    module: echodataflow.stages.subflows.apply_mask
+    options:
+      use_offline: true
+    dependson:
+      frequency_diff: mask
