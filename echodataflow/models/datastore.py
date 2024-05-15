@@ -80,6 +80,7 @@ class Transect(BaseModel):
     file: Optional[str] = None
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}  
+    grouping_regex: Optional[str] = None
 
 
 class Args(BaseModel):
