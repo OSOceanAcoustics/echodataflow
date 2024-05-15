@@ -234,8 +234,8 @@ def generate_ini_file():
     Rules Format:
         The `echodataflow_rules.txt` file contains lines with rule definitions. Each rule specifies
         the execution sequence of two workflow components, separated by a colon. For example:
-        "echodataflow_open_raw:echodataflow_compute_SV" means `echodataflow_open_raw` should be executed
-        before `echodataflow_compute_SV`.
+        "echodataflow_open_raw:echodataflow_compute_Sv" means `echodataflow_open_raw` should be executed
+        before `echodataflow_compute_Sv`.
 
     Note:
         If the `.echodataflow` directory or `credentials.ini` file already exists, this function will
@@ -263,16 +263,15 @@ def generate_ini_file():
     print("Configuring pre-defined rules...")
     rules_path = os.path.join(config_directory, "echodataflow_rules.txt")
     rules_file = open(rules_path, "w")
-    rules = [
-    "echodataflow_open_raw:echodataflow_compute_SV",
-    "echodataflow_open_raw:echodataflow_combine_echodata",
-    "echodataflow_open_raw:echodataflow_compute_TS",
-    "echodataflow_combine_echodata:echodataflow_compute_SV",
-    "echodataflow_compute_SV:echodataflow_compute_MVBS"
-    ]
-    for r in rules:
-        rules_file.write(r+"\n")
-    rules_file.close()
+    default_rules_path = os.path.join('echodataflow', 'rule_engine', 'echodataflow_rules.txt')
+    
+    with open(default_rules_path, "r") as default_rules_file:
+        default_rules = default_rules_file.readlines()
+    print(default_rules)
+    
+    with open(rules_path, "w") as rules_file:
+        for rule in default_rules:
+            rules_file.write(rule)
 
     print("Initilization complete")
 
