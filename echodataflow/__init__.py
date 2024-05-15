@@ -9,7 +9,7 @@ from .stages.echodataflow import (echodataflow_config_AWS,
                                        load_profile)
 from .utils.config_utils import extract_fs, glob_url, load_block
 from .utils.file_utils import get_ed_list, get_last_run_output, get_zarr_list
-from .stages.docker_trigger import docker_trigger
+from .docker_trigger import docker_trigger
 
 try:
     VERSION = get_distribution(__name__).version
