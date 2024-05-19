@@ -47,7 +47,7 @@ from prefect_azure import AzureCosmosDbCredentials
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset, StorageOptions, StorageType
-from echodataflow.models.pipeline import Recipe, Stage
+from echodataflow.models.pipeline import Stage
 from echodataflow.utils.file_utils import extract_fs, isFile
 
 nest_asyncio.apply()
@@ -291,7 +291,7 @@ def parse_file_path(raw_file: str, fname_pattern: str) -> Dict[str, Any]:
 
 
 @task
-def get_prefect_config_dict(stage: Stage, pipeline: Recipe, prefect_config_dict: Dict[str, Any]):
+def get_prefect_config_dict(stage: Stage):
     """
     Gets the updated Prefect configuration dictionary.
 

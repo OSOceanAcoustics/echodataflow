@@ -16,6 +16,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+
 import logging
 import os
 from pathlib import Path
@@ -28,16 +29,22 @@ from prefect import flow, task
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.aspects.singleton_echodataflow import Singleton_Echodataflow
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.output_model import Output
+from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group, Output
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
-from echodataflow.utils.file_utils import (download_temp_file, get_out_zarr, get_output,
-                                       get_working_dir, isFile,
-                                       process_output_groups)
+from echodataflow.utils.file_utils import (
+    download_temp_file,
+    get_out_zarr,
+    get_output,
+    get_working_dir,
+    isFile,
+    process_output_groups,
+)
+
 
 @flow
 @echodataflow(processing_stage="Open-Raw", type="FLOW")
-def echodataflow_open_raw(config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
+def echodataflow_open_raw(group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
     """
     Process raw sonar data files and convert them to zarr format.
 
@@ -64,43 +71,32 @@ def echodataflow_open_raw(config: Dataset, stage: Stage, prev_stage: Optional[St
         print("Processed outputs:", processed_outputs)
     """
 
-    data: Union[str, List[List[Dict[str, Any]]]] = get_output("Raw")
-
     working_dir = get_working_dir(stage=stage, config=config)
 
     ed_list = []
     futures = []
-    outputs: List[Output] = []
-    
-    if stage.options.get('group') is None:
-        stage.options['group'] = True
 
-    # Dealing with single file
-    if type(data) == str or type(data) == Path:
-        ed = process_raw(data, working_dir, config, stage)
-        output = Output()
-        output.data = ed
-        outputs.append(output)
-    else:
-        for raw_dicts in data:
-            for raw in raw_dicts:
-                new_processed_raw = process_raw.with_options(
-                    task_run_name=raw.get("file_path"), name=raw.get("file_path"), retries=3
-                )
-                future = new_processed_raw.submit(
-                    raw, working_dir, config, stage)
-                futures.append(future)
+    if stage.options.get("group") is None:
+        stage.options["group"] = True
 
-        ed_list = [f.result() for f in futures]
+    for raw in group.data:
+        new_processed_raw = process_raw.with_options(
+            task_run_name=raw.file_path, name=raw.file_path, retries=3
+        )
+        future = new_processed_raw.submit(raw, group, working_dir, config, stage)
+        futures.append(future)
 
-        outputs = process_output_groups(name=stage.name, stage=stage, config=config, ed_list=ed_list)
+    ed_list = [f.result() for f in futures]
+    group.data = ed_list
 
-    return outputs
+    return group
 
 
 @task()
 @echodataflow()
-def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
+def process_raw(
+    raw: EchodataflowObject, group: Group, working_dir: str, config: Dataset, stage: Stage
+):
     """
     Process a single raw sonar data file.
 
@@ -129,42 +125,113 @@ def process_raw(raw, working_dir: str, config: Dataset, stage: Stage):
         )
         print("Processed output:", processed_output)
     """
-    
-    log_util.log(msg={'msg':f' ---- Entering ----', 'mod_name':__file__, 'func_name':os.path.basename(raw.get("file_path"))}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-   
-    temp_file = download_temp_file(raw, working_dir, stage, config)
-    local_file = temp_file.get("local_path")
-    local_file_name = os.path.basename(temp_file.get("local_path"))
+
+    log_util.log(
+        msg={
+            "msg": f" ---- Entering ----",
+            "mod_name": __file__,
+            "func_name": os.path.basename(raw.file_path),
+        },
+        use_dask=stage.options["use_dask"],
+        eflogging=config.logging,
+    )
+
+    download_temp_file(raw, working_dir, stage, config)
+    local_file = raw.local_path
+    raw.filename = os.path.basename(raw.local_path).split(".", maxsplit=1)[0]
+    file_name = raw.filename + ".zarr"
     try:
-        log_util.log(msg={'msg':f'Dowloaded RAW file at {local_file}', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-        
-        out_zarr = get_out_zarr(group = stage.options.get('group', True), working_dir=working_dir, transect=str(
-                raw.get("transect_num")), file_name=local_file_name.replace(".raw", ".zarr"), storage_options=config.output.storage_options_dict)
-        
-        log_util.log(msg={'msg':f'Processing RAW file, output will be at {out_zarr}', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-        
-        if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
-            log_util.log(msg={'msg':f'File not found in the destination folder / use_offline flag is False.', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-            ed = open_raw(raw_file=local_file, sonar_model=raw.get(
-                "instrument"), storage_options=config.output.storage_options_dict)
-            
-            log_util.log(msg={'msg':f'Converting to Zarr', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-            
+        log_util.log(
+            msg={
+                "msg": f"Dowloaded RAW file at {local_file}",
+                "mod_name": __file__,
+                "func_name": raw.filename,
+            },
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+
+        out_zarr = get_out_zarr(
+            group=stage.options.get("group", True),
+            working_dir=working_dir,
+            transect=str(raw.group_name),
+            file_name=file_name,
+            storage_options=config.output.storage_options_dict,
+        )
+
+        log_util.log(
+            msg={
+                "msg": f"Processing RAW file, output will be at {out_zarr}",
+                "mod_name": __file__,
+                "func_name": raw.filename,
+            },
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+
+        if (
+            stage.options.get("use_offline") == False
+            or isFile(out_zarr, config.output.storage_options_dict) == False
+        ):
+            log_util.log(
+                msg={
+                    "msg": f"File not found in the destination folder / use_offline flag is False.",
+                    "mod_name": __file__,
+                    "func_name": raw.filename,
+                },
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+            ed = open_raw(
+                raw_file=local_file,
+                sonar_model=group.instrument,
+                storage_options=config.output.storage_options_dict,
+            )
+
+            log_util.log(
+                msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": raw.filename},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+
             ed.to_zarr(
                 save_path=str(out_zarr),
                 overwrite=True,
                 output_storage_options=config.output.storage_options_dict,
-                compute=False
+                compute=False,
             )
             del ed
-            
+
             if stage.options.get("save_raw_file") == False:
-                log_util.log(msg={'msg':f'Deleting local raw file since `save_raw_file` flag is false', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+                log_util.log(
+                    msg={
+                        "msg": f"Deleting local raw file since `save_raw_file` flag is false",
+                        "mod_name": __file__,
+                        "func_name": raw.filename,
+                    },
+                    use_dask=stage.options["use_dask"],
+                    eflogging=config.logging,
+                )
                 local_file.unlink()
         else:
-            log_util.log(msg={'msg':f'Skipped processing {local_file_name}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-                
-        log_util.log(msg={'msg':f' ---- Exiting ----', 'mod_name':__file__, 'func_name':local_file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-        return {'out_path': out_zarr, 'transect': raw.get("transect_num"), 'file_name': local_file_name, 'error': False}
+            log_util.log(
+                msg={
+                    "msg": f"Skipped processing {raw.filename}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False",
+                    "mod_name": __file__,
+                    "func_name": raw.filename,
+                },
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+
+        log_util.log(
+            msg={"msg": f" ---- Exiting ----", "mod_name": __file__, "func_name": raw.filename},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+        raw.out_path = out_zarr
+        raw.error = ErrorObject(errorFlag=False)
     except Exception as e:
-        return {'transect': raw.get("transect_num"), 'file_name': local_file_name, 'error': True, 'error_desc': e}   
+        raw.error = ErrorObject(errorFlag=True, error_desc=e)
+    finally:
+        return raw

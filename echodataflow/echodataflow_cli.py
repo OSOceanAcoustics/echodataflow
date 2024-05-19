@@ -33,6 +33,7 @@ Note:
 
 import argparse
 import os
+import pkg_resources
 import textwrap
 
 from echodataflow.stages.echodataflow import load_credential_configuration
@@ -263,7 +264,8 @@ def generate_ini_file():
     print("Configuring pre-defined rules...")
     rules_path = os.path.join(config_directory, "echodataflow_rules.txt")
     rules_file = open(rules_path, "w")
-    default_rules_path = os.path.join('echodataflow', 'rule_engine', 'echodataflow_rules.txt')
+    
+    default_rules_path = pkg_resources.resource_filename('echodataflow', 'rule_engine/echodataflow_rules.txt')
     
     with open(default_rules_path, "r") as default_rules_file:
         default_rules = default_rules_file.readlines()
