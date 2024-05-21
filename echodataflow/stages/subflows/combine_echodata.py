@@ -16,6 +16,7 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 
+from collections import defaultdict
 import os
 from typing import Any, Dict, List, Optional, Union
 
@@ -40,7 +41,7 @@ from echodataflow.utils.file_utils import (
 @flow
 @echodataflow(processing_stage="Combine-Echodata", type="FLOW")
 def echodataflow_combine_echodata(
-    group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]
+    groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
     Combine echodata files into a single zarr file organized by transects.
@@ -67,19 +68,31 @@ def echodataflow_combine_echodata(
         )
         print("Combined outputs:", combined_outputs)
     """
-    working_dir = get_working_dir(config=config, stage=stage)
+    
+    working_dir = get_working_dir(stage=stage, config=config)
+   
+    futures = defaultdict()
 
-    name = group.group_name.split(".")[0] + ".zarr"
-    new_processed_raw = process_combine_echodata.with_options(
-        task_run_name=name, name=name, retries=3
-    )
-    future = new_processed_raw.submit(
-        group=group, working_dir=working_dir, config=config, stage=stage
-    )
+    for name, gr in groups.items():
+        gname = gr.group_name.split(".")[0] + ".zarr"
+        new_processed_raw = process_combine_echodata.with_options(
+            task_run_name=gname, name=gname, retries=3
+        )
+        future = new_processed_raw.submit(
+            group=gr, working_dir=working_dir, config=config, stage=stage
+        )
+        futures[name] = future
 
-    group = future.result()
-
-    return group
+    for name, f in futures.items():
+        try:      
+            res = f.result()
+            print(res)
+            groups[name] = res
+        except Exception as e:
+            groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))    
+    print('Groups' * 50)
+    print(groups)
+    return groups
 
 
 @task
@@ -198,8 +211,8 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
         ed.out_path = out_zarr
         ed.error = ErrorObject(errorFlag=False)
         group.data = [ed]
-    except Exception as e:
-        ed = EchodataflowObject()
-        ed.error = ErrorObject(errorFlag=True, error_desc=e)
+    except Exception as e:        
+        ed = group.data[0]
+        ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
         return group

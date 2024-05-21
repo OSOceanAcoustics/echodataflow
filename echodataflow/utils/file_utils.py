@@ -298,7 +298,7 @@ def get_zarr_list(transect_data: Union[EchodataflowObject, List[EchodataflowObje
         zarr_list.append(zarr)
     return zarr_list
 
-def process_output_groups(name: str, config: Dataset, stage: Stage, group: Dict[str, Group], error_groups: Dict[str, Group]) -> List[Output]:
+def process_output_groups(name: str, config: Dataset, stage: Stage, groups: Dict[str, Group], error_groups: Dict[str, Group]) -> List[Output]:
     """
     Process and aggregate output transects.
 
@@ -329,8 +329,29 @@ def process_output_groups(name: str, config: Dataset, stage: Stage, group: Dict[
         # Returns a list of Output instances with aggregated data per transect.
 
     """
+    
+    
     error_flag = False    
-    for _, gr in group.items():   
+    
+    # updated_output = Output()    
+    # for edf in resultList:
+        
+    #     g = updated_output.group.get(edf.group_name, Group())
+    #     g.group_name = edf.group_name
+    #     g.instrument = group.get(edf.group_name).instrument        
+    #     g.data.append(edf)
+
+    #     updated_output.group[edf.group_name] = g
+        
+    #     if edf.error and edf.error.errorFlag:
+    #         error_flag = True         
+    #         error_description = str(edf.error.error_desc)
+    #         file = str(edf.filename)
+    #         log_util.log(msg={'msg':f'Encountered Some Error in {file}', 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)         
+    #         log_util.log(msg={'msg':error_description, 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging) 
+    #         error_groups[edf.group_name] = g
+    
+    for _, gr in groups.items():   
         for ed in gr.data:            
             if ed.error and ed.error.errorFlag == True:
                 error_flag = True         
@@ -342,12 +363,58 @@ def process_output_groups(name: str, config: Dataset, stage: Stage, group: Dict[
         
     if error_flag:        
         for name, _ in error_groups.items():
-            del group[name]            
+            print('Deleting ', groups[name])
+            del groups[name]            
                 
         # store_json_output(data=group, config=config, name=name)
         # raise ValueError("Could not complete "+name+" successfully since 1 or more raw files" 
         #                         + "failed to convert. Try fixing or skipping the files from the process."
         #                         + "If `use_offline` flag is set to true, processed files will be skipped the next run.")
+    return groups
+
+def process_output_group(name: str, config: Dataset, stage: Stage, group: Group) -> List[Output]:
+    """
+    Process and aggregate output transects.
+
+    This function processes a list of echodata (ed) dictionaries and aggregates them based on transect numbers.
+    It raises a ValueError if any of the echodata dictionaries have an error flag set to True.
+
+    Parameters:
+        name (str): The name of the process.
+        ed_list (List[Dict[str, Any]]): A list of echodata dictionaries.
+        config (Dataset): Datastore configuration
+
+    Returns:
+        List[Output]: A list of Output instances, each containing aggregated data for a transect.
+
+    Raises:
+        ValueError: If any echodata dictionary has an error flag set to True.
+
+    Example:
+        ed_list = [
+            {"transect": 1, "data": {...}, "error": False},
+            {"transect": 1, "data": {...}, "error": False},
+            {"transect": 2, "data": {...}, "error": False},
+            {"transect": 2, "data": {...}, "error": False},
+            {"transect": 2, "data": {...}, "error": True}
+        ]
+
+        output_list = process_output_groups("Data Processing", ed_list)
+        # Returns a list of Output instances with aggregated data per transect.
+
+    """
+    
+    
+    for ed in group.data:            
+        if ed.error and ed.error.errorFlag == True: 
+            error_description = str(ed.error.error_desc)
+            file = str(ed.filename)
+            log_util.log(msg={'msg':f'Encountered Some Error in {file}', 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)         
+            log_util.log(msg={'msg':error_description, 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)                                    
+            return True
+    return False
+
+
 
 def store_json_output(data, config: Dataset, name: str):
     """

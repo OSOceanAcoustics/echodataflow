@@ -16,6 +16,7 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 
+from collections import defaultdict
 from typing import Dict, Optional, Union
 
 import echopype as ep
@@ -32,7 +33,7 @@ from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zar
 @flow
 @echodataflow(processing_stage="Compute-MVBS", type="FLOW")
 def echodataflow_compute_MVBS(
-    group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]
+    groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
     Compute Mean Volume Backscattering Strength (MVBS) from echodata.
@@ -59,26 +60,28 @@ def echodataflow_compute_MVBS(
         )
         print("Computed MVBS outputs:", computed_mvbs_outputs)
     """
+    working_dir = get_working_dir(stage=stage, config=config)
+   
+    futures = defaultdict(list)
 
-    working_dir = get_working_dir(config=config, stage=stage)
+    for name, gr in groups.items():
+        for ed in gr.data:
+            gname = ed.out_path.split(".")[0] + ".MVBS"
+            new_processed_raw = process_compute_mvbs.with_options(
+                task_run_name=gname, name=gname, retries=3
+            )
+            future = new_processed_raw.submit(
+                ed=ed, working_dir=working_dir, config=config, stage=stage
+            )
+            futures[name].append(future)
 
-    out_list = []
-    futures = []
+    for name, flist in futures.items():
+        try:            
+            groups[name].data = [f.result() for f in flist]
+        except Exception as e:
+            groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
 
-    for raw in group.data:
-        name = raw.out_path.split(".")[0] + ".MVBS"
-        new_processed_raw = process_compute_mvbs.with_options(
-            task_run_name=name, name=name, retries=3
-        )
-        future = new_processed_raw.submit(
-            ed=raw, working_dir=working_dir, config=config, stage=stage
-        )
-        futures.append(future)
-
-    out_list = [f.result() for f in futures]
-    group.data = out_list
-
-    return group
+    return groups   
 
 
 @task

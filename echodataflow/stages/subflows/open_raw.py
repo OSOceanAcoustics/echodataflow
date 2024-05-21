@@ -17,6 +17,7 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 
+from collections import defaultdict
 import logging
 import os
 from pathlib import Path
@@ -44,7 +45,7 @@ from echodataflow.utils.file_utils import (
 
 @flow
 @echodataflow(processing_stage="Open-Raw", type="FLOW")
-def echodataflow_open_raw(group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
+def echodataflow_open_raw(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
     """
     Process raw sonar data files and convert them to zarr format.
 
@@ -70,26 +71,29 @@ def echodataflow_open_raw(group: Group, config: Dataset, stage: Stage, prev_stag
         )
         print("Processed outputs:", processed_outputs)
     """
-
+    
     working_dir = get_working_dir(stage=stage, config=config)
-
-    ed_list = []
-    futures = []
+   
+    futures = defaultdict(list)
 
     if stage.options.get("group") is None:
         stage.options["group"] = True
 
-    for raw in group.data:
-        new_processed_raw = process_raw.with_options(
-            task_run_name=raw.file_path, name=raw.file_path, retries=3
-        )
-        future = new_processed_raw.submit(raw, group, working_dir, config, stage)
-        futures.append(future)
+    for name, gr in groups.items():
+        for raw in gr.data:
+            new_processed_raw = process_raw.with_options(
+                task_run_name=raw.file_path, name=raw.file_path, retries=3
+            )
+            future = new_processed_raw.submit(raw, gr, working_dir, config, stage)
+            futures[name].append(future)
 
-    ed_list = [f.result() for f in futures]
-    group.data = ed_list
+    for name, flist in futures.items():
+        try:            
+            groups[name].data = [f.result() for f in flist]
+        except Exception as e:
+            groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
 
-    return group
+    return groups
 
 
 @task()

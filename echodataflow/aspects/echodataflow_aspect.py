@@ -60,15 +60,6 @@ def echodataflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
                         "func_name": func.__name__},
                     level=logging.DEBUG,
                 )
-            
-            if type == "FLOW" and processing_stage!= "DEFAULT":
-                prev_stage = args[-1]
-                stage = args[-2]
-                if prev_stage is not None:
-                    possible_functions = gea.get_possible_next_functions(prev_stage.name)
-                    if stage.name not in possible_functions:
-                        raise ValueError(stage.name, " cannot be executed after ", prev_stage.name, ". Please consider configuring rules if this validation is wrong.")
-
 
         def after_function_call(gea: Singleton_Echodataflow, *args, **kwargs):
             if gea:

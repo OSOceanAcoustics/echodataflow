@@ -16,7 +16,8 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 
-from typing import Optional
+from collections import defaultdict
+from typing import Dict, Optional
 
 import echopype as ep
 from prefect import flow, task
@@ -32,7 +33,7 @@ from echodataflow.utils.file_utils import get_ed_list, get_out_zarr, get_working
 @flow
 @echodataflow(processing_stage="Compute-SV", type="FLOW")
 def echodataflow_compute_Sv(
-    group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]
+    groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
     Compute volume backscattering strength (Sv) from echodata.
@@ -59,25 +60,29 @@ def echodataflow_compute_Sv(
         )
         print("Computed Sv outputs:", computed_sv_outputs)
     """
-    working_dir = get_working_dir(config=config, stage=stage)
+    
+    working_dir = get_working_dir(stage=stage, config=config)
+   
+    futures = defaultdict(list)
 
-    sv_list = []
-    futures = []
+    for name, gr in groups.items():
+        for ed in gr.data:
+            gname = ed.out_path.split(".")[0] + ".Sv"
+            new_processed_raw = process_compute_sv.with_options(
+                task_run_name=gname, name=gname, retries=3
+            )
+            future = new_processed_raw.submit(
+                ed=ed, working_dir=working_dir, config=config, stage=stage
+            )
+            futures[name].append(future)
 
-    for raw in group.data:
-        name = raw.out_path.split(".")[0] + ".Sv"
-        new_processed_raw = process_compute_sv.with_options(
-            task_run_name=name, name=name, retries=3
-        )
-        future = new_processed_raw.submit(
-            ed=raw, working_dir=working_dir, config=config, stage=stage
-        )
-        futures.append(future)
+    for name, flist in futures.items():
+        try:            
+            groups[name].data = [f.result() for f in flist]
+        except Exception as e:
+            groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))    
 
-    sv_list = [f.result() for f in futures]
-    group.data = sv_list
-
-    return group
+    return groups
 
 
 @task
