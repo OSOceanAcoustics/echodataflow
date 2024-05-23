@@ -18,6 +18,7 @@ Date: August 22, 2023
 
 from typing import Optional
 
+import dask
 from echopype import combine_echodata
 from prefect import task
 
@@ -25,8 +26,9 @@ from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
+from echodataflow.utils import log_util
 
-@task
+@dask.delayed
 @echodataflow(processing_stage="Combine-Echodata")
 def echodataflow_combine_echodata(
     group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]
@@ -66,6 +68,11 @@ def echodataflow_combine_echodata(
     except Exception as e:
         group.data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
+        log_util.log(
+            msg={"msg": f" ---- Exiting ----", "mod_name": __file__, "func_name": group.group_name},
+            use_dask=True,
+            eflogging=config.logging,
+        )
         return group
 
 

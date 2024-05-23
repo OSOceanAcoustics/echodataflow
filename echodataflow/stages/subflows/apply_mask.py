@@ -16,23 +16,20 @@ Date: August 22, 2023
 """
 
 from collections import defaultdict
-import os
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional
 
 import echopype as ep
 from prefect import flow, task
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group, Output
+from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
 from echodataflow.utils.file_utils import (
-    get_output,
     get_working_dir,
     get_zarr_list,
     isFile,
-    process_output_groups,
     get_out_zarr,
 )
 
@@ -40,7 +37,7 @@ from echodataflow.utils.file_utils import (
 @flow
 @echodataflow(processing_stage="apply-mask", type="FLOW")
 def echodataflow_apply_mask(
-    group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]
+    groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
     apply mask from echodata.
@@ -69,23 +66,26 @@ def echodataflow_apply_mask(
     """
     working_dir = get_working_dir(config=config, stage=stage)
 
-    out_list = []
-    futures = []
+    futures = defaultdict(list)
 
-    for raw in group.data:
-        name = raw.out_path.split(".")[0] + ".applymask"
-        new_processed_raw = process_apply_mask.with_options(
-            task_run_name=name, name=name, retries=3
-        )
-        future = new_processed_raw.submit(
-            ed=raw, working_dir=working_dir, config=config, stage=stage
-        )
-        futures.append(future)
+    for name, gr in groups.items():
+        for ed in gr.data:
+            gname = ed.out_path.split(".")[0] + ".applymask"
+            new_processed_raw = process_apply_mask.with_options(
+                task_run_name=gname, name=gname, retries=3
+            )
+            future = new_processed_raw.submit(
+                ed=ed, working_dir=working_dir, config=config, stage=stage
+            )
+            futures[name].append(future)
 
-    out_list = [f.result() for f in futures]
-    group.data = out_list
+    for name, flist in futures.items():
+        try:
+            groups[name].data = [f.result() for f in flist]
+        except Exception as e:
+            groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
 
-    return group
+    return groups
 
 
 @task

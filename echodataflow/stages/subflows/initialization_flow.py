@@ -13,12 +13,15 @@ Date: August 22, 2023
 """
 
 from collections import defaultdict
+import gc
 import json
 import os
 from typing import Dict, Optional
 
 import dask
-from distributed import Client, LocalCluster
+import dask.delayed
+import dask.delayed
+from distributed import Client, LocalCluster, Semaphore
 from echodataflow.aspects.singleton_echodataflow import Singleton_Echodataflow
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group, Output
 from fastapi.encoders import jsonable_encoder
@@ -28,7 +31,7 @@ from prefect_dask import DaskTaskRunner
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.pipeline import Pipeline, ProcessingType, Recipe
+from echodataflow.models.pipeline import Pipeline, ProcessingType, Recipe, Stage
 from echodataflow.utils import log_util
 from echodataflow.utils.config_utils import (
     club_raw_files,
@@ -140,7 +143,7 @@ def init_flow(pipeline: Recipe, config: Dataset, json_data_path: Optional[str] =
                 jday=str(fdict.get("jday")),
                 datetime=fdict.get("datetime"),
                 group_name=transect_num,
-                filename=os.path.basename(fdict.get("file_path")).split(".", maxsplit=1)[0]
+                filename=os.path.basename(fdict.get("file_path")).split(".", maxsplit=1)[0],
             )
             g.data.append(obj)
 
@@ -186,12 +189,12 @@ def process_stages_disk(
 ):
     prev_stage = None
     prefect_config_dict = {}
-    client: Client = None    
+    client: Client = None
     groups = output.group
     for stage in active_pipeline.stages:
-        
+
         error_groups: Dict[str, Group] = defaultdict(Group)
-        
+
         function = dynamic_function_call(stage.module, stage.name)
         prefect_config_dict = get_prefect_config_dict(stage)
         stage.options["use_dask"] = False
@@ -255,14 +258,14 @@ def process_stages_disk(
             },
             eflogging=config.logging,
         )
-                
+
         prefect_config_dict["name"] = stage.name
         prefect_config_dict["flow_run_name"] = stage.name
         function = function.with_options(**prefect_config_dict)
-        
+
         # Dict of Group
         groups = function(groups, config, stage, prev_stage)
-                                
+
         log_util.log(
             msg={
                 "msg": f"Completed stage : {stage}",
@@ -290,7 +293,7 @@ def process_stages_disk(
             },
             eflogging=config.logging,
         )
-        
+
         if prev_stage is not None:
             if config.output.retention == False:
                 if (
@@ -327,27 +330,25 @@ def process_stages_disk(
 
 
 @flow(name="Memory-Processing-Flow")
-def process_stages_memory(active_pipeline: Pipeline, pipeline: Recipe, config: Dataset, output: Output):
-    
-    client: Client = None    
+def process_stages_memory(
+    active_pipeline: Pipeline, pipeline: Recipe, config: Dataset, output: Output
+):
+
+    client: Client = None
     groups = output.group
-    
-    if pipeline.scheduler_address is not None and pipeline.use_local_dask == False:            
-            client = Client(pipeline.scheduler_address)            
+
+    if pipeline.scheduler_address is not None and pipeline.use_local_dask == False:
+        client = Client(pipeline.scheduler_address)
     else:
-        cluster = LocalCluster(n_workers=pipeline.n_workers, nanny=False, memory_limit='16GiB')
+        cluster = LocalCluster(n_workers=pipeline.n_workers, nanny=False, memory_limit="16GiB")
         client = Client(cluster.scheduler_address)
-            
+
     log_util.log(
         msg={"msg": f"{client}", "mod_name": __file__, "func_name": "Init Flow"},
         eflogging=config.logging,
     )
     client.forward_logging("echodataflow")
-            
-    log_util.log(
-        msg={"msg": f"{client}", "mod_name": __file__, "func_name": "Init Flow"},
-        eflogging=config.logging,
-    )
+    semaphore = Semaphore(max_leases=16)
     log_util.log(
         msg={
             "msg": f"Scheduler at : {client.scheduler.address}",
@@ -364,18 +365,15 @@ def process_stages_memory(active_pipeline: Pipeline, pipeline: Recipe, config: D
         },
         eflogging=config.logging,
     )
-    
-    futures = []
-    for name, group in groups.items():               
-        future = process_stages.with_options(task_run_name=name, name=name)(active_pipeline=active_pipeline, group=group, pipeline=pipeline, config=config, name=name)
-        futures.append(future)
-    
-    # tuple of groups
-    res = dask.compute(*futures)
-    for r in res:
-        if r :
-            output.group[r.group_name] = r
-    
+
+    process_stages(
+        active_pipeline=active_pipeline,
+        groups=groups,
+        pipeline=pipeline,
+        config=config,
+        semaphore=semaphore,
+    )
+
     log_util.log_stream()
 
     # Close the local cluster but not the cluster hosted.
@@ -392,38 +390,73 @@ def process_stages_memory(active_pipeline: Pipeline, pipeline: Recipe, config: D
 
     return output
 
+
+@flow
+def process_stages(
+    active_pipeline: Pipeline, pipeline, config: Dataset, groups: Dict[str, Group], semaphore
+):
+
+    futures = []
+    for name, group in groups.items():
+        future = process_stages_task.with_options(task_run_name=name, name=name)(
+            active_pipeline=active_pipeline,
+            group=group,
+            pipeline=pipeline,
+            config=config,
+            name=name,
+            semaphore=semaphore,
+        )
+        futures.append(future)
+
+    res = dask.compute(*futures)
+    print(res)
+    for r in res:
+        if r:
+            groups[r.group_name] = r
+
+    return groups
+
+
 @task
-def process_stages(active_pipeline, pipeline, config, group, name):
+def process_stages_task(active_pipeline, pipeline, config, group, name, semaphore: Semaphore):
     try:
-        g = process_stages_dask(active_pipeline=active_pipeline, group=group, pipeline=pipeline, config=config, name=name)
+        with semaphore:
+            g = process_stages_dask(
+                active_pipeline=active_pipeline,
+                group=group,
+                pipeline=pipeline,
+                config=config,
+                name=name,
+            )
         return g
     except Exception as e:
         print(e)
         return None
 
-@dask.delayed
-def process_stages_dask(active_pipeline: Pipeline, pipeline: Recipe, config: Dataset, group: Group, name):
-    prefect_config_dict = {}
+
+def process_stages_dask(
+    active_pipeline: Pipeline, pipeline: Recipe, config: Dataset, group: Group, name
+):
     prev_stage = None
     for stage in active_pipeline.stages:
         log_util.log(
             msg={"msg": f"-" * 50, "mod_name": __file__, "func_name": "Init Flow"},
             eflogging=config.logging,
-            use_dask=True
+            use_dask=True,
         )
         log_util.log(
             msg={
                 "msg": f"Executing stage : {stage} for Group : {group.group_name}",
                 "mod_name": __file__,
                 "func_name": "Init Flow",
-            },            
+            },
             eflogging=config.logging,
-            use_dask=True
+            use_dask=True,
         )
         function = dynamic_function_call(stage.module, stage.name)
-        prefect_config_dict = get_prefect_config_dict(stage)
-        stage.options['use_dask'] = True
-        
+        # prefect_config_dict = get_prefect_config_dict(stage)
+        stage.options["use_dask"] = True
+
         log_util.log(
             msg={
                 "msg": f"Completed stage : {stage} for Group : {group.group_name}",
@@ -431,55 +464,62 @@ def process_stages_dask(active_pipeline: Pipeline, pipeline: Recipe, config: Dat
                 "func_name": "Init Flow",
             },
             eflogging=config.logging,
-            use_dask=True
+            use_dask=True,
         )
         log_util.log(
             msg={"msg": f"-" * 50, "mod_name": __file__, "func_name": "Init Flow"},
             eflogging=config.logging,
-            use_dask=True
+            use_dask=True,
         )
-        
+
         if not sanitize_external_params(config, stage.external_params):
-            raise ValueError("Sanity Check Failed. One or more external parameters passed have a problem.")
-        
-        if stage.options.get('group') is None:
-            stage.options['group'] = True        
-            
-        prefect_config_dict["name"] = name + stage.name
-        prefect_config_dict["task_run_name"] = name + stage.name
-        prefect_config_dict["retries"] = 3
-        function = function.with_options(**prefect_config_dict)         
-        
-        group = function(group, config, stage, prev_stage)        
-        print(group)
-        error = process_output_group(
-            name=stage.name, stage=stage, config=config, group=group
-        )
-        if error:
-            break
-        prev_stage = stage
-    
-    print('last stage ',stage)
-    working_dir = get_working_dir(stage=stage, config=config)
-    
-    for edf in group.data:
-        if edf.error and not edf.error.errorFlag:
-            
-            out_zarr = get_out_zarr(
-            group=stage.options.get("group", True),
-            working_dir=working_dir,
-            transect=str(group.group_name),
-            file_name=edf.filename + ".zarr",
-            storage_options=config.output.storage_options_dict,
+            raise ValueError(
+                "Sanity Check Failed. One or more external parameters passed have a problem."
             )
-            
+
+        if stage.options.get("group") is None:
+            stage.options["group"] = True
+
+        # prefect_config_dict["name"] = name + stage.name
+        # prefect_config_dict["task_run_name"] = name + stage.name
+        # prefect_config_dict["retries"] = 3
+        # function = function.with_options(**prefect_config_dict)
+
+        group = function(group, config, stage, prev_stage)
+        # error = dask.delayed(process_output_group)(
+        #     name=stage.name, stage=stage, config=config, group=group
+        # )
+        # if dask.compute(error)[0]:
+        #     break
+        prev_stage = stage
+
+    group = write_output(stage=stage, config=config, group=group)
+
+    return group
+
+
+@dask.delayed
+def write_output(stage: Stage, config: Dataset, group: Group):
+    working_dir = get_working_dir(stage=stage, config=config)
+
+    for edf in group.data:
+        if edf.error and not edf.error.errorFlag and edf.stages.get(stage.name):
+            out_zarr = get_out_zarr(
+                group=stage.options.get("group", True),
+                working_dir=working_dir,
+                transect=str(group.group_name),
+                file_name=edf.filename + ".zarr",
+                storage_options=config.output.storage_options_dict,
+            )
+
             edf.stages[stage.name].to_zarr(
                 store=out_zarr,
                 mode="w",
                 consolidated=True,
                 storage_options=config.output.storage_options_dict,
             )
-            edf.stages = {}
             edf.out_path = out_zarr
-            
+        del edf.stages
+        edf.stages = {}
+    gc.collect()
     return group

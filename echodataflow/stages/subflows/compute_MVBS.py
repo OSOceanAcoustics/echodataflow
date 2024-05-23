@@ -61,7 +61,7 @@ def echodataflow_compute_MVBS(
         print("Computed MVBS outputs:", computed_mvbs_outputs)
     """
     working_dir = get_working_dir(stage=stage, config=config)
-   
+
     futures = defaultdict(list)
 
     for name, gr in groups.items():
@@ -76,12 +76,12 @@ def echodataflow_compute_MVBS(
             futures[name].append(future)
 
     for name, flist in futures.items():
-        try:            
+        try:
             groups[name].data = [f.result() for f in flist]
         except Exception as e:
             groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
 
-    return groups   
+    return groups
 
 
 @task

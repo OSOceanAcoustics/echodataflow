@@ -45,7 +45,9 @@ from echodataflow.utils.file_utils import (
 
 @flow
 @echodataflow(processing_stage="Open-Raw", type="FLOW")
-def echodataflow_open_raw(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
+def echodataflow_open_raw(
+    groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
+):
     """
     Process raw sonar data files and convert them to zarr format.
 
@@ -71,9 +73,9 @@ def echodataflow_open_raw(groups: Dict[str, Group], config: Dataset, stage: Stag
         )
         print("Processed outputs:", processed_outputs)
     """
-    
+
     working_dir = get_working_dir(stage=stage, config=config)
-   
+
     futures = defaultdict(list)
 
     if stage.options.get("group") is None:
@@ -88,7 +90,7 @@ def echodataflow_open_raw(groups: Dict[str, Group], config: Dataset, stage: Stag
             futures[name].append(future)
 
     for name, flist in futures.items():
-        try:            
+        try:
             groups[name].data = [f.result() for f in flist]
         except Exception as e:
             groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))

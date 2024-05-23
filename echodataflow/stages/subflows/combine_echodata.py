@@ -17,24 +17,21 @@ Date: August 22, 2023
 """
 
 from collections import defaultdict
-import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, Optional
 
-from echopype import combine_echodata, echodata, open_converted
+from echopype import combine_echodata
 from prefect import flow, task
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group, Output
+from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
 from echodataflow.utils.file_utils import (
     get_ed_list,
     get_out_zarr,
-    get_output,
     get_working_dir,
     isFile,
-    process_output_groups,
 )
 
 
@@ -68,9 +65,9 @@ def echodataflow_combine_echodata(
         )
         print("Combined outputs:", combined_outputs)
     """
-    
+
     working_dir = get_working_dir(stage=stage, config=config)
-   
+
     futures = defaultdict()
 
     for name, gr in groups.items():
@@ -84,14 +81,12 @@ def echodataflow_combine_echodata(
         futures[name] = future
 
     for name, f in futures.items():
-        try:      
+        try:
             res = f.result()
             print(res)
             groups[name] = res
         except Exception as e:
-            groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))    
-    print('Groups' * 50)
-    print(groups)
+            groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
     return groups
 
 
@@ -211,7 +206,7 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
         ed.out_path = out_zarr
         ed.error = ErrorObject(errorFlag=False)
         group.data = [ed]
-    except Exception as e:        
+    except Exception as e:
         ed = group.data[0]
         ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:

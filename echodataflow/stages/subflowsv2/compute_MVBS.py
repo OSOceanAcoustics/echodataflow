@@ -18,6 +18,7 @@ Date: August 22, 2023
 
 from typing import Optional
 
+import dask
 import echopype as ep
 from prefect import task
 
@@ -27,7 +28,10 @@ from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Gr
 from echodataflow.models.pipeline import Stage
 import dask.bag as db
 
-@task
+from echodataflow.utils import log_util
+
+
+@dask.delayed
 @echodataflow(processing_stage="Compute-MVBS")
 def echodataflow_compute_MVBS(
     group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]
@@ -67,10 +71,19 @@ def echodataflow_compute_MVBS(
     
     return group
 
-@task
+
 @echodataflow(processing_stage="Compute-MVBS")
 def compute_mvbs(file: EchodataflowObject, group: Group, config: Dataset, stage: Stage, prev_stage: Stage):    
     try:
+        log_util.log(
+        msg={
+            "msg": f" ---- Entering ----",
+            "mod_name": __file__,
+            "func_name": file.filename,
+        },
+        use_dask=True,
+        eflogging=config.logging,
+        )
         mvbs = ep.commongrid.compute_MVBS(
                 ds_Sv=file.stages.get(prev_stage.name),
                 range_bin=stage.external_params.get("range_meter_bin", None),
@@ -80,7 +93,12 @@ def compute_mvbs(file: EchodataflowObject, group: Group, config: Dataset, stage:
         del file.stages[prev_stage.name]
     except Exception as e:
         file.error = ErrorObject(errorFlag=True, error_desc=str(e))
-    finally:        
+    finally:      
+        log_util.log(
+            msg={"msg": f" ---- Exiting ----", "mod_name": __file__, "func_name": file.filename},
+            use_dask=True,
+            eflogging=config.logging,
+        )  
         return file
 
 # @task

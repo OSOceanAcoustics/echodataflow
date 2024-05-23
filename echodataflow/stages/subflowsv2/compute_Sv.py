@@ -17,6 +17,7 @@ Date: August 22, 2023
 """
 from typing import Optional
 
+import dask
 import echopype as ep
 from prefect import task
 
@@ -26,7 +27,9 @@ from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Gr
 from echodataflow.models.pipeline import Stage
 import dask.bag as db
 
-@task
+from echodataflow.utils import log_util
+
+@dask.delayed
 @echodataflow(processing_stage="Compute-Sv")
 def echodataflow_compute_Sv(group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
     # Create a Dask Bag from the list of files
@@ -40,12 +43,30 @@ def echodataflow_compute_Sv(group: Group, config: Dataset, stage: Stage, prev_st
     
     return group        
    
-@task
+
 @echodataflow(processing_stage="Compute-Sv")
 def compute_sv(file: EchodataflowObject, group: Group, config: Dataset, stage: Stage, prev_stage: Stage):
     
     # Function to open a single file
     try:
+        log_util.log(
+        msg={
+            "msg": f" ---- Entering ----",
+            "mod_name": __file__,
+            "func_name": file.filename,
+        },
+        use_dask=True,
+        eflogging=config.logging,
+        )
+        log_util.log(
+        msg={
+            "msg": f" ---- Entering ----",
+            "mod_name": __file__,
+            "func_name": file.filename,
+        },
+        use_dask=True,
+        eflogging=config.logging,
+        )
         sv = ep.calibrate.compute_Sv(echodata=file.stages.get(prev_stage.name))        
         file.stages[stage.name] = sv
         del file.stages[prev_stage.name]

@@ -17,6 +17,7 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 from typing import Optional
+import dask
 import dask.bag as db
 from echopype import open_raw
 from prefect import task
@@ -25,11 +26,18 @@ from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
+from echodataflow.utils import log_util
 
 
-@task
+
+@dask.delayed
 @echodataflow(processing_stage="Open-Raw")
 def echodataflow_open_raw(group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
+    
+    
+    if any([ed.error.errorFlag for ed in group.data]):
+        return group
+    
     # Create a Dask Bag from the list of files
     bag = db.from_sequence(group.data)    
     # Map the open_file function to each file in the bag
@@ -40,18 +48,34 @@ def echodataflow_open_raw(group: Group, config: Dataset, stage: Stage, prev_stag
     
     return group
 
-@task
+
 @echodataflow(processing_stage="Open-Raw")
 def open_file(file: EchodataflowObject, group: Group, config: Dataset, stage: Stage):
     # Function to open a single file
     try:
+        log_util.log(
+        msg={
+            "msg": f" ---- Entering ----",
+            "mod_name": __file__,
+            "func_name": file.filename,
+        },
+        use_dask=True,
+        eflogging=config.logging,
+        )
         ed = open_raw(raw_file=file.file_path, sonar_model=group.instrument,
                     storage_options=config.args.storage_options_dict)
         file.stages[stage.name] = ed
+    
     except Exception as e:
         file.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:        
+        log_util.log(
+            msg={"msg": f" ---- Exiting ----", "mod_name": __file__, "func_name": file.filename},
+            use_dask=True,
+            eflogging=config.logging,
+        )
         return file
+    
 
 # @task()
 # @echodataflow()
