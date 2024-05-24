@@ -458,9 +458,7 @@ def generate_stage_file(stage_name: str):
                 ed_list = get_ed_list.fn(config=config, stage=stage, transect_data=ed)
 
                 log_util.log(
-                    msg={"msg": " """
-        + {stage_name}
-        + """ ", "mod_name": __file__, "func_name": file_name},
+                    msg={"msg": 'Computing """ + f"""{stage_name}""" + """', "mod_name": __file__, "func_name": file_name},
                     use_dask=stage.options["use_dask"],
                     eflogging=config.logging,
                 )
