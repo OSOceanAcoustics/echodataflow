@@ -1,4 +1,3 @@
-
 """
 Echodataflow Add_location Task
 
@@ -15,6 +14,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+
 from collections import defaultdict
 from typing import Dict, Optional
 
@@ -29,11 +29,10 @@ from echodataflow.utils import log_util
 from echodataflow.utils.file_utils import get_ed_list, get_out_zarr, get_working_dir, isFile
 
 
-
 @flow
 @echodataflow(processing_stage="add-location", type="FLOW")
 def echodataflow_add_location(
-        groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
+    groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
     add location from echodata.
@@ -72,9 +71,7 @@ def echodataflow_add_location(
             new_process = process_add_location.with_options(
                 task_run_name=gname, name=gname, retries=3
             )
-            future = new_process.submit(
-                ed=ed, working_dir=working_dir, config=config, stage=stage
-            )
+            future = new_process.submit(ed=ed, working_dir=working_dir, config=config, stage=stage)
             futures[name].append(future)
 
     for name, flist in futures.items():
@@ -88,9 +85,7 @@ def echodataflow_add_location(
 
 @task
 @echodataflow()
-def process_add_location(
-    ed: EchodataflowObject, config: Dataset, stage: Stage, working_dir: str
-):
+def process_add_location(ed: EchodataflowObject, config: Dataset, stage: Stage, working_dir: str):
     """
     Process and add location from Echodata object into the dataset.
 
@@ -168,7 +163,11 @@ def process_add_location(
                 eflogging=config.logging,
             )
 
-            xr_d = ep.consolidate.add_location(ds=ed_list[0], echodata=stage.external_params.get('echodata'), nmea_sentence=stage.external_params.get('nmea_sentence'))
+            xr_d = ep.consolidate.add_location(
+                ds=ed_list[0],
+                echodata=stage.external_params.get("echodata"),
+                nmea_sentence=stage.external_params.get("nmea_sentence"),
+            )
 
             log_util.log(
                 msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": file_name},
@@ -203,4 +202,4 @@ def process_add_location(
     except Exception as e:
         ed.error = ErrorObject(errorFlag=True, error_desc=e)
     finally:
-        return ed  
+        return ed

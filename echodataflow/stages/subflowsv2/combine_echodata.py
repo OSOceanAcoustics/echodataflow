@@ -28,6 +28,7 @@ from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Gr
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
 
+
 @dask.delayed
 @echodataflow(processing_stage="Combine-Echodata")
 def echodataflow_combine_echodata(
@@ -61,10 +62,10 @@ def echodataflow_combine_echodata(
     try:
         ed_list = [edf.stages.get(prev_stage.name) for edf in group.data]
         ceds = combine_echodata(echodata_list=ed_list)
-        ed = EchodataflowObject(filename=group.group_name + '.zarr', group_name=group.group_name)
+        ed = EchodataflowObject(filename=group.group_name + ".zarr", group_name=group.group_name)
         ed.stages[stage.name] = ceds
         del group.data
-        group.data = [ed]                
+        group.data = [ed]
     except Exception as e:
         group.data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
@@ -192,7 +193,7 @@ def echodataflow_combine_echodata(
 #         ed.out_path = out_zarr
 #         ed.error = ErrorObject(errorFlag=False)
 #         group.data = [ed]
-#     except Exception as e:        
+#     except Exception as e:
 #         ed = group.data[0]
 #         ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
 #     finally:

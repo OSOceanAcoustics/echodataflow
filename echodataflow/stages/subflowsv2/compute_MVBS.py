@@ -62,44 +62,49 @@ def echodataflow_compute_MVBS(
         print("Computed MVBS outputs:", computed_mvbs_outputs)
     """
     # Create a Dask Bag from the list of files
-    bag = db.from_sequence(group.data)    
+    bag = db.from_sequence(group.data)
     # Map the open_file function to each file in the bag
-    processed_files = bag.map(compute_mvbs, group=group, config=config, stage=stage, prev_stage=prev_stage)
-    
-    # Compute the bag to execute operations    
+    processed_files = bag.map(
+        compute_mvbs, group=group, config=config, stage=stage, prev_stage=prev_stage
+    )
+
+    # Compute the bag to execute operations
     group.data = processed_files.compute()  # This will execute in parallel across your Dask cluster
-    
+
     return group
 
 
 @echodataflow(processing_stage="Compute-MVBS")
-def compute_mvbs(file: EchodataflowObject, group: Group, config: Dataset, stage: Stage, prev_stage: Stage):    
+def compute_mvbs(
+    file: EchodataflowObject, group: Group, config: Dataset, stage: Stage, prev_stage: Stage
+):
     try:
         log_util.log(
-        msg={
-            "msg": f" ---- Entering ----",
-            "mod_name": __file__,
-            "func_name": file.filename,
-        },
-        use_dask=True,
-        eflogging=config.logging,
+            msg={
+                "msg": f" ---- Entering ----",
+                "mod_name": __file__,
+                "func_name": file.filename,
+            },
+            use_dask=True,
+            eflogging=config.logging,
         )
         mvbs = ep.commongrid.compute_MVBS(
-                ds_Sv=file.stages.get(prev_stage.name),
-                range_bin=stage.external_params.get("range_meter_bin", None),
-                ping_time_bin=stage.external_params.get("ping_time_bin", None),
-            )
+            ds_Sv=file.stages.get(prev_stage.name),
+            range_bin=stage.external_params.get("range_meter_bin", None),
+            ping_time_bin=stage.external_params.get("ping_time_bin", None),
+        )
         file.stages[stage.name] = mvbs
         del file.stages[prev_stage.name]
     except Exception as e:
         file.error = ErrorObject(errorFlag=True, error_desc=str(e))
-    finally:      
+    finally:
         log_util.log(
             msg={"msg": f" ---- Exiting ----", "mod_name": __file__, "func_name": file.filename},
             use_dask=True,
             eflogging=config.logging,
-        )  
+        )
         return file
+
 
 # @task
 # @echodataflow()

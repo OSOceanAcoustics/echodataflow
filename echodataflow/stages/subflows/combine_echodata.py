@@ -200,9 +200,7 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
             eflogging=config.logging,
         )
 
-        ed = EchodataflowObject(
-            filename=group.group_name, out_path=out_zarr, group_name=file_name
-        )
+        ed = EchodataflowObject(filename=group.group_name, out_path=out_zarr, group_name=file_name)
         ed.out_path = out_zarr
         ed.error = ErrorObject(errorFlag=False)
         group.data = [ed]
