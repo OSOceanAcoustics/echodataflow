@@ -201,7 +201,7 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
         )
 
         ed = EchodataflowObject(
-            filename=file_name + ".zarr", out_path=out_zarr, group_name=file_name
+            filename=group.group_name, out_path=out_zarr, group_name=file_name
         )
         ed.out_path = out_zarr
         ed.error = ErrorObject(errorFlag=False)
