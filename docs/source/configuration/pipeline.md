@@ -8,8 +8,11 @@ The `active_recipe` parameter specifies the recipe to be executed on the input d
 
 ## Dask Cluster Configuration
 
-- **`use_local_dask`**: When set to `true`, initiates a local Dask cluster with three workers by default. This distributed computing framework enhances processing efficiency.
-- **`scheduler_address`**: Option to Specify the address for the Dask scheduler. Use this or `use_local_dask` to control cluster creation. For more precise control, refer to `prefect_config` to set `DaskTaskRunner`.
+- `use_local_dask`: When set to `true`, initiates a local Dask cluster with three workers by default. This distributed computing framework enhances processing efficiency.
+
+- `n_workers`: Specifies the number of workers for the local Dask cluster.
+
+- `scheduler_address`: Option to Specify the address for the Dask scheduler. Use this or `use_local_dask` to control cluster creation. For more precise control, refer to `prefect_config` to set `DaskTaskRunner`.
 
 ## Pipeline Configuration
 
@@ -17,52 +20,63 @@ The pipeline is composed of a sequence of stages, each with its own distinct att
 
 ### Stage Configuration
 
-- **`recipe_name`**: The name of the recipe associated with this stage.
-- **`stages`**: A list of stages the data passes through within the pipeline.
+- `recipe_name`: The name of the recipe associated with this stage.
+
+- `stages`: A list of stages the data passes through within the pipeline.
 
 ### Stage Attributes
 
 Each stage contains:
 
-- **`name`**: The function to execute within this stage.
-- **`module`**: The module in which the function is located.
-- **`options`**: Configurable settings specific to the Echodataflow functionality.
+- `name`: The function to execute within this stage.
+
+- `module`: The module in which the function is located.
+
+- `options`: Configurable settings specific to the Echodataflow functionality.
 
 #### Options
 
-- **`save_raw_file`**: When `true`, saves the downloaded raw file to the output directory.
-- **`use_raw_offline`**: Skips the download process, utilizing the raw file present in the output directory. Missing files are downloaded.
-- **`use_offline`**: Skips the current process if Zarr files exist in the output directory.
-- **`out_path`**: Configures the output directory for the current process.
+- `save_raw_file`: When `true`, saves the downloaded raw file to the output directory.
+
+- `use_raw_offline`: Skips the download process, utilizing the raw file present in the output directory. Missing files are downloaded.
+
+- `use_offline`: Skips the current process if Zarr files exist in the output directory.
+
+- `out_path`: Configures the output directory for the current process.
 
 ### Prefect Configuration
 
 The `prefect_config` section configures Prefect-related settings for the flow. Refer https://docs.prefect.io/2.11.5/concepts/flows/#flow-settings for all the options available for configuration.
 
-- **`retries`**: Determines the number of retries the flow attempts before transitioning to a failure state.
-- **`task_runner`**: Sets the task runner configuration for this specific stage. E.g., `DaskTaskRunner` with a designated address.
-- **`persist_result`**: When `true`, persists Prefect results. Useful for advanced Prefect configurations.
-- **`result_storage`**: Specifies the location and serializer for storing results.
+- `retries`: Determines the number of retries the flow attempts before transitioning to a failure state.
+
+- `task_runner`: Sets the task runner configuration for this specific stage. E.g., `DaskTaskRunner` with a designated address.
+
+- `persist_result`: When `true`, persists Prefect results. Useful for advanced Prefect configurations.
+
+- `result_storage`: Specifies the location and serializer for storing results.
 
 ### External Parameters
 
-- **`external_params`**: This section allows configuring external parameters relevant to the function. Currently supports only primitive types.
-- Parameters such specific to the current process can be defined here.
+- `external_params`: This section allows configuring external parameters relevant to the function. Currently supports only primitive types. Parameters specific to the current process can be defined here.
 
 ## Example Stages
 
 Here's an overview of some of the pipeline stages:
 
-1. **`echodataflow_open_raw`**: Executes the `open_raw` function from the `echodataflow.stages.subflows.open_raw` module. Allows various options and Prefect configurations.
-2. **`echodataflow_combine_echodata`**: Utilizes the `combine_echodata` function from the designated module, with relevant options and configurations.
-3. **`echodataflow_compute_Sv`**: Executes the `compute_Sv` function, supporting offline mode.
-4. **`echodataflow_compute_MVBS`**: Executes the `compute_MVBS` function, supporting offline mode. External parameters like `range_meter_bin` and `ping_time_bin` can be set here.
+1. `echodataflow_open_raw`: Executes the `open_raw` function from the `echodataflow.stages.subflows.open_raw` module. Allows various options and Prefect configurations.
+
+2. `echodataflow_combine_echodata`: Utilizes the `combine_echodata` function from the designated module, with relevant options and configurations.
+
+3. `echodataflow_compute_Sv`: Executes the `compute_Sv` function, supporting offline mode.
+
+4. `echodataflow_compute_MVBS`: Executes the `compute_MVBS` function, supporting offline mode. External parameters like `range_meter_bin` and `ping_time_bin` can be set here.
 
 Example:
 
 ```yaml
 active_recipe: standard # Specify the recipe to execute on input data
-use_local_dask: true # Spin up a local dask cluster of 3 workers
+use_local_dask: false # set to true to spin up a local dask cluster of n_workers workers
 scheduler_address: tcp://127.0.0.1:61918 # Specify scheduler address or use_local_dask to control cluster creation. For more granular control, under prefect_config, use DaskTaskRunner(address=<scheduler_address>)
 pipeline: # List of pipeline configurations; only the active_recipe will be executed.
 - recipe_name: standard # Name of the recipe
@@ -98,7 +112,7 @@ pipeline: # List of pipeline configurations; only the active_recipe will be exec
     options:
       use_offline: true
     external_params:
-      range_meter_bin: 20 
+      range_meter_bin: 20m 
       ping_time_bin: 20S
 ```
 
