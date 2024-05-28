@@ -7,8 +7,10 @@ parts:
   - caption: Getting Started
     chapters:
       - file: gettingstarted
-      - file: configuration/datastore.md
-      - file: configuration/pipeline.md        
+        sections:
+        - file: configuration/datastore.md
+        - file: configuration/pipeline.md
+      - file: gettingstarteddocker       
   - caption: Demo
     chapters:
       - file: local/intro
@@ -26,6 +28,13 @@ parts:
           sections:
           - file: aws/pipelineconfiguration
           - file: aws/datastoreconfiguration
+  - caption: Logging
+    chapters:
+      - file: logging/howtolog
+      sections:
+        - file: logging/awscloud
+        - file: logging/kelk
   - caption: Appendix
     chapters:
-      - file: configuration/blocks.md      
+      - file: configuration/blocks.md
+        
