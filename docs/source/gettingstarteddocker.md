@@ -1,4 +1,4 @@
-# Getting Started with Echodataflow Docker
+# Echodataflow Docker
 
 Using Docker to manage and deploy Echodataflow ensures a consistent and reproducible environment, simplifying the setup and configuration process.
 

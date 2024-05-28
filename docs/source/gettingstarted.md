@@ -1,4 +1,4 @@
-# Getting Started with Echodataflow Package
+# Echodataflow Package
 
 This guide will walk you through the initial steps to set up and run your Echodataflow pipelines.
 
