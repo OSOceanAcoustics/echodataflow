@@ -36,16 +36,16 @@ from echodataflow.utils import log_util
 def echodataflow_compute_Sv(
     group: Group, config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
-    # Create a Dask Bag from the list of files
+    if any([ed.error.errorFlag for ed in group.data]):
+        return group
+    
     bag = db.from_sequence(group.data)
 
-    # Map the open_file function to each file in the bag
     processed_files = bag.map(
         compute_sv, group=group, config=config, stage=stage, prev_stage=prev_stage
     )
 
-    # Compute the bag to execute operations
-    group.data = processed_files.compute()  # This will execute in parallel across your Dask cluster
+    group.data = processed_files.compute()
 
     return group
 
@@ -77,6 +77,7 @@ def compute_sv(
         )
         sv = ep.calibrate.compute_Sv(echodata=file.stages.get(prev_stage.name))
         file.stages[stage.name] = sv
+        print(sv)
         del file.stages[prev_stage.name]
     except Exception as e:
         file.error = ErrorObject(errorFlag=True, error_desc=str(e))

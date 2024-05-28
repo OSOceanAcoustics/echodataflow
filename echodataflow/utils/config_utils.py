@@ -415,7 +415,7 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
     for raw_file in all_raw_files:
         # get transect info from the transect_dict above
         transect = transect_dict.get(os.path.basename(raw_file), transect_dict.get(os.path.basename(raw_file).split('.')[0], {}))
-        transect_num = transect.get("num", config.args.group_name)
+        transect_num = transect.get("num", default_transect)
         if (config.args.group is None) or (transect_num is not None and bool(transect)):
             # Only adds to the list if not transect
             # if it's a transect, ensure it has a transect number

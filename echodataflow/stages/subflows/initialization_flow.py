@@ -366,7 +366,7 @@ def process_stages_memory(
         eflogging=config.logging,
     )
 
-    process_stages(
+    output.group = process_stages(
         active_pipeline=active_pipeline,
         groups=groups,
         pipeline=pipeline,
@@ -398,6 +398,7 @@ def process_stages(
 
     futures = []
     for name, group in groups.items():
+        
         future = process_stages_task.with_options(task_run_name=name, name=name)(
             active_pipeline=active_pipeline,
             group=group,
@@ -409,11 +410,9 @@ def process_stages(
         futures.append(future)
 
     res = dask.compute(*futures)
-    print(res)
     for r in res:
         if r:
             groups[r.group_name] = r
-
     return groups
 
 
@@ -491,35 +490,6 @@ def process_stages_dask(
         # )
         # if dask.compute(error)[0]:
         #     break
-        prev_stage = stage
-
-    group = write_output(stage=stage, config=config, group=group)
-
-    return group
-
-
-@dask.delayed
-def write_output(stage: Stage, config: Dataset, group: Group):
-    working_dir = get_working_dir(stage=stage, config=config)
-
-    for edf in group.data:
-        if edf.error and not edf.error.errorFlag and edf.stages.get(stage.name):
-            out_zarr = get_out_zarr(
-                group=stage.options.get("group", True),
-                working_dir=working_dir,
-                transect=str(group.group_name),
-                file_name=edf.filename + ".zarr",
-                storage_options=config.output.storage_options_dict,
-            )
-
-            edf.stages[stage.name].to_zarr(
-                store=out_zarr,
-                mode="w",
-                consolidated=True,
-                storage_options=config.output.storage_options_dict,
-            )
-            edf.out_path = out_zarr
-        del edf.stages
-        edf.stages = {}
-    gc.collect()
+        prev_stage = stage    
+    # group = write_output(stage=stage, config=config, group=group)
     return group
