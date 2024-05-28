@@ -31,10 +31,9 @@ parts:
   - caption: Logging
     chapters:
       - file: logging/howtolog
-      sections:
-        - file: logging/awscloud
-        - file: logging/kelk
+        sections:
+          - file: logging/awscloud
+          - file: logging/kelk
   - caption: Appendix
     chapters:
       - file: configuration/blocks.md
-        
