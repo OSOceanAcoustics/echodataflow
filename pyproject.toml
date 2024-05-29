@@ -29,5 +29,6 @@ include_namespace_packages = true
 [tool.coverage.run]
 omit = [
     "*/tests/*",
-    "*/__init__.py"
+    "*/__init__.py",
+    "*/docs/*"
 ]
