@@ -1,3 +1,9 @@
+<div>
+  <a href="https://echodataflow.readthedocs.io/en/latest/?badge=latest">
+    <img src="https://readthedocs.org/projects/echodataflow/badge/?version=latest"/>
+  </a>
+</div>
+
 # Echodataflow: Streamlined Data Pipeline Orchestration
 
 Welcome to **Echodataflow**! Echodataflow is a powerful data pipeline orchestration tool designed to simplify and enhance the execution of data processing tasks. Leveraging the capabilities of [Prefect 2.0](https://www.prefect.io/) and YAML configuration files, Echodataflow caters to the needs of scientific research and data analysis. It provides an efficient way to define, configure, and execute complex data processing workflows.
