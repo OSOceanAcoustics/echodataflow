@@ -1,0 +1,7 @@
+[run]
+branch = True
+source = 
+    echodataflow
+omit = 
+    *echodataflow/tests/*
+    */__init__.py
