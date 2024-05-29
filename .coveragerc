@@ -1,5 +1,6 @@
 [run]
 branch = True
+include_namespace_packages = true
 source = 
     echodataflow
 omit = 
