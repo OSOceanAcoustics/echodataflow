@@ -33,6 +33,5 @@ jobs:
         echodataflow init
         prefect profiles create echodataflow-local
         
-    - name: Run pytest
-      working-directory: echodataflow/tests/flow_tests
-      run: pytest --cov=./ --cov-report=term --cov-report=xml --cov-config=.coveragerc -vv
+    - name: Run pytest      
+      run: pytest --cov=./ --cov-report=term --cov-report=xml
