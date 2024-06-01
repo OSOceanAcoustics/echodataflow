@@ -2,6 +2,9 @@
   <a href="https://echodataflow.readthedocs.io/en/latest/?badge=latest">
     <img src="https://readthedocs.org/projects/echodataflow/badge/?version=latest"/>
   </a>
+  <a href="https://codecov.io/gh/OSOceanAcoustics/echodataflow" > 
+ <img src="https://codecov.io/gh/OSOceanAcoustics/echodataflow/graph/badge.svg?token=YTMVVHG585"/> 
+ </a>
 </div>
 
 # Echodataflow: Streamlined Data Pipeline Orchestration
