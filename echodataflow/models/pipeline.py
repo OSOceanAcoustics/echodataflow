@@ -12,21 +12,10 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
-class ProcessingType(Enum):
-    """
-    Enumeration for processing types.
-
-    Attributes:
-        DISK:
-        MEMORY:
-    """
-    DISK = "DISK"
-    MEMORY = "MEMORY"
 
 class Stage(BaseModel):
     """
@@ -72,7 +61,6 @@ class Recipe(BaseModel):
     use_local_dask: bool = False
     n_workers: int = 3
     scheduler_address: str = None
-    processing: ProcessingType = ProcessingType.DISK
     pipeline: List[Pipeline]
 
     

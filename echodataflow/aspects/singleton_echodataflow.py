@@ -231,6 +231,6 @@ class Singleton_Echodataflow:
 
         with open(rules_file_path, 'r') as file:
             for line in file:
-                target, dependent = line.strip('\r\n').split(':')
+                target, dependent = line.strip().split(':')
                 rengine.add_dependency(target_function=target, dependent_function=dependent)
         return rengine

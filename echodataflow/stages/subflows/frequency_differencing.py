@@ -1,3 +1,4 @@
+
 """
 Echodataflow Frequency_differencing Task
 
@@ -14,30 +15,26 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-
-from collections import defaultdict
-from typing import Dict, Optional
+import os
+from typing import Dict, List, Optional, Union
 
 import echopype as ep
 from prefect import flow, task
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
+from echodataflow.models.output_model import Output
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
-from echodataflow.utils.file_utils import (
-    get_working_dir,
-    get_zarr_list,
-    isFile,
-    get_out_zarr,
-)
+from echodataflow.utils.file_utils import (get_output, get_working_dir,
+                                    get_zarr_list, isFile,
+                                    process_output_groups, get_out_zarr)
 
 
 @flow
 @echodataflow(processing_stage="frequency-differencing", type="FLOW")
 def echodataflow_frequency_differencing(
-    groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
+        config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
     frequency differencing from echodata.
@@ -64,34 +61,40 @@ def echodataflow_frequency_differencing(
         )
         print("Output :", frequency_differencing_output)
     """
+    data: Union[str, List[Output]] = get_output()
+    outputs: List[Output] = []
+    futures = []
     working_dir = get_working_dir(config=config, stage=stage)
 
-    futures = defaultdict(list)
+    if type(data) == list:
+        if type(data[0].data) == list:
+            for output_data in data:
+                transect_list = output_data.data
+                for ed in transect_list:
+                    transect = str(ed.get("out_path")).split(".")[0] + ".Frequencydifferencing"
+                    process_frequency_differencing_wo = process_frequency_differencing.with_options(
+                        name=transect, task_run_name=transect, retries=3
+                    )
+                    future = process_frequency_differencing_wo.submit(
+                        config=config, stage=stage, out_data=ed, working_dir=working_dir
+                    )
+                    futures.append(future)
+        else:
+            for output_data in data:
+                future = process_frequency_differencing.submit(
+                    config=config, stage=stage, out_data=output_data, working_dir=working_dir
+                )
+                futures.append(future)
 
-    for name, gr in groups.items():
-        for ed in gr.data:
-            gname = ed.out_path.split(".")[0] + ".freqdiff"
-            new_processed_raw = process_frequency_differencing.with_options(
-                task_run_name=gname, name=gname, retries=3
-            )
-            future = new_processed_raw.submit(
-                ed=ed, working_dir=working_dir, config=config, stage=stage
-            )
-            futures[name].append(future)
-
-    for name, flist in futures.items():
-        try:
-            groups[name].data = [f.result() for f in flist]
-        except Exception as e:
-            groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
-
-    return groups
+        ed_list = [f.result() for f in futures]
+        outputs = process_output_groups(name=stage.name, config=config, stage=stage, ed_list=ed_list)
+    return outputs
 
 
 @task
 @echodataflow()
 def process_frequency_differencing(
-    ed: EchodataflowObject, config: Dataset, stage: Stage, working_dir: str
+    config: Dataset, stage: Stage, out_data: Union[Dict, Output], working_dir: str
 ):
     """
     Process and frequency differencing from Echodata object into the dataset.
@@ -121,99 +124,43 @@ def process_frequency_differencing(
         )
         print(" Output :", frequency_differencing_output)
     """
-    file_name = ed.filename + "_fd.zarr"
+
+    if type(out_data) == dict:
+        file_name = str(out_data.get("file_name"))
+        transect = str(out_data.get("transect"))    
+        out_path = str(out_data.get("out_path"))    
+    else:
+        file_name = str(out_data.data.get("file_name"))
+        transect = str(out_data.data.get("transect"))
+        out_path = str(out_data.data.get("out_path"))    
     try:
-        log_util.log(
-            msg={"msg": f" ---- Entering ----", "mod_name": __file__, "func_name": ed.filename},
-            use_dask=stage.options["use_dask"],
-            eflogging=config.logging,
-        )
+        log_util.log(msg={'msg':f' ---- Entering ----', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
 
-        out_zarr = get_out_zarr(
-            group=stage.options.get("group", True),
-            working_dir=working_dir,
-            transect=ed.group_name,
-            file_name=file_name,
-            storage_options=config.output.storage_options_dict,
-        )
+        out_zarr = get_out_zarr(group = stage.options.get('group', True), working_dir=working_dir, transect=transect, file_name=file_name, storage_options=config.output.storage_options_dict)
 
-        log_util.log(
-            msg={
-                "msg": f"Processing file, output will be at {out_zarr}",
-                "mod_name": __file__,
-                "func_name": ed.filename,
-            },
-            use_dask=stage.options["use_dask"],
-            eflogging=config.logging,
-        )
 
-        if (
-            stage.options.get("use_offline") == False
-            or isFile(out_zarr, config.output.storage_options_dict) == False
-        ):
-            log_util.log(
-                msg={
-                    "msg": f"File not found in the destination folder / use_offline flag is False",
-                    "mod_name": __file__,
-                    "func_name": ed.filename,
-                },
-                use_dask=stage.options["use_dask"],
-                eflogging=config.logging,
-            )
+        log_util.log(msg={'msg':f'Processing file, output will be at {out_zarr}', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
 
-            ed_list = get_zarr_list.fn(
-                transect_data=ed, storage_options=config.output.storage_options_dict
-            )
+        if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
+            log_util.log(msg={'msg':f'File not found in the destination folder / use_offline flag is False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
 
-            log_util.log(
-                msg={
-                    "msg": f"Computing frequency_differencing",
-                    "mod_name": __file__,
-                    "func_name": ed.filename,
-                },
-                use_dask=stage.options["use_dask"],
-                eflogging=config.logging,
-            )
+            ed_list = get_zarr_list.fn(transect_data=out_data, storage_options=config.output.storage_options_dict)
 
-            xr_d = ep.mask.frequency_differencing(
-                source_Sv=ed_list[0],
-                freqABEq=stage.external_params.get("freqABEq"),
-                storage_options=config.output.storage_options_dict,
-            )
+            log_util.log(msg={'msg':f'Computing frequency_differencing', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+            
+            xr_d = ep.mask.frequency_differencing(source_Sv=ed_list[0], freqABEq=stage.external_params.get('freqABEq'),
+                                                storage_options=config.output.storage_options_dict)
 
-            log_util.log(
-                msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": ed.filename},
-                use_dask=stage.options["use_dask"],
-                eflogging=config.logging,
-            )
+            log_util.log(msg={'msg':f'Converting to Zarr', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
 
-            xr_d.to_zarr(
-                store=out_zarr,
-                mode="w",
-                consolidated=True,
-                storage_options=config.output.storage_options_dict,
-            )
+            xr_d.to_zarr(store=out_zarr, mode="w", consolidated=True,
+                            storage_options=config.output.storage_options_dict)
 
         else:
-            log_util.log(
-                msg={
-                    "msg": f"Skipped processing {ed.filename}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False",
-                    "mod_name": __file__,
-                    "func_name": ed.filename,
-                },
-                use_dask=stage.options["use_dask"],
-                eflogging=config.logging,
-            )
+            log_util.log(msg={'msg':f'Skipped processing {file_name}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
 
-        log_util.log(
-            msg={"msg": f" ---- Exiting ----", "mod_name": __file__, "func_name": ed.filename},
-            use_dask=stage.options["use_dask"],
-            eflogging=config.logging,
-        )
+        log_util.log(msg={'msg':f' ---- Exiting ----', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
 
-        ed.stages["mask"] = out_zarr
-        ed.error = ErrorObject(errorFlag=False)
+        return {'mask': out_zarr, 'out_path': out_path, 'transect': transect, 'file_name': file_name, 'error': False}
     except Exception as e:
-        ed.error = ErrorObject(errorFlag=True, error_desc=e)
-    finally:
-        return ed
+        return {'transect': transect, 'file_name': file_name, 'error': True, 'error_desc': e}   

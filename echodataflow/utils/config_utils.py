@@ -47,7 +47,7 @@ from prefect_azure import AzureCosmosDbCredentials
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset, StorageOptions, StorageType
-from echodataflow.models.pipeline import Stage
+from echodataflow.models.pipeline import Recipe, Stage
 from echodataflow.utils.file_utils import extract_fs, isFile
 
 nest_asyncio.apply()
@@ -291,7 +291,7 @@ def parse_file_path(raw_file: str, fname_pattern: str) -> Dict[str, Any]:
 
 
 @task
-def get_prefect_config_dict(stage: Stage):
+def get_prefect_config_dict(stage: Stage, pipeline: Recipe, prefect_config_dict: Dict[str, Any]):
     """
     Gets the updated Prefect configuration dictionary.
 
@@ -415,7 +415,7 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
     for raw_file in all_raw_files:
         # get transect info from the transect_dict above
         transect = transect_dict.get(os.path.basename(raw_file), transect_dict.get(os.path.basename(raw_file).split('.')[0], {}))
-        transect_num = transect.get("num", default_transect)
+        transect_num = transect.get("num", config.args.group_name)
         if (config.args.group is None) or (transect_num is not None and bool(transect)):
             # Only adds to the list if not transect
             # if it's a transect, ensure it has a transect number

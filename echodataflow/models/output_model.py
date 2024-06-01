@@ -10,33 +10,10 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 from pydantic import BaseModel
 
-class ErrorObject(BaseModel):
-    errorFlag: bool = False
-    error_desc: str = None
-
-class EchodataflowObject(BaseModel):
-    file_path: str = None
-    filename: str = None
-    month: Optional[str] = None
-    year: Optional[str] = None
-    jday: Optional[str] = None
-    datetime: Optional[str] = None
-    stages: Optional[Dict[str, Any]] = {}
-    out_path: str = None
-    group_name: str = 'DefaultGroup'
-    error: ErrorObject = ErrorObject()
-    local_path: str = None
-        
-class Group(BaseModel):
-    
-    group_name: str = "DefaultGroup"
-    instrument: str = None
-    data: List[EchodataflowObject] = []
-    
 
 class Output(BaseModel):
     """
@@ -48,5 +25,5 @@ class Output(BaseModel):
     """
     
 
-    group: Dict[str, Group] = {}
+    data: Any = None
     passing_params: Dict[str, Any] = {}
