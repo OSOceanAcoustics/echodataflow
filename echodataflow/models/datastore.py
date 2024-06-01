@@ -62,9 +62,10 @@ class Parameters(BaseModel):
         survey_name (str): The name of the survey.
         sonar_model (str): The model of the sonar.
     """
-    ship_name: str
-    survey_name: str
-    sonar_model: str
+    ship_name: Optional[str] = None
+    survey_name: Optional[str] = None
+    sonar_model: Optional[str] = None
+    file_name: Optional[str] = None
 
 
 class Transect(BaseModel):
