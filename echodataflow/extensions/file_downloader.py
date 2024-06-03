@@ -41,7 +41,12 @@ def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir:
 
 
 @flow
-def edf_data_transfer(source: Union[List[str], str], destination: str = './temp', source_storage_options: Dict[str, Any] = {}, destination_storage_options: Dict[str, Any] = {}):
+def edf_data_transfer(
+    source: Union[List[str], str],
+    destination: str = "./temp",
+    source_storage_options: Dict[str, Any] = {},
+    destination_storage_options: Dict[str, Any] = {},
+):
     """
     Downloads multiple files from a list of URLs to a destination directory.
 
@@ -50,25 +55,25 @@ def edf_data_transfer(source: Union[List[str], str], destination: str = './temp'
         storage_options (Dict[str, Any]): Dictionary containing storage options for source and destination.
         dest_dir (str): Destination directory where the files will be downloaded.
     """
-    downloaded_files = []    
+    downloaded_files = []
     if not source:
         raise ValueError("No Source Provided.")
-    
+
     if isinstance(source, str):
         files = glob_url(source, source_storage_options)
     else:
         files = source
-    
+
     storage_options: Dict[str, Any] = {}
-    storage_options['source'] = source_storage_options
-    storage_options['dest'] = destination_storage_options
-    
+    storage_options["source"] = source_storage_options
+    storage_options["dest"] = destination_storage_options
+
     for file_url in files:
-        local_path = download_temp_file.submit(file_url, storage_options, destination)        
+        local_path = download_temp_file.submit(file_url, storage_options, destination)
         downloaded_files.append(local_path)
-        
+
     return downloaded_files
 
 
 if __name__ == "__main__":
-    edf_data_transfer.serve()    
+    edf_data_transfer.serve()
