@@ -40,9 +40,7 @@ def execute_flow(
             "storage_options": storage_options,
             "options": options,
             "json_data_path": json_data_path,
-        },
-        as_subflow=False,
-        timeout=0,
+        }                
     )
 
 
@@ -55,6 +53,7 @@ def file_monitor(
     storage_options: Union[Dict[str, Any], Block] = None,
     options: Optional[Dict[str, Any]] = {},
     json_data_path: Union[str, Path] = None,
+    fail_safe: bool = True
 ):
     new_run = datetime.now().isoformat()
     var: Variable = Variable.get(name="last_run")
@@ -87,7 +86,7 @@ def file_monitor(
         # Process the file
         edfrun.processed_files.append(file_path)
         try:
-            execute_flow.with_options(tags=["edfFM"]).submit(
+            execute_flow.with_options(tags=["edfFM"], task_run_name=file_path).submit(
                 dataset_config=dataset_config,
                 pipeline_config=pipeline_config,
                 logging_config=logging_config,
@@ -99,7 +98,8 @@ def file_monitor(
         except Exception as e:
             exceptionFlag = True
             edfrun.processed_files.remove(file_path)
-            raise e
+            if not fail_safe:
+                raise e
 
     if not exceptionFlag:
         edfrun.last_run_time = new_run
