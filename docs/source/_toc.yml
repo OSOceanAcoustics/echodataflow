@@ -39,7 +39,7 @@ parts:
       - file: cli/intro
         sections:
           - file: cli/rules
-          - file: cli/gen
+          - file: cli/genstage
           - file: cli/credentials
   - caption: Appendix
     chapters:
