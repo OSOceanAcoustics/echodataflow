@@ -1,4 +1,4 @@
-# Echodataflow Logging Documentation
+# Echodataflow Logging
 ## Overview
 Logging in echodataflow is designed to provide detailed insights into the execution of the data processing pipeline. It helps in monitoring the system's behavior, debugging issues, and maintaining an audit trail of operations. The logging system can output logs to various destinations, including local files, Kafka topics, and AWS CloudWatch, allowing flexibility in how logs are managed and analyzed.
 
