@@ -1,4 +1,3 @@
-from collections import defaultdict
 from datetime import datetime
 import json
 import os
@@ -8,18 +7,11 @@ from prefect import flow, task
 from prefect.variables import Variable
 from prefect.blocks.core import Block
 from prefect.deployments import run_deployment
-from prefect.task_runners import SequentialTaskRunner
-from prefect.client.schemas.objects import FlowRun, State, StateType
+from prefect.client.schemas.objects import FlowRun, StateType
 
 from datetime import datetime
-from typing import List
 
-from pydantic import BaseModel
-
-
-class EDFRun(BaseModel):
-    last_run_time: str = datetime.min.isoformat()
-    processed_files: List[str] = []
+from echodataflow.models.run import EDFRun
 
 
 @task
