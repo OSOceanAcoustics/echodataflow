@@ -21,6 +21,7 @@ from fastapi.encoders import jsonable_encoder
 
 from prefect import flow
 from prefect.task_runners import SequentialTaskRunner
+from prefect.blocks.core import Block
 
 from echodataflow.aspects.singleton_echodataflow import Singleton_Echodataflow
 from echodataflow.models.datastore import Dataset
@@ -36,7 +37,7 @@ from echodataflow.utils.config_utils import (
 from .subflows.initialization_flow import init_flow
 
 
-@flow(name="Echodataflow-Trigger", task_runner=SequentialTaskRunner())
+@flow(name="Echodataflow", task_runner=SequentialTaskRunner())
 def echodataflow_trigger(
     dataset_config: Union[dict, str, Path],
     pipeline_config: Union[dict, str, Path],
@@ -79,14 +80,16 @@ def echodataflow_trigger(
         )
         print("Pipeline output:", pipeline_output)
     """
+
     if storage_options:
         # Check if storage_options is a Block (fsspec storage) and convert it to a dictionary
-        if isinstance(storage_options, dict) and storage_options.get("block_name"):
+        if isinstance(storage_options, Block):
+            storage_options = get_storage_options(storage_options=storage_options)
+        elif isinstance(storage_options, dict) and storage_options.get("block_name"):
             block = load_block(
                 name=storage_options.get("block_name"), type=storage_options.get("type")
             )
             storage_options = get_storage_options(block)
-
     else:
         storage_options = {}
 
