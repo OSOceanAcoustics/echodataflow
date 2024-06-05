@@ -214,6 +214,6 @@ def process_frequency_differencing(
         ed.stages["mask"] = out_zarr
         ed.error = ErrorObject(errorFlag=False)
     except Exception as e:
-        ed.error = ErrorObject(errorFlag=True, error_desc=e)
+        ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
         return ed

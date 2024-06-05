@@ -232,6 +232,6 @@ def process_raw(
         raw.out_path = out_zarr
         raw.error = ErrorObject(errorFlag=False)
     except Exception as e:
-        raw.error = ErrorObject(errorFlag=True, error_desc=e)
+        raw.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
         return raw

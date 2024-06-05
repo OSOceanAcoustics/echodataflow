@@ -202,6 +202,6 @@ def process_compute_ts(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
         ed.out_path = out_zarr
         ed.error = ErrorObject(errorFlag=False)
     except Exception as e:
-        ed.error = ErrorObject(errorFlag=True, error_desc=e)
+        ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
         return ed
