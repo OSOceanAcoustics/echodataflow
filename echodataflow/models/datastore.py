@@ -16,6 +16,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+
 from enum import Enum
 import re
 from typing import Any, Dict, List, Optional
@@ -30,9 +31,10 @@ class StorageType(Enum):
 
     Attributes:
         AWS: Amazon Web Services storage type.
-        AZ: Azure storage type.
+        AZCosmos: Azure storage type.
         GCP: Google Cloud Platform storage type.
     """
+
     AWS = "AWS"
     AZCosmos = "AZCosmos"
     GCP = "GCP"
@@ -48,6 +50,7 @@ class StorageOptions(BaseModel):
         block_name (Optional[str]): The name of the block.
         anon (Optional[bool]): Whether to use anonymous access. Default is False.
     """
+
     type: Optional[StorageType] = None
     block_name: Optional[str] = None
     anon: Optional[bool] = False
@@ -58,13 +61,16 @@ class Parameters(BaseModel):
     Model for defining parameters.
 
     Attributes:
-        ship_name (str): The name of the ship.
-        survey_name (str): The name of the survey.
-        sonar_model (str): The model of the sonar.
+        ship_name (Optional[str]): The name of the ship.
+        survey_name (Optional[str]): The name of the survey.
+        sonar_model (Optional[str]): The model of the sonar.
+        file_name (Optional[str]): The name of the file.
     """
-    ship_name: str
-    survey_name: str
-    sonar_model: str
+
+    ship_name: Optional[str] = None
+    survey_name: Optional[str] = None
+    sonar_model: Optional[str] = None
+    file_name: Optional[str] = None
 
 
 class Transect(BaseModel):
@@ -75,11 +81,12 @@ class Transect(BaseModel):
         file (Optional[str]): The file associated with the transect.
         storage_options (Optional[StorageOptions]): Storage options for the transect.
         storage_options_dict (Optional[Dict[str, Any]]): Additional storage options as a dictionary.
-        group_name : Default transect name.
+        grouping_regex: Regex to parse group name from the file name.
     """
+
     file: Optional[str] = None
     storage_options: Optional[StorageOptions] = None
-    storage_options_dict: Optional[Dict[str, Any]] = {}  
+    storage_options_dict: Optional[Dict[str, Any]] = {}
     grouping_regex: Optional[str] = None
 
 
@@ -92,11 +99,13 @@ class Args(BaseModel):
         parameters (Parameters): Parameters for rendering.
         storage_options (Optional[StorageOptions]): Storage options for the arguments.
         storage_options_dict (Optional[Dict[str, Any]]): Additional storage options as a dictionary.
-        transect (Optional[Transect]): Transect options.
+        group (Optional[Transect]): Transect options.
+        group_name : Default transect name.
         zarr_store (Optional[str]): Zarr store information.
         json_export (Optional[bool]): Whether to export in JSON format. Default is False.
         raw_json_path (Optional[str]): Path for raw JSON data.
     """
+
     urlpath: str
     parameters: Parameters
     storage_options: Optional[StorageOptions] = None
@@ -120,12 +129,12 @@ class Args(BaseModel):
             template = env.from_string(self.urlpath)
             return template.render(self.parameters)
         return self.urlpath
-    
-    @field_validator('group_name', mode='before', check_fields=True)
+
+    @field_validator("group_name", mode="before", check_fields=True)
     def disallow_regex_chars(cls, v):
         if isinstance(v, int):
             v = str(v)
-        regex_special_chars = r'[{}()|\[\]\\]'
+        regex_special_chars = r"[{}()|\[\]\\]"
         if re.search(regex_special_chars, v):
             raise ValueError("Field must not contain regex special characters")
         return v
@@ -133,7 +142,7 @@ class Args(BaseModel):
 
 class Output(BaseModel):
     """
-    Model for defining output options.
+    Model for defining pipeline destination options.
 
     Attributes:
         urlpath (str): The URL path for output.
@@ -142,18 +151,22 @@ class Output(BaseModel):
         storage_options (Optional[StorageOptions]): Storage options for the output.
         storage_options_dict (Optional[Dict[str, Any]]): Additional storage options as a dictionary.
     """
+
     urlpath: str
-    retention: bool = True 
+    retention: bool = True
     overwrite: Optional[bool] = True
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}
+
 
 class Kafka(BaseModel):
     topic: str
     servers: List[str]
 
+
 class EchodataflowLogs(BaseModel):
     kafka: Kafka = None
+
 
 class Dataset(BaseModel):
     """
@@ -167,6 +180,7 @@ class Dataset(BaseModel):
         output (Output): Output options for the dataset.
         passing_params (Optional[Dict[str, Any]]): Additional passing parameters.
     """
+
     name: str
     sonar_model: str
     raw_regex: str
