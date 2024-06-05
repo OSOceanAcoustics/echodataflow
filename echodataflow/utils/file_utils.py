@@ -30,12 +30,11 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-from collections import defaultdict
 import json
 import os
 import platform
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 from urllib.parse import urlparse
 
 from echodataflow.utils import log_util
@@ -48,7 +47,7 @@ from fsspec.implementations.local import LocalFileSystem
 from prefect import task
 
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.output_model import Output
+from echodataflow.models.output_model import EchodataflowObject, Group, Output
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
 
