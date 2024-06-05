@@ -72,7 +72,7 @@ from echodataflow.models.db_log_model import DB_Log, Log_Data
 db_connections = threading.local()
 
 
-def get_connection(path: str = '') -> sqlite3.Connection:
+def get_connection(path: str = "") -> sqlite3.Connection:
     """
     Gets a SQLite database connection.
 
@@ -85,12 +85,12 @@ def get_connection(path: str = '') -> sqlite3.Connection:
     Example:
         db_connection = get_connection('/path/to/db')
     """
-    if not hasattr(db_connections, 'db_connection'):
+    if not hasattr(db_connections, "db_connection"):
         if os.path.isdir(path) == False:
             dir = Path(path)
             dir.mkdir(exist_ok=True, parents=True)
             os.chmod(dir, 0o777)
-        db_connections.db_connection = sqlite3.connect(path+'/echodataflow.db')
+        db_connections.db_connection = sqlite3.connect(path + "/echodataflow.db")
     return db_connections.db_connection
 
 
@@ -145,7 +145,7 @@ def create_log_table(conn):
         connection = get_connection('/path/to/db')
         create_log_table(connection)
     """
-    create_table_query = '''
+    create_table_query = """
     CREATE TABLE IF NOT EXISTS log (
         run_id INTEGER PRIMARY KEY AUTOINCREMENT,
         start_time TEXT,
@@ -154,7 +154,7 @@ def create_log_table(conn):
         status TEXT,
         error TEXT
     );
-    '''
+    """
     execute_sql(conn=conn, query=create_table_query)
 
 
@@ -175,13 +175,14 @@ def insert_log_data_by_conn(conn: sqlite3.Connection, log: DB_Log):
         log_id = insert_log_data_by_conn(connection, log_data)
     """
 
-    insert_query = '''
+    insert_query = """
     INSERT INTO log (run_id, start_time, end_time, data, status, error)
     VALUES (?, ?, ?, ?, ?, ?);
-    '''
+    """
     data_json = json.dumps(convert_to_serializable_dict(log.data))
-    res = conn.execute(insert_query, (log.run_id, log.start_time,
-                       log.end_time, data_json, log.status, log.error))
+    res = conn.execute(
+        insert_query, (log.run_id, log.start_time, log.end_time, data_json, log.status, log.error)
+    )
     id = res.lastrowid
     conn.commit()
     return id
@@ -242,16 +243,15 @@ def update_log_data_by_conn(conn: sqlite3.Connection, log: DB_Log):
         updated_log_data = DB_Log(...)
         update_log_data_by_conn(connection, updated_log_data)
     """
-    update_query = '''
+    update_query = """
     UPDATE log
     SET start_time = ?, end_time = ?, data = ?, status = ?, error =?
     WHERE run_id = ?;
-    '''
+    """
     data_json = json.dumps(convert_to_serializable_dict(log.data))
     conn.execute(
         update_query,
-        (log.start_time, log.end_time, data_json,
-         log.status, log.error, log.run_id),
+        (log.start_time, log.end_time, data_json, log.status, log.error, log.run_id),
     )
     conn.commit()
 
@@ -286,10 +286,10 @@ def parse_all_log_data(conn):
         connection = get_connection('/path/to/db')
         logs = parse_all_log_data(connection)
     """
-    select_query = '''
+    select_query = """
     SELECT run_id, start_time, end_time, data, status, error
     FROM log;
-    '''
+    """
 
     rows = execute_sql(conn, select_query)
 
@@ -317,12 +317,12 @@ def get_last_log(conn):
         connection = get_connection('/path/to/db')
         last_log_entry = get_last_log(connection)
     """
-    select_query = '''
+    select_query = """
     SELECT run_id, start_time, end_time, data, status, error
     FROM log
     ORDER BY id DESC
     LIMIT 1;
-    '''
+    """
 
     last_log = DB_Log()
     row = execute_sql(conn, select_query)
@@ -355,7 +355,13 @@ def parse_log(row):
         log_data_obj = Log_Data(**value)
         log_data_dict[key] = log_data_obj
 
-    log_obj = DB_Log(run_id=run_id, start_time=start_time,
-                     end_time=end_time, data=log_data_dict, status=status, error=error)
+    log_obj = DB_Log(
+        run_id=run_id,
+        start_time=start_time,
+        end_time=end_time,
+        data=log_data_dict,
+        status=status,
+        error=error,
+    )
 
     return log_obj
