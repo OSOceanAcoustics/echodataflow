@@ -6,6 +6,15 @@ Logging in echodataflow is designed to provide detailed insights into the execut
 
 Logging in distributed Dask environments presents unique challenges due to each worker spinning up a new Python environment, which can lead to the loss of any logging mechanisms established in the master node. To address this, we are considering several approaches:
 
+### Utilizing Dask Worker Streams for Echoflow Logs
+**Overview**: Configures Dask worker streams to handle echodataflow logs, which can be straightforward if the exact log order is not crucial.
+
+**Trade-offs**:
+
+*Pros*: Simplicity in setup, direct integration with Dask, and minimal infrastructure requirements.
+
+*Cons*: Log order may not be precise, potential difficulty in correlating logs across workers, and less robust compared to centralized solutions.
+
 ### Centralized Logging with AWS CloudWatch
 **Overview**: This approach centralizes all logs for easy access and analysis.
 
@@ -14,15 +23,6 @@ Logging in distributed Dask environments presents unique challenges due to each 
 *Pros*: Easy access to centralized logs, integration with other AWS services, and built-in log retention policies.
 
 *Cons*: Requires AWS infrastructure, potential cost implications, and dependency on network latency for log delivery.
-
-### Utilizing Dask Worker Streams for Echoflow Logs
-**Overview**: Configures Dask worker streams to handle Echodataflow logs, which can be straightforward if the exact log order is not crucial.
-
-**Trade-offs**:
-
-*Pros*: Simplicity in setup, direct integration with Dask, and minimal infrastructure requirements.
-
-*Cons*: Log order may not be precise, potential difficulty in correlating logs across workers, and less robust compared to centralized solutions.
 
 ### Advanced Logging with Kafka and Elastic Stack
 **Overview**: Leverages Kafka for log aggregation and Elastic Stack for log analysis and visualization, offering a robust solution for those with the necessary infrastructure.
@@ -34,7 +34,7 @@ Logging in distributed Dask environments presents unique challenges due to each 
 *Cons*: High complexity in setup and maintenance, significant infrastructure requirements, and potential high cost.
 
 ## Choosing the Right Approach Based on Use Case
-When deciding on the appropriate logging approach for Echodataflow in distributed Dask environments, consider the following factors:
+When deciding on the appropriate logging approach for echodataflow in distributed Dask environments, consider the following factors:
 
 - `Infrastructure`: If you already use AWS, integrating with CloudWatch might be the easiest and most cost-effective solution. If you have Kafka and Elastic Stack set up, this could offer the most robust logging capabilities.
 

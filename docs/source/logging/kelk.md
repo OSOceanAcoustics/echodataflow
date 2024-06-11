@@ -1,7 +1,7 @@
 # Implementing Logging with Kafka and Elastic Stack
 
 ## Overview
-echodataflow integrates with Kafka to send worker messages to a Kafka topic, which can then be routed to any logging destination. In this example, we will set up an Elastic Stack (Elasticsearch, Logstash, Kibana, Beats) with Kafka integration to analyze and visualize logs in real-time.
+Echodataflow integrates with Kafka to send worker messages to a Kafka topic, which can then be routed to any logging destination. In this example, we will set up an [Elastic Stack](https://www.elastic.co/) (Elasticsearch, Logstash, Kibana, Beats) with Kafka integration to analyze and visualize logs in real-time.
 
 ### Setting Up the Infrastructure
 Dockerized Elastic Stack with Kafka Integration
@@ -60,7 +60,7 @@ To stop all services and remove containers, networks, and volumes created by doc
 docker-compose down -v
 ```
 
-## Configuring Kafka Logging in echodataflow
+## Configuring Kafka Logging in Echodataflow
 Configure your Kafka server in the datastore.yaml file for echodataflow.
 
 ### Example datastore.yaml

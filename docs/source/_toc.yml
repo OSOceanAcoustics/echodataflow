@@ -32,6 +32,7 @@ parts:
     chapters:
       - file: logging/howtolog
         sections:
+          - file: logging/daskstream.md
           - file: logging/awscloud
           - file: logging/kelk
   - caption: Command-Line Interface

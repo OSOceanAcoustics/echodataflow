@@ -21,7 +21,7 @@ source echodataflow-env/bin/activate  # On Windows, use `echodataflow-env\Script
 ```
 
 ### Step 0.2: Install the Package
-Now that you have a virtual environment set up, just like any other python package you need to install using pip. Now, take a moment and let the echodataflow do its thing while you enjoy your coffee.
+Once you have a virtual environment set up, just like any other python package you need to install using pip. Now, take a moment and let the echodataflow do its thing while you enjoy your coffee.
 
 ```bash
 pip install echodataflow

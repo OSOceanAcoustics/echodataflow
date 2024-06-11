@@ -12,7 +12,7 @@ The `active_recipe` parameter specifies the recipe to be executed on the input d
 
 - `n_workers`: Specifies the number of workers for the local Dask cluster.
 
-- `scheduler_address`: Option to Specify the address for the Dask scheduler. Use this or `use_local_dask` to control cluster creation. For more precise control, refer to `prefect_config` to set `DaskTaskRunner`.
+- `scheduler_address`: Option to specify the address for the Dask scheduler. Use this or `use_local_dask` to control cluster creation. For more precise control, refer to `prefect_config` to set `DaskTaskRunner`.
 
 ## Pipeline Configuration
 
