@@ -1,5 +1,3 @@
-
-
 import asyncio
 import logging
 import os
@@ -12,7 +10,10 @@ from echodataflow.models.datastore import EchodataflowLogs
 from kafka import KafkaProducer
 import json
 
-def log(stream_name: str = 'echodataflow', msg=Any, use_dask = False, eflogging:EchodataflowLogs = None):
+
+def log(
+    stream_name: str = "echodataflow", msg=Any, use_dask=False, eflogging: EchodataflowLogs = None
+):
     """
     Logs a message to the specified stream and optionally forwards it to Kafka.
 
@@ -34,20 +35,19 @@ def log(stream_name: str = 'echodataflow', msg=Any, use_dask = False, eflogging:
 
     Note: The function assumes that if `use_dask` is True, a Dask distributed client is available and configured.
     """
-    if msg.get('mod_name'):
-        msg['mod_name'] = os.path.basename(msg['mod_name'])
-        
+    if msg.get("mod_name"):
+        msg["mod_name"] = os.path.basename(msg["mod_name"])
+
     if use_dask:
         get_client().log_event(stream_name, msg=msg)
     else:
         if Singleton_Echodataflow.get_instance():
             Singleton_Echodataflow.get_instance().log(
-                        msg= msg['msg'],
-                        extra={"mod_name": msg['mod_name'],
-                            "func_name": msg['func_name']},
-                        level=logging.DEBUG,
-                    )
-            
+                msg=msg["msg"],
+                extra={"mod_name": msg["mod_name"], "func_name": msg["func_name"]},
+                level=logging.DEBUG,
+            )
+
     if eflogging:
         if isinstance(eflogging, dict):
             eflogging = EchodataflowLogs(**eflogging)
@@ -55,8 +55,10 @@ def log(stream_name: str = 'echodataflow', msg=Any, use_dask = False, eflogging:
             if eflogging.kafka.topic and len(eflogging.kafka.servers) != 0:
                 producer = None
                 try:
-                    producer = KafkaProducer(bootstrap_servers=eflogging.kafka.servers,
-                            value_serializer=lambda v: json.dumps(v).encode('utf-8'))        
+                    producer = KafkaProducer(
+                        bootstrap_servers=eflogging.kafka.servers,
+                        value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+                    )
                     producer.send(eflogging.kafka.topic, msg)
                 except Exception as e:
                     print("Failed logging to Kafka due to", e)
@@ -64,7 +66,7 @@ def log(stream_name: str = 'echodataflow', msg=Any, use_dask = False, eflogging:
                     if producer:
                         producer.flush()
                         producer.close()
-        
+
     print(f"{msg.get('mod_name')}  {msg.get('func_name')} : {msg.get('msg')}")
 
 
@@ -85,10 +87,10 @@ def log_stream():
     Note: This function is designed to work in environments where Dask is configured and available.
     It relies on asynchronous behavior and will explicitly handle coroutine objects to retrieve messages.
     """
-    try: 
+    try:
         client = get_client()
         if client:
-            ev = client.get_events('echodataflow')
+            ev = client.get_events("echodataflow")
         if isinstance(ev, Coroutine):
             ev = asyncio.run(ev)
         gea = Singleton_Echodataflow.get_instance()
@@ -96,12 +98,10 @@ def log_stream():
         for log in ev:
             if gea:
                 gea.log(
-                    msg= log[1]['msg'],
-                    extra={"mod_name": log[1]['mod_name'],
-                        "func_name": log[1]['func_name']},
+                    msg=log[1]["msg"],
+                    extra={"mod_name": log[1]["mod_name"], "func_name": log[1]["func_name"]},
                     level=logging.DEBUG,
                 )
             print(log)
     except Exception as e:
         pass
-    

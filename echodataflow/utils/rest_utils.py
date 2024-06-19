@@ -23,7 +23,7 @@ import json
 from typing import Any, Dict
 
 
-def send_request(method : str, url : str, headers : Dict[str, Any] = {}, payload : Any = None):
+def send_request(method: str, url: str, headers: Dict[str, Any] = {}, payload: Any = None):
     """
     Send an HTTP request to a specified URL with optional headers and payload.
 
@@ -43,9 +43,7 @@ def send_request(method : str, url : str, headers : Dict[str, Any] = {}, payload
     try:
         conn = http.client.HTTPConnection("127.0.0.1", 4200)
         if method == "POST":
-            headers.update({
-            'Content-Type': 'application/json'
-            })
+            headers.update({"Content-Type": "application/json"})
             conn.request(str(method), url, payload, headers)
         elif method == "GET":
             conn.request(method=str(method), url=url, headers=headers)
@@ -59,7 +57,7 @@ def send_request(method : str, url : str, headers : Dict[str, Any] = {}, payload
     return data
 
 
-def get_last_flow_run(name : str, type : str = "FLOW"):
+def get_last_flow_run(name: str, type: str = "FLOW"):
     """
     Get the ID of the last flow run with the specified name.
 
@@ -74,23 +72,18 @@ def get_last_flow_run(name : str, type : str = "FLOW"):
         flow_name = "MyFlow"
         last_run_id = get_last_flow_run(name=flow_name)
     """
-    data : str = None
-    id_value : str = None
+    data: str = None
+    id_value: str = None
 
-    payload = json.dumps({
-    "sort": "END_TIME_DESC",
-    "limit": 1,
-    "offset": 0,
-    "flows": {
-        "operator": "and_",
-        "name": {
-        "any_": [
-            name
-        ]
+    payload = json.dumps(
+        {
+            "sort": "END_TIME_DESC",
+            "limit": 1,
+            "offset": 0,
+            "flows": {"operator": "and_", "name": {"any_": [name]}},
         }
-    }
-    })
-    
+    )
+
     data = send_request(method="POST", payload=payload, url="/api/ui/flow_runs/history")
 
     if data is not None:
@@ -99,12 +92,12 @@ def get_last_flow_run(name : str, type : str = "FLOW"):
         # Access the 'id' value from the first dictionary in the list
         if parsed_data and isinstance(parsed_data, list):
             first_dict = parsed_data[0]
-            id_value = first_dict.get('id')
-        
-    return id_value
-    
+            id_value = first_dict.get("id")
 
-def get_last_run_history(name: str, type : str = "FLOW"):
+    return id_value
+
+
+def get_last_run_history(name: str, type: str = "FLOW"):
     """
     Get the history of the last flow run with the specified name.
 
@@ -120,9 +113,9 @@ def get_last_run_history(name: str, type : str = "FLOW"):
         last_run_history = get_last_run_history(name=flow_name)
     """
     id = get_last_flow_run(name=name)
-    run_history : str = None
+    run_history: str = None
     if id is not None:
-        run_history = send_request(method="GET", url="/api/flow_runs/"+id+"/graph")
+        run_history = send_request(method="GET", url="/api/flow_runs/" + id + "/graph")
         run_json = json.loads(run_history)
         if run_json and not isinstance(run_json, str):
             return run_json

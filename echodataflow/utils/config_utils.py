@@ -47,7 +47,7 @@ from prefect_azure import AzureCosmosDbCredentials
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset, StorageOptions, StorageType
-from echodataflow.models.pipeline import Recipe, Stage
+from echodataflow.models.pipeline import Stage
 from echodataflow.utils.file_utils import extract_fs, isFile
 
 nest_asyncio.apply()
@@ -94,8 +94,7 @@ def check_config(dataset_config: Dict[str, Any], pipeline_config: Dict[str, Any]
         check_config(dataset_config, pipeline_config)
     """
     if not "active_recipe" in pipeline_config:
-        raise ValueError(
-            "Pipeline Configuration must have active recipe name!")
+        raise ValueError("Pipeline Configuration must have active recipe name!")
     else:
         recipe_name = pipeline_config["active_recipe"]
         recipe_list = pipeline_config["pipeline"]
@@ -103,8 +102,7 @@ def check_config(dataset_config: Dict[str, Any], pipeline_config: Dict[str, Any]
         for recipe in recipe_list:
             recipe_names.append(recipe["recipe_name"])
         if not recipe_name in recipe_names:
-            raise ValueError(
-                "Active recipe name not found in the recipe list!")
+            raise ValueError("Active recipe name not found in the recipe list!")
 
 
 def glob_url(path: str, storage_options: Dict[str, Any] = {}) -> List[str]:
@@ -123,10 +121,8 @@ def glob_url(path: str, storage_options: Dict[str, Any] = {}) -> List[str]:
         files = glob_url("s3://my-bucket/data/*.txt", {"anon": True})
     """
 
-    file_system, scheme = extract_fs(
-        path, storage_options, include_scheme=True)
-    all_files = [f if f.startswith(
-        scheme) else f"{scheme}://{f}" for f in file_system.glob(path)]
+    file_system, scheme = extract_fs(path, storage_options, include_scheme=True)
+    all_files = [f if f.startswith(scheme) else f"{scheme}://{f}" for f in file_system.glob(path)]
     return all_files
 
 
@@ -135,7 +131,7 @@ def extract_transect_files(
     file_path: str,
     storage_options: Dict[str, Any] = {},
     default_transect: str = None,
-    group_regex: str = None
+    group_regex: str = None,
 ) -> Dict[str, Dict[str, Any]]:
     """
     Extracts raw file names and transect numbers from transect file(s).
@@ -159,8 +155,8 @@ def extract_transect_files(
     elif file_format == "txt":
         return _extract_from_text(file_system, file_path, group_regex, default_transect)
     else:
-        raise ValueError(
-            f"Invalid file format: {file_format}. Only 'txt' or 'zip' are valid")
+        raise ValueError(f"Invalid file format: {file_format}. Only 'txt' or 'zip' are valid")
+
 
 def _get_group_name(filename: str, group_regex: str, default_transect: str) -> str:
     """
@@ -177,16 +173,19 @@ def _get_group_name(filename: str, group_regex: str, default_transect: str) -> s
     Example:
         group_name = _get_group_name(filename="example_file_01", group_regex=r"example_(?P<transect_num>\d+)", default_transect="default")
     """
-    if group_regex:  
+    if group_regex:
         m = re.match(group_regex, filename)
         transect_num = str(m.groupdict()["transect_num"])
     elif default_transect:
         transect_num = default_transect
     else:
-        transect_num = filename.split('.')[0]
+        transect_num = filename.split(".")[0]
     return transect_num
 
-def _extract_from_zip(file_system, file_path: str, group_regex: str, default_transect: str) -> Dict[str, Dict[str, Any]]:
+
+def _extract_from_zip(
+    file_system, file_path: str, group_regex: str, default_transect: str
+) -> Dict[str, Dict[str, Any]]:
     """
     Extracts raw files from transect file zip format.
 
@@ -210,21 +209,25 @@ def _extract_from_zip(file_system, file_path: str, group_regex: str, default_tra
         with ZipFile(f) as zf:
             zip_infos = zf.infolist()
             for zi in zip_infos:
-                
-                transect_num = _get_group_name(filename=zi.filename, group_regex=group_regex, default_transect=default_transect)
-                    
+                transect_num = _get_group_name(
+                    filename=zi.filename, group_regex=group_regex, default_transect=default_transect
+                )
+
                 if zi.is_dir():
-                    raise ValueError(
-                        "Directory found in zip file. This is not allowed!")
-                with zf.open(zi.filename) as txtfile:                    
-                    for line_bytes in txtfile:                        
+                    raise ValueError("Directory found in zip file. This is not allowed!")
+                with zf.open(zi.filename) as txtfile:
+                    for line_bytes in txtfile:
                         line = line_bytes.decode("utf-8").strip("\r\n")
-                        transect_dict.setdefault(line, {"filename": zi.filename, "num": transect_num})
+                        transect_dict.setdefault(
+                            line, {"filename": zi.filename, "num": transect_num}
+                        )
     print(transect_dict)
     return transect_dict
 
 
-def _extract_from_text(file_system, file_path: str, group_regex: str, default_transect: str) -> Dict[str, Dict[str, Any]]:
+def _extract_from_text(
+    file_system, file_path: str, group_regex: str, default_transect: str
+) -> Dict[str, Dict[str, Any]]:
     """
     Extracts raw files from transect file text format.
 
@@ -243,13 +246,15 @@ def _extract_from_text(file_system, file_path: str, group_regex: str, default_tr
         extracted_data = _extract_from_text(file_system, file_path)
     """
     filename = os.path.basename(file_path)
-    
-    transect_num = _get_group_name(filename=filename, group_regex=group_regex, default_transect=default_transect)
+
+    transect_num = _get_group_name(
+        filename=filename, group_regex=group_regex, default_transect=default_transect
+    )
 
     transect_dict = {}
 
     with file_system.open(file_path) as txtfile:
-        for line_bytes in txtfile:                        
+        for line_bytes in txtfile:
             line = line_bytes.decode("utf-8").strip("\r\n")
             transect_dict.setdefault(line, {"filename": filename, "num": transect_num})
 
@@ -291,7 +296,7 @@ def parse_file_path(raw_file: str, fname_pattern: str) -> Dict[str, Any]:
 
 
 @task
-def get_prefect_config_dict(stage: Stage, pipeline: Recipe, prefect_config_dict: Dict[str, Any]):
+def get_prefect_config_dict(stage: Stage):
     """
     Gets the updated Prefect configuration dictionary.
 
@@ -311,15 +316,15 @@ def get_prefect_config_dict(stage: Stage, pipeline: Recipe, prefect_config_dict:
     """
     prefect_config: Dict[str, Any] = stage.prefect_config
     updated_config = {}
-    if (stage.prefect_config is not None):
+    if stage.prefect_config is not None:
         for key, value in prefect_config.items():
-            if type(value) == str and '(' in value and ')' in value:
-                class_name, params_str = value.split('(', 1)
-                params_str = params_str.rstrip(')')
+            if type(value) == str and "(" in value and ")" in value:
+                class_name, params_str = value.split("(", 1)
+                params_str = params_str.rstrip(")")
                 parameters = {}
-                if params_str is not None and params_str != '':
-                    for param in params_str.split(','):
-                        param_key, param_value = param.split('=')
+                if params_str is not None and params_str != "":
+                    for param in params_str.split(","):
+                        param_key, param_value = param.split("=")
                         parameters[param_key.strip()] = param_value.strip()
                 class_object = globals()[class_name](**parameters)
                 updated_config[key] = class_object
@@ -380,42 +385,48 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
     sonar_model = config.sonar_model
     fname_pattern = config.raw_regex
     transect_dict = {}
-    default_transect = str(config.args.group_name) if config.args.group_name else None    
-    
+    default_transect = str(config.args.group_name) if config.args.group_name else None
+
     if config.args.group and config.args.group.file:
-        
         # When transect info is available, extract it
         file_input = config.args.group.file
-        storage_options = config.args.group.storage_options_dict   
+        storage_options = config.args.group.storage_options_dict
         group_regex = config.args.group.grouping_regex
-             
+
         if isinstance(file_input, str):
             filename = os.path.basename(file_input)
             _, ext = os.path.splitext(filename)
-            transect_dict = extract_transect_files(file_format=ext.strip("."), 
-                                                   file_path=file_input, 
-                                                   storage_options=storage_options, 
-                                                   group_regex=group_regex, 
-                                                   default_transect=default_transect)
+            transect_dict = extract_transect_files(
+                file_format=ext.strip("."),
+                file_path=file_input,
+                storage_options=storage_options,
+                group_regex=group_regex,
+                default_transect=default_transect,
+            )
         else:
             transect_dict = {}
             for f in file_input:
                 filename = os.path.basename(f)
-                _, ext = os.path.splitext(filename)   
-                result = extract_transect_files(file_format=ext.strip("."), 
-                                                   file_path=f, 
-                                                   storage_options=storage_options, 
-                                                   group_regex=group_regex, 
-                                                   default_transect=default_transect)
+                _, ext = os.path.splitext(filename)
+                result = extract_transect_files(
+                    file_format=ext.strip("."),
+                    file_path=f,
+                    storage_options=storage_options,
+                    group_regex=group_regex,
+                    default_transect=default_transect,
+                )
                 transect_dict.update(result)
     else:
         default_transect = "DefaultGroup"
-    
+
     raw_file_dicts = []
     for raw_file in all_raw_files:
         # get transect info from the transect_dict above
-        transect = transect_dict.get(os.path.basename(raw_file), transect_dict.get(os.path.basename(raw_file).split('.')[0], {}))
-        transect_num = transect.get("num", config.args.group_name)
+        transect = transect_dict.get(
+            os.path.basename(raw_file),
+            transect_dict.get(os.path.basename(raw_file).split(".")[0], {}),
+        )
+        transect_num = transect.get("num", default_transect)
         if (config.args.group is None) or (transect_num is not None and bool(transect)):
             # Only adds to the list if not transect
             # if it's a transect, ensure it has a transect number
@@ -436,7 +447,7 @@ def club_raw_files(
     config: Dataset,
     raw_dicts: List[Dict[str, Any]] = [],
     raw_url_file: Optional[str] = None,
-    json_storage_options: StorageOptions = None
+    json_storage_options: StorageOptions = None,
 ) -> List[List[Dict[str, Any]]]:
     """
     Parses raw URLs, splits them into weekly lists using Julian days.
@@ -461,9 +472,7 @@ def club_raw_files(
     if len(raw_dicts) == 0:
         if raw_url_file is None:
             raise ValueError("Must have raw_dicts or raw_json_path present.")
-        file_system = extract_fs(
-            raw_url_file, storage_options=json_storage_options
-        )
+        file_system = extract_fs(raw_url_file, storage_options=json_storage_options)
         with file_system.open(raw_url_file) as f:
             raw_dicts = json.load(f)
 
@@ -471,23 +480,18 @@ def club_raw_files(
         # Transect, split by transect spec
         raw_dct = {}
         for r in raw_dicts:
-            transect_num = r['transect_num']
+            transect_num = r["transect_num"]
             if transect_num not in raw_dct:
                 raw_dct[transect_num] = []
             raw_dct[transect_num].append(r)
 
-        all_files = [
-            sorted(raw_list, key=lambda a: a['datetime'])
-            for raw_list in raw_dct.values()
-        ]
+        all_files = [sorted(raw_list, key=lambda a: a["datetime"]) for raw_list in raw_dct.values()]
     else:
         # Number of days for a week chunk
         n = 7
 
         all_jdays = sorted({r.get("jday") for r in raw_dicts})
-        split_days = [
-            all_jdays[i: i + n] for i in range(0, len(all_jdays), n)
-        ]  # noqa
+        split_days = [all_jdays[i : i + n] for i in range(0, len(all_jdays), n)]  # noqa
 
         day_dict = {}
         for r in raw_dicts:
@@ -521,8 +525,9 @@ def get_storage_options(storage_options: Block = None) -> Dict[str, Any]:
     if storage_options is not None:
         if isinstance(storage_options, AwsCredentials):
             storage_options_dict["key"] = storage_options.aws_access_key_id
-            storage_options_dict["secret"] = storage_options.aws_secret_access_key.get_secret_value(
-            )
+            storage_options_dict[
+                "secret"
+            ] = storage_options.aws_secret_access_key.get_secret_value()
             if storage_options.aws_session_token:
                 storage_options_dict["token"] = storage_options.aws_session_token
 
@@ -562,6 +567,7 @@ def load_block(name: str = None, type: StorageType = None):
         block = coro
     return block
 
+
 def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
     """
     Validates external parameters to ensure they do not contain invalid file paths.
@@ -598,10 +604,8 @@ def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
     """
     if external_params:
         for k, v in external_params.items():
-            if '\\' in v or '/' in v:
+            if "\\" in v or "/" in v:
                 if not isFile(v, config.output.storage_options_dict):
                     return False
-    
+
     return True
-                
-    
