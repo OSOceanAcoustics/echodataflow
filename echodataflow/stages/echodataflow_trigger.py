@@ -16,47 +16,51 @@ Date: August 22, 2023
 """
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Optional, Union
 from fastapi.encoders import jsonable_encoder
 
 from prefect import flow
-from prefect.blocks.core import Block
 from prefect.task_runners import SequentialTaskRunner
+from prefect.blocks.core import Block
 
 from echodataflow.aspects.singleton_echodataflow import Singleton_Echodataflow
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.pipeline import Recipe
 from echodataflow.utils import log_util
-from echodataflow.utils.config_utils import (check_config, extract_config,
-                                         get_storage_options, load_block)
+from echodataflow.utils.config_utils import (
+    check_config,
+    extract_config,
+    get_storage_options,
+    load_block,
+)
 
 from .subflows.initialization_flow import init_flow
 
 
-@flow(name="Echodataflow-Trigger", task_runner=SequentialTaskRunner())
+@flow(name="Echodataflow", task_runner=SequentialTaskRunner())
 def echodataflow_trigger(
     dataset_config: Union[dict, str, Path],
     pipeline_config: Union[dict, str, Path],
     logging_config: Union[dict, str, Path] = None,
     storage_options: Optional[dict] = None,
     options: Optional[dict] = {},
-    json_data_path: Union[str, Path] = None
+    json_data_path: Union[str, Path] = None,
 ):
     """
     Trigger the initialization and execution of the processing pipeline.
 
     Args:
-        dataset_config (Union[dict, str, Path]): Configuration for the dataset to be 
+        dataset_config (Union[dict, str, Path]): Configuration for the dataset to be
         processed.
-        pipeline_config (Union[dict, str, Path]): Configuration for the processing 
+        pipeline_config (Union[dict, str, Path]): Configuration for the processing
         pipeline.
-        logging_config (Union[dict, str, Path], optional): Configuration for logging. 
+        logging_config (Union[dict, str, Path], optional): Configuration for logging.
         Defaults to None.
-        storage_options (Optional[dict], optional): Takes block_name and type, similar to yaml. 
+        storage_options (Optional[dict], optional): Takes block_name and type, similar to yaml.
         Defaults to {}.
-        options: Optional[dict]: Set of options for centralized configuration. 
+        options: Optional[dict]: Set of options for centralized configuration.
         Defaults to {}
-        json_data_path (str, Path): Takes external json data path to process the files. 
+        json_data_path (str, Path): Takes external json data path to process the files.
         Defaults to None
 
     Returns:
@@ -76,16 +80,20 @@ def echodataflow_trigger(
         )
         print("Pipeline output:", pipeline_output)
     """
-    if storage_options is not None:
+
+    if storage_options:
         # Check if storage_options is a Block (fsspec storage) and convert it to a dictionary
-        if isinstance(storage_options, dict) and storage_options.get("block_name") is not None:
+        if isinstance(storage_options, Block):
+            storage_options = get_storage_options(storage_options=storage_options)
+        elif isinstance(storage_options, dict) and storage_options.get("block_name"):
             block = load_block(
-                name=storage_options.get("block_name"), type=storage_options.get("type"))
+                name=storage_options.get("block_name"), type=storage_options.get("type")
+            )
             storage_options = get_storage_options(block)
-        
+
     else:
         storage_options = {}
-    
+
     if isinstance(dataset_config, Path):
         dataset_config = str(dataset_config)
     if isinstance(logging_config, Path):
@@ -116,62 +124,103 @@ def echodataflow_trigger(
     else:
         logging_config_dict = logging_config
 
-    
-    log_util.log(msg={'msg':f'Dataset Configuration Loaded For This Run', 'mod_name':__file__, 'func_name':'Echodataflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
-    log_util.log(msg={'msg':f'-'*50, 'mod_name':__file__, 'func_name':'Echodataflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
-    log_util.log(msg={'msg':json.dumps(jsonable_encoder(dataset_config_dict)), 'mod_name':__file__, 'func_name':'Echodataflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
+    log_util.log(
+        msg={
+            "msg": f"Dataset Configuration Loaded For This Run",
+            "mod_name": __file__,
+            "func_name": "Echodataflow Trigger",
+        },
+        eflogging=dataset_config_dict.get("logging"),
+    )
+    log_util.log(
+        msg={"msg": f"-" * 50, "mod_name": __file__, "func_name": "Echodataflow Trigger"},
+        eflogging=dataset_config_dict.get("logging"),
+    )
+    log_util.log(
+        msg={
+            "msg": json.dumps(jsonable_encoder(dataset_config_dict)),
+            "mod_name": __file__,
+            "func_name": "Echodataflow Trigger",
+        },
+        eflogging=dataset_config_dict.get("logging"),
+    )
     print(dataset_config_dict)
-    
-    log_util.log(msg={'msg':f'Pipeline Configuration Loaded For This Run', 'mod_name':__file__, 'func_name':'Echodataflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
-    log_util.log(msg={'msg':f'-'*50, 'mod_name':__file__, 'func_name':'Echodataflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
-    log_util.log(msg={'msg':json.dumps(jsonable_encoder(pipeline_config_dict)), 'mod_name':__file__, 'func_name':'Echodataflow Trigger'}, eflogging=dataset_config_dict.get('logging'))
-    
+
+    log_util.log(
+        msg={
+            "msg": f"Pipeline Configuration Loaded For This Run",
+            "mod_name": __file__,
+            "func_name": "Echodataflow Trigger",
+        },
+        eflogging=dataset_config_dict.get("logging"),
+    )
+    log_util.log(
+        msg={"msg": f"-" * 50, "mod_name": __file__, "func_name": "Echodataflow Trigger"},
+        eflogging=dataset_config_dict.get("logging"),
+    )
+    log_util.log(
+        msg={
+            "msg": json.dumps(jsonable_encoder(pipeline_config_dict)),
+            "mod_name": __file__,
+            "func_name": "Echodataflow Trigger",
+        },
+        eflogging=dataset_config_dict.get("logging"),
+    )
+
     # Do any config checks on config dicts
     # Should be done in pydantic class
     check_config(dataset_config_dict, pipeline_config_dict)
     pipeline = Recipe(**pipeline_config_dict)
-    dataset = Dataset(**dataset_config_dict)    
+    dataset = Dataset(**dataset_config_dict)
 
-    if options.get('storage_options_override') is not None and options['storage_options_override'] is False:
+    if options.get("storage_options_override") and not options["storage_options_override"]:
         storage_options = {}
     if not storage_options:
-        if dataset.output.storage_options is not None:
-            if dataset.output.storage_options.anon is False:
+        if dataset.output.storage_options:
+            if not dataset.output.storage_options.anon:
                 block = load_block(
                     name=dataset.output.storage_options.block_name,
-                    type=dataset.output.storage_options.type)
-                dataset.output.storage_options_dict = get_storage_options(
-                    block)
+                    type=dataset.output.storage_options.type,
+                )
+                dataset.output.storage_options_dict = get_storage_options(block)
             else:
-                dataset.output.storage_options_dict = {
-                    "anon": dataset.output.storage_options.anon}
+                dataset.output.storage_options_dict = {"anon": dataset.output.storage_options.anon}
 
-        if dataset.args.storage_options is not None:
-            if dataset.args.storage_options.anon is False:
+        if dataset.args.storage_options:
+            if not dataset.args.storage_options.anon:
                 block = load_block(
-                    name=dataset.args.storage_options.block_name, type=dataset.args.storage_options.type)
+                    name=dataset.args.storage_options.block_name,
+                    type=dataset.args.storage_options.type,
+                )
                 dataset.args.storage_options_dict = get_storage_options(block)
             else:
-                dataset.args.storage_options_dict = {
-                    "anon": dataset.args.storage_options.anon}
-        if dataset.args.group is not None:
-            if dataset.args.group.storage_options is not None:
-                if dataset.args.group.storage_options.anon is False:
+                dataset.args.storage_options_dict = {"anon": dataset.args.storage_options.anon}
+        if dataset.args.group:
+            if dataset.args.group.storage_options:
+                if not dataset.args.group.storage_options.anon:
                     block = load_block(
-                        name=dataset.args.group.storage_options.block_name, type=dataset.args.group.storage_options.type)
-                    dataset.args.group.storage_options_dict = get_storage_options(
-                        block)
+                        name=dataset.args.group.storage_options.block_name,
+                        type=dataset.args.group.storage_options.type,
+                    )
+                    dataset.args.group.storage_options_dict = get_storage_options(block)
                 else:
                     dataset.args.group.storage_options_dict = {
-                        "anon": dataset.args.group.storage_options.anon}
+                        "anon": dataset.args.group.storage_options.anon
+                    }
     else:
         dataset.output.storage_options_dict = storage_options
         dataset.args.storage_options_dict = storage_options
         dataset.args.group.storage_options_dict = storage_options
 
     print("\nInitiliazing Singleton Object")
-    Singleton_Echodataflow(log_file=logging_config_dict,
-                       pipeline=pipeline, dataset=dataset)
-    
+    Singleton_Echodataflow(log_file=logging_config_dict, pipeline=pipeline, dataset=dataset)
+
+    # Change made to enable dynamic execution using an extension
+    if options and options.get("file_name"):
+        dataset.args.parameters.file_name = options.get("file_name")
+
     print("\nReading Configurations")
     return init_flow(config=dataset, pipeline=pipeline, json_data_path=json_data_path)
+
+if __name__ == "__main__":
+    echodataflow_trigger.serve(name="Echodataflow")
