@@ -46,7 +46,7 @@ from echodataflow.utils.file_utils import (
 from echodataflow.utils.function_utils import dynamic_function_call
 
 
-@flow(name="Init-Flow", task_runner=SequentialTaskRunner())
+@flow(name="Initialization", task_runner=SequentialTaskRunner())
 @echodataflow(type="FLOW")
 def init_flow(pipeline: Recipe, config: Dataset, json_data_path: Optional[str] = None):
     """
