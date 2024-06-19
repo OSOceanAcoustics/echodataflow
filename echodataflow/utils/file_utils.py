@@ -300,7 +300,7 @@ def get_ed_list(
 def get_zarr_list(
     transect_data: Union[EchodataflowObject, List[EchodataflowObject]],
     storage_options: Dict[str, Any] = {},
-):
+) -> List[xr.Dataset]:
     """
     Get a list of xarray.Dataset objects for zarr data.
 
@@ -658,10 +658,10 @@ def get_out_zarr(
         if group:
             return os.path.join(working_dir, transect, file_name)
         else:
-            return os.path.join(working_dir, file_name)
+            return os.path.join(working_dir, "zarr_files", file_name)
     else:
         slash_pattern = "/" if "/" in working_dir else "\\"
         if group:
             return slash_pattern.join([working_dir, transect, file_name])
         else:
-            return slash_pattern.join([working_dir, file_name])
+            return slash_pattern.join([working_dir, "zarr_files", file_name])
