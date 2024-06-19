@@ -18,9 +18,10 @@ Date: August 22, 2023
 from collections import defaultdict
 from typing import Dict, Optional
 
-import echopype as ep
+from echopype.utils.io import validate_source
+from echopype.mask import apply_mask
 from prefect import flow, task
-
+import xarray as xr
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
@@ -178,9 +179,17 @@ def process_apply_mask(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
                 for _, v in stage.dependson.items():
                     input_feed[v] = ed.stages.get("mask")
 
-            xr_d = ep.mask.apply_mask(
+            mask, file_type = validate_source(input_feed["mask"], config.output.storage_options_dict)
+            mask: xr.DataArray = xr.open_dataarray(mask, engine=file_type, chunks={}, **config.output.storage_options_dict)
+            
+            # temporary fix
+            if "range_sample" not in ed_list[0].coords:
+                ed_list[0] = ed_list[0].swap_dims({"echo_range": "range_sample"}).rename_vars({"echo_range": "range_sample"})
+                mask = mask.swap_dims({"echo_range": "range_sample"})
+            
+            xr_d = apply_mask(
                 source_ds=ed_list[0],
-                mask=input_feed["mask"],
+                mask=mask,
                 storage_options_ds=config.output.storage_options_dict,
                 storage_options_mask=config.output.storage_options_dict,
             )
