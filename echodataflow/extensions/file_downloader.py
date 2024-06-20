@@ -4,10 +4,11 @@ import fsspec
 from prefect import flow, task
 
 from echodataflow.utils.config_utils import glob_url
+from echodataflow.utils.file_utils import extract_fs, make_temp_folder
 
 
 @task
-def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir: str) -> str:
+def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir: str, delete_on_transfer: bool) -> str:
     """
     Downloads a file from a URL to a destination directory.
 
@@ -24,11 +25,11 @@ def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir:
     out_path = os.path.join(dest_dir, fname)
 
     # Ensure destination directory exists
-    os.makedirs(dest_dir, exist_ok=True)
+    make_temp_folder(dest_dir, storage_options.get("dest", {}))
 
     # Extract file systems for source and destination
-    file_system_source = fsspec.filesystem("s3", **storage_options.get("source", {}))
-    file_system_dest = fsspec.filesystem("file", **storage_options.get("dest", {}))
+    file_system_source = extract_fs(file_url, storage_options.get("source", {}))
+    file_system_dest = extract_fs(out_path, storage_options.get("dest", {}))
 
     # Check if file needs to be downloaded
     if not file_system_dest.exists(out_path):
@@ -36,6 +37,13 @@ def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir:
         with file_system_source.open(file_url, "rb") as source_file:
             with file_system_dest.open(out_path, "wb") as dest_file:
                 dest_file.write(source_file.read())
+        if delete_on_transfer:
+            try:
+                file_system_source.rm(file_url)
+                print("Cleanup complete")
+            except Exception as e:
+                print(e)
+                print("Failed to cleanup " + file_url)
 
     return out_path
 
@@ -46,6 +54,7 @@ def edf_data_transfer(
     destination: str = "./temp",
     source_storage_options: Dict[str, Any] = {},
     destination_storage_options: Dict[str, Any] = {},
+    delete_on_transfer=False
 ):
     """
     Downloads multiple files from a list of URLs to a destination directory.
@@ -69,7 +78,7 @@ def edf_data_transfer(
     storage_options["dest"] = destination_storage_options
 
     for file_url in files:
-        local_path = download_temp_file.submit(file_url, storage_options, destination)
+        local_path = download_temp_file.submit(file_url, storage_options, destination, delete_on_transfer)
         downloaded_files.append(local_path)
 
     return downloaded_files
