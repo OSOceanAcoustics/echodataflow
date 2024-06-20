@@ -1,17 +1,18 @@
-from datetime import datetime
-import json
+import asyncio
+from datetime import datetime, timedelta
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Coroutine, Dict, Optional, Union
 from prefect import flow, task
-from prefect.variables import Variable
 from prefect.blocks.core import Block
 from prefect.deployments import run_deployment
 from prefect.client.schemas.objects import FlowRun, StateType
 
 from datetime import datetime
 
-from echodataflow.models.run import EDFRun
+from echodataflow.models.datastore import StorageType
+from echodataflow.models.run import EDFRun, FileDetails
+from echodataflow.utils.config_utils import load_block
 
 
 @task
@@ -55,8 +56,8 @@ def execute_flow(
         },
     )
     if flow_run.state and flow_run.state.type == StateType.FAILED:
-        return (file_path, False)
-    return (file_path, True)
+        return (os.path.basename(file_path), False)
+    return (os.path.basename(file_path), True)
 
 
 @flow
@@ -70,6 +71,9 @@ def file_monitor(
     json_data_path: Union[str, Path] = None,
     fail_safe: bool = True,
     deployment_name: str = "echodataflowv2/Echodataflowv2",
+    hour_threshold: int = 2,
+    minute_threshold: int = 0,
+    retry_threshold: int = 3
 ):
     """
     Monitors a directory for file changes and processes new or modified files.
@@ -89,13 +93,16 @@ def file_monitor(
         ValueError: If an exception occurs in one or more files.
     """
     new_run = datetime.now().isoformat()
-    var: Variable = Variable.get(name="last_run")
-
-    if var:
-        edfrun = EDFRun(**json.loads(var.value))
-    else:
+    edfrun: EDFRun = None
+    try:
+        edfrun = load_block(
+                    name="edf-fm-last-run",
+                    type=StorageType.EDFRUN,
+                )
+    except Exception as e:
+        print(e)        
         edfrun = EDFRun()
-
+    
     last_run = datetime.fromisoformat(edfrun.last_run_time)
     exceptionFlag = False
 
@@ -106,21 +113,28 @@ def file_monitor(
             file_path = os.path.join(root, file)
             file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
             print(file_path)
-            if file_mtime > last_run and file_path not in edfrun.processed_files:
-                all_files.append((file_path, file_mtime))
+            if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
+                edfrun.processed_files[file] = FileDetails()
+                all_files.append((file_path, file_mtime, file))
 
     # Sort files by modification time
     all_files.sort(key=lambda x: x[1])
-
+    print("Files To be processed : ",len(all_files))
+    
+    print(all_files)
     # Skip the most recently modified file
-    if all_files:
+    if all_files and (datetime.now() - timedelta(hours=hour_threshold, minutes=minute_threshold)) > all_files[-1][1]:
         all_files = all_files[:-1]
 
     futures = []
 
     if fail_safe:
-        for file_path, file_mtime in all_files:
-            edfrun.processed_files.append(file_path)
+        for file_path, file_mtime, file in all_files:
+            edfrun.processed_files[file].retry_count += 1
+            
+            # TODO
+            # check if retry threshold has reached, if yes, start a new store?
+            # Might be tricky though in parallel situation. If appending to a zarr store then FM should switch fail_safe to False
             try:
                 futures.append(
                     execute_flow.with_options(tags=["edfFM"], task_run_name=file_path).submit(
@@ -135,20 +149,24 @@ def file_monitor(
                     )
                 )
             except Exception as e:
-                edfrun.processed_files.remove(file_path)
+                pass
 
         tuple_list = [f.result() for f in futures]
 
         exceptionFlag = True if any(not t for _, t in tuple_list) else False
 
-        tuple_list = [t for t in tuple_list if not t[1]]
-
-        for f, _ in tuple_list:
-            edfrun.processed_files.remove(f)
+        for file, status in tuple_list:
+            edfrun.processed_files[file].status = status
+            edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
 
     else:
-        for file_path, file_mtime in all_files:
-            edfrun.processed_files.append(file_path)
+        for file_path, file_mtime, file in all_files:
+            
+            edfrun.processed_files[file].retry_count += 1
+            
+            # TODO
+            # check if retry threshold has reached, if yes, start a new store?
+            
             status = execute_flow.with_options(tags=["edfFM"], task_run_name=file_path)(
                 dataset_config=dataset_config,
                 pipeline_config=pipeline_config,
@@ -159,17 +177,20 @@ def file_monitor(
                 json_data_path=json_data_path,
                 deployment_name=deployment_name,
             )[1]
-            if not status:
-                edfrun.processed_files.remove(file_path)
+            edfrun.processed_files[file].status = status
+            edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
+            if not status:                
                 exceptionFlag = True
                 break
-
+            
     if not exceptionFlag:
         edfrun.last_run_time = new_run
 
-    run_json = json.dumps(edfrun.__dict__)
-
-    Variable.set(name="last_run", value=run_json, overwrite=True)
+    block = edfrun.save(
+            "edf-fm-last-run", overwrite=True
+    )
+    if isinstance(block, Coroutine):
+        block = asyncio.run(block)
 
     if exceptionFlag:
         raise ValueError("Encountered Exception in one or more files")
