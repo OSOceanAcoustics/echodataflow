@@ -17,14 +17,15 @@ Date: August 22, 2023
 """
 
 from collections import defaultdict
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 
 import echopype as ep
 from prefect import flow, task
+import xarray as xr
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group, Output
+from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
 from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zarr_list, isFile
@@ -166,10 +167,17 @@ def process_compute_mvbs(ed: EchodataflowObject, config: Dataset, stage: Stage, 
                 eflogging=config.logging,
             )
 
-            xr_d_mvbs = ep.commongrid.compute_MVBS(
+            if stage.external_params:
+                range_bin = stage.external_params.get("range_meter_bin", None)
+                ping_time_bin = stage.external_params.get("ping_time_bin", None)
+            else:
+                range_bin = None
+                ping_time_bin = None                          
+            
+            xr_d_mvbs: xr.Dataset = ep.commongrid.compute_MVBS(
                 ds_Sv=ed_list[0],
-                range_bin=stage.external_params.get("range_meter_bin", None),
-                ping_time_bin=stage.external_params.get("ping_time_bin", None),
+                range_bin=range_bin,
+                ping_time_bin=ping_time_bin,
             )
             log_util.log(
                 msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": file_name},
