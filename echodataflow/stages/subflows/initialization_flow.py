@@ -16,6 +16,9 @@ from collections import defaultdict
 import json
 import os
 from typing import Dict, Optional
+import xarray as xr
+import pandas as pd
+from datetime import datetime, timedelta
 
 from distributed import Client, LocalCluster
 from echodataflow.aspects.singleton_echodataflow import Singleton_Echodataflow
@@ -71,76 +74,11 @@ def init_flow(pipeline: Recipe, config: Dataset, json_data_path: Optional[str] =
         )
         print("Pipeline output:", pipeline_output)
     """
-    file_dicts = []
-
-    if json_data_path is None:
-        if config.args.raw_json_path is None:
-            total_files = glob_all_files(config=config)
-            file_dicts = parse_raw_paths(all_raw_files=total_files, config=config)
-            log_util.log(
-                msg={
-                    "msg": f"Files Found in Source",
-                    "mod_name": __file__,
-                    "func_name": "Init Flow",
-                },
-                eflogging=config.logging,
-            )
-            log_util.log(
-                msg={
-                    "msg": json.dumps(jsonable_encoder(total_files)),
-                    "mod_name": __file__,
-                    "func_name": "Init Flow",
-                },
-                eflogging=config.logging,
-            )
-
-            log_util.log(
-                msg={
-                    "msg": f"Files To Be Processed",
-                    "mod_name": __file__,
-                    "func_name": "Init Flow",
-                },
-                eflogging=config.logging,
-            )
-            log_util.log(
-                msg={
-                    "msg": json.dumps(jsonable_encoder(file_dicts)),
-                    "mod_name": __file__,
-                    "func_name": "Init Flow",
-                },
-                eflogging=config.logging,
-            )
-        data = club_raw_files(
-            config=config,
-            raw_dicts=file_dicts,
-            raw_url_file=config.args.raw_json_path,
-            json_storage_options=config.output.storage_options_dict,
-        )
+    output: Output = Output()
+    if config.args.urlpath:
+        output = get_input_from_url(json_data_path=json_data_path, config=config)
     else:
-        file_system = extract_fs(json_data_path, storage_options=config.args.storage_options_dict)
-        with file_system.open(json_data_path) as f:
-            data = json.load(f)
-
-    output = Output()
-    for group in data:
-        for fdict in group:
-            transect_num = fdict.get("transect_num")
-            g = output.group.get(transect_num, Group())
-            g.group_name = transect_num
-            g.instrument = fdict.get("instrument")
-
-            obj = EchodataflowObject(
-                file_path=fdict.get("file_path"),
-                month=str(fdict.get("month")),
-                year=str(fdict.get("year")),
-                jday=str(fdict.get("jday")),
-                datetime=fdict.get("datetime"),
-                group_name=transect_num,
-                filename=os.path.basename(fdict.get("file_path")).split(".", maxsplit=1)[0],
-            )
-            g.data.append(obj)
-
-            output.group[transect_num] = g
+        output = get_input_from_store(config=config)
 
     store_json_output(output, config=config, name=config.name)
 
@@ -321,3 +259,129 @@ def process_stages_disk(
     # output = get_last_run_output(data=output, storage_options=config.output.storage_options_dict)
 
     return output
+
+
+def get_input_from_url(json_data_path, config: Dataset):
+    file_dicts = []
+    if json_data_path is None:
+        if config.args.raw_json_path is None:
+            total_files = glob_all_files(config=config)
+            file_dicts = parse_raw_paths(all_raw_files=total_files, config=config)
+            log_util.log(
+                msg={
+                    "msg": f"Files Found in Source",
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
+            log_util.log(
+                msg={
+                    "msg": json.dumps(jsonable_encoder(total_files)),
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
+
+            log_util.log(
+                msg={
+                    "msg": f"Files To Be Processed",
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
+            log_util.log(
+                msg={
+                    "msg": json.dumps(jsonable_encoder(file_dicts)),
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
+        data = club_raw_files(
+            config=config,
+            raw_dicts=file_dicts,
+            raw_url_file=config.args.raw_json_path,
+            json_storage_options=config.output.storage_options_dict,
+        )
+    else:
+        file_system = extract_fs(json_data_path, storage_options=config.args.storage_options_dict)
+        with file_system.open(json_data_path) as f:
+            data = json.load(f)
+
+    output: Output = Output()
+    for group in data:
+        for fdict in group:
+            transect_num = fdict.get("transect_num")
+            g = output.group.get(transect_num, Group())
+            g.group_name = transect_num
+            g.instrument = fdict.get("instrument")
+
+            obj = EchodataflowObject(
+                file_path=fdict.get("file_path"),
+                month=str(fdict.get("month")),
+                year=str(fdict.get("year")),
+                jday=str(fdict.get("jday")),
+                datetime=fdict.get("datetime"),
+                group_name=transect_num,
+                filename=os.path.basename(fdict.get("file_path")).split(".", maxsplit=1)[0],
+            )
+            g.data.append(obj)
+
+            output.group[transect_num] = g
+    return output
+
+
+def get_input_from_store(config: Dataset):
+    
+    store_path = config.args.store_path
+    
+    store: xr.Dataset = xr.open_zarr(store_path, storage_options=config.output.storage_options_dict)
+    samples = store.sizes['ping_time']
+    
+    if samples >= config.args.window_size:
+        
+        store_time = pd.to_datetime(store['ping_time'].values)
+        end_time = store_time[-1]
+        
+        start_time = end_time - timedelta(hours=config.args.time_travel_hours, minutes=config.args.time_travel_mins)
+
+        sliced_store = store.sel(ping_time=slice(start_time, end_time))
+        
+        store_time = pd.to_datetime(sliced_store['ping_time'].values)
+        n_frames = len(store_time)
+
+        indices = []
+        current_end = n_frames
+        current_start = max(0, current_end - config.args.window_size)
+        while current_start > 0:    
+            current_start = max(0, current_end - config.args.window_size)            
+            if current_end - current_start == config.args.window_size:
+                start_time = pd.to_datetime(sliced_store['ping_time'].values[current_start], unit="ns")
+                end_time = pd.to_datetime(sliced_store['ping_time'].values[current_end - 1], unit="ns")
+                indices.append((start_time, end_time))
+                
+            current_end = current_end - config.args.rolling_size
+            
+        output: Output = Output()
+        for stime, etime in indices:
+            g = output.group.get("DefaultGroup", Group())
+            g.group_name = "DefaultGroup"
+            g.instrument = config.sonar_model
+            obj = EchodataflowObject(
+                file_path=" ",   
+                group_name="DefaultGroup",
+                filename=f"win_{int(stime.timestamp())}_{int(etime.timestamp())}",
+                start_time=stime.isoformat(timespec='nanoseconds'),
+                end_time=etime.isoformat(timespec='nanoseconds')
+            )
+            obj.stages['store'] = store_path
+            g.data.append(obj)
+
+            output.group["DefaultGroup"] = g
+        return output
+    else:
+        raise ValueError("Not enough frames to process, try reducing the window size")
+        

@@ -15,12 +15,14 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+from datetime import datetime
 from typing import Dict, Optional
 
 from prefect import flow
 from prefect.task_runners import SequentialTaskRunner
 from prefect.variables import Variable
 import xarray as xr
+import pandas as pd
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
@@ -34,8 +36,7 @@ from echodataflow.utils.file_utils import get_out_zarr, get_working_dir
 @echodataflow(processing_stage="slice-store", type="FLOW")
 def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]):  
     # TODO
-    # Add more logging
-    # Determine starting index for each slice beforehand to execute this parallely
+    # Add more logging    
     
     log_util.log(
             msg={
@@ -72,20 +73,23 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                 else:
                     identifier = "store"
                     storepath = edf.stages.get("store")
-                
+                nextsub = None
                 store = xr.open_zarr(storepath, storage_options=config.output.storage_options_dict)                
                 
-                # get last processed index
-                var: Variable = Variable.get(name="last_"+ identifier +"_index", default=Variable(name="last_"+ identifier +"_index", value=0))
-                
-                # slice the store from the last processed index
-                sub = store.isel(ping_time=slice(int(var.value), None))
-                
-                # resample sub and store the new last processed index
-                sam = sub['ping_time'].resample(ping_time=stage.options.get("ping_time_bin", "10s"))                
-                last_v = max([v.start for v in sam.groups.values()])
-                
-                nextsub = sub.isel(ping_time=slice(0, last_v))
+                if edf.start_time and edf.end_time:
+                    nextsub = store.sel(ping_time=slice(pd.to_datetime(edf.start_time, unit="ns"), pd.to_datetime(edf.end_time, unit="ns")))
+                else:                 
+                    # get last processed index
+                    var: Variable = Variable.get(name="last_"+ identifier +"_index", default=Variable(name="last_"+ identifier +"_index", value=0))
+                    
+                    # slice the store from the last processed index
+                    sub = store.isel(ping_time=slice(int(var.value), None))
+                    
+                    # resample sub and store the new last processed index
+                    sam = sub['ping_time'].resample(ping_time=stage.options.get("ping_time_bin", "10s"))                
+                    last_v = max([v.start for v in sam.groups.values()])
+                    
+                    nextsub = sub.isel(ping_time=slice(0, last_v))
        
                 nextsub.compute().to_zarr(
                     store=out_zarr,
@@ -97,7 +101,9 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                 
                 edf.out_path = out_zarr
                 edf.error = ErrorObject(errorFlag=False)     
-                Variable.set(name="last_"+ identifier +"_index", value=str(last_v + int(var.value)), overwrite=True)           
+                
+                if not edf.start_time or not edf.end_time:
+                    Variable.set(name="last_"+ identifier +"_index", value=str(last_v + int(var.value)), overwrite=True)           
     except Exception as e:
         print(e)
         raise e
