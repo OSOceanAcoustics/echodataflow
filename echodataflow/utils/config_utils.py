@@ -37,6 +37,7 @@ from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
 from zipfile import ZipFile
 from echodataflow.models.echodataflow_config import EchodataflowConfig
 
+from echodataflow.models.run import EDFRun
 import nest_asyncio
 import yaml
 from dateutil import parser
@@ -555,6 +556,8 @@ def load_block(name: str = None, type: StorageType = None):
         coro = AzureCosmosDbCredentials.load(name=name)
     elif type == StorageType.ECHODATAFLOW or type == StorageType.ECHODATAFLOW.value:
         coro = EchodataflowConfig.load(name=name)
+    elif type == StorageType.EDFRUN or type == StorageType.EDFRUN.value:
+        coro = EDFRun.load(name=name)
 
     if isinstance(coro, Coroutine):
         block = nest_asyncio.asyncio.run(coro)
