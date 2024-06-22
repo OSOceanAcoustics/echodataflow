@@ -2,6 +2,7 @@ import os
 from typing import List, Dict, Any, Union
 import fsspec
 from prefect import flow, task
+from prefect.concurrency.sync import concurrency
 
 from echodataflow.utils.config_utils import glob_url
 from echodataflow.utils.file_utils import extract_fs, make_temp_folder
@@ -33,10 +34,11 @@ def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir:
 
     # Check if file needs to be downloaded
     if not file_system_dest.exists(out_path):
-        print(f"Downloading {file_url} to {out_path} ...")
-        with file_system_source.open(file_url, "rb") as source_file:
-            with file_system_dest.open(out_path, "wb") as dest_file:
-                dest_file.write(source_file.read())
+        with concurrency("edf-data-transfer", occupy=1):
+            print(f"Downloading {file_url} to {out_path} ...")
+            with file_system_source.open(file_url, "rb") as source_file:
+                with file_system_dest.open(out_path, "wb") as dest_file:
+                    dest_file.write(source_file.read())
         if delete_on_transfer:
             try:
                 file_system_source.rm(file_url)
