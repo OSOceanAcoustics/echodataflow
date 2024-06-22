@@ -168,16 +168,13 @@ def process_compute_mvbs(ed: EchodataflowObject, config: Dataset, stage: Stage, 
             )
 
             if stage.external_params:
-                range_bin = stage.external_params.get("range_meter_bin", None)
-                ping_time_bin = stage.external_params.get("ping_time_bin", None)
+                external_kwargs = stage.external_params                
             else:
-                range_bin = None
-                ping_time_bin = None                          
+                external_kwargs = None                      
             
             xr_d_mvbs: xr.Dataset = ep.commongrid.compute_MVBS(
                 ds_Sv=ed_list[0],
-                range_bin=range_bin,
-                ping_time_bin=ping_time_bin,
+                **external_kwargs
             )
             log_util.log(
                 msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": file_name},

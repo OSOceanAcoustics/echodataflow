@@ -166,14 +166,11 @@ def process_compute_sv(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
             )
 
             if stage.external_params:
-                wave_mode = stage.external_params.get("waveform_mode", None)
-                encode_mode = stage.external_params.get("encode_mode", None)
+                external_kwargs = stage.external_params                
             else:
-                wave_mode = None
-                encode_mode = None
+                external_kwargs = None
                 
-            xr_d_sv = ep.calibrate.compute_Sv(echodata=ed_list[0],  waveform_mode= wave_mode, 
-               encode_mode = encode_mode)
+            xr_d_sv = ep.calibrate.compute_Sv(echodata=ed_list[0], **external_kwargs)
 
             log_util.log(
                 msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": file_name},
