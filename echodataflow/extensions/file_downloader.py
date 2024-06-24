@@ -1,6 +1,6 @@
 import os
+import time
 from typing import List, Dict, Any, Union
-import fsspec
 from prefect import flow, task
 from prefect.concurrency.sync import concurrency
 
@@ -80,7 +80,8 @@ def edf_data_transfer(
     storage_options["dest"] = destination_storage_options
 
     for file_url in files:
-        local_path = download_temp_file.submit(file_url, storage_options, destination, delete_on_transfer)
+        time.sleep(1)
+        local_path = download_temp_file.with_options(task_run_name=os.path.basename(file_url)).submit(file_url, storage_options, destination, delete_on_transfer)
         downloaded_files.append(local_path)
 
     return downloaded_files
