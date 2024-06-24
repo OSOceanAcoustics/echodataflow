@@ -123,7 +123,7 @@ def file_monitor(
     
     print(all_files)
     # Skip the most recently modified file
-    if all_files and (datetime.now() - timedelta(hours=hour_threshold, minutes=minute_threshold)) > all_files[-1][1]:
+    if all_files and (datetime.now() - timedelta(hours=hour_threshold, minutes=minute_threshold)) < all_files[-1][1]:
         all_files = all_files[:-1]
 
     futures = []
