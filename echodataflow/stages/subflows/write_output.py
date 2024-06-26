@@ -56,6 +56,7 @@ def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_s
                     )
                     if not isFile(out_zarr, config.output.storage_options_dict):
                         append_dim = None
+                        mode = "w"
                     
                     log_util.log(
                     msg={
@@ -71,6 +72,13 @@ def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_s
                     transect_data=edf, storage_options=config.output.storage_options_dict
                     )[0]
                     
+                    encoding = {}
+                    if mode == "w":
+                        for k, _ in ed_list.data_vars.items():
+                            encoding[k] = {"compressor": Zlib(level=2)}
+                    else:
+                        encoding = None
+                                        
                     ed_list.to_zarr(
                         store=out_zarr,
                         mode=mode,
@@ -78,6 +86,7 @@ def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_s
                         storage_options=config.output.storage_options_dict,
                         append_dim=append_dim,
                         synchronizer=zarr.sync.ThreadSynchronizer(),
+                        encoding=encoding,
                         safe_chunks=False
                     )
                     
