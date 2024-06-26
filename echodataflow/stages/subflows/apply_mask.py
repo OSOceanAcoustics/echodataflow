@@ -187,11 +187,17 @@ def process_apply_mask(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
                 ed_list[0] = ed_list[0].swap_dims({"echo_range": "range_sample"}).rename_vars({"echo_range": "range_sample"})
                 mask = mask.swap_dims({"echo_range": "range_sample"})
             
+            if stage.external_params:
+                external_kwargs = stage.external_params                
+            else:
+                external_kwargs = None
+                
             xr_d = apply_mask(
                 source_ds=ed_list[0],
                 mask=mask,
                 storage_options_ds=config.output.storage_options_dict,
                 storage_options_mask=config.output.storage_options_dict,
+                **external_kwargs
             )
             log_util.log(
                 msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": file_name},

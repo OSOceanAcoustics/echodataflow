@@ -26,7 +26,7 @@ from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
-from echodataflow.utils.file_utils import get_ed_list, get_out_zarr, get_working_dir, isFile
+from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zarr_list, isFile
 
 
 @flow
@@ -155,18 +155,22 @@ def process_add_location(ed: EchodataflowObject, config: Dataset, stage: Stage, 
                 eflogging=config.logging,
             )
 
-            ed_list = get_ed_list.fn(config=config, stage=stage, transect_data=ed)
+            ed_list = get_zarr_list.fn(transect_data=ed, storage_options=config.output.storage_options_dict)
 
             log_util.log(
                 msg={"msg": f"Computing SV", "mod_name": __file__, "func_name": file_name},
                 use_dask=stage.options["use_dask"],
                 eflogging=config.logging,
             )
-
+            
+            if stage.external_params:
+                external_kwargs = stage.external_params                
+            else:
+                external_kwargs = None
+                
             xr_d = ep.consolidate.add_location(
                 ds=ed_list[0],
-                echodata=stage.external_params.get("echodata"),
-                nmea_sentence=stage.external_params.get("nmea_sentence"),
+                **external_kwargs
             )
 
             log_util.log(

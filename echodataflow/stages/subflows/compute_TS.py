@@ -169,7 +169,12 @@ def process_compute_ts(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
                 eflogging=config.logging,
             )
 
-            xr_d_ts = ep.calibrate.compute_TS(echodata=ed_list[0])
+            if stage.external_params:
+                external_kwargs = stage.external_params                
+            else:
+                external_kwargs = None
+                
+            xr_d_ts = ep.calibrate.compute_TS(echodata=ed_list[0], **external_kwargs)
 
             log_util.log(
                 msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": file_name},

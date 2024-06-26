@@ -174,11 +174,15 @@ def process_frequency_differencing(
                 use_dask=stage.options["use_dask"],
                 eflogging=config.logging,
             )
-
+            if stage.external_params:
+                external_kwargs = stage.external_params                
+            else:
+                external_kwargs = None
+                
             xr_d = ep.mask.frequency_differencing(
                 source_Sv=ed_list[0],
-                freqABEq=stage.external_params.get("freqABEq"),
                 storage_options=config.output.storage_options_dict,
+                **external_kwargs
             )
 
             log_util.log(
