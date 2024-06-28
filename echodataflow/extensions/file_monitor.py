@@ -183,8 +183,7 @@ def file_monitor(
                 exceptionFlag = True
                 break
             
-    if not exceptionFlag:
-        edfrun.last_run_time = new_run
+    edfrun.last_run_time = new_run
 
     block = edfrun.save(
             "edf-fm-last-run", overwrite=True
