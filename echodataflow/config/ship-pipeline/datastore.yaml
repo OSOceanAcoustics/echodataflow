@@ -1,0 +1,14 @@
+name: Bell_M._Shimada-SH2208-EK80
+sonar_model: EK60 
+raw_regex: (.*)-?D(?P<date>\w{1,8})-T(?P<time>\w{1,6}) 
+args: 
+  urlpath: s3://ncei-wcsd-archive/data/raw/Bell_M._Shimada/SH1707/EK60/{{file_name}}.raw
+  parameters:
+    file_name: Hake-D20220720-T234313
+  storage_options:
+    anon: true
+  json_export: true 
+output: 
+  urlpath: /home/exouser/Echodataflow/EK60/echodataflow-output
+  retention: true
+  overwrite: true

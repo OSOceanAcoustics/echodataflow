@@ -1,0 +1,19 @@
+name: Bell_M._Shimada-SH1707-EK60
+sonar_model: EK60
+raw_regex: (.*)-?D(?P<date>\w{1,8})-T(?P<time>\w{1,6}) 
+args: 
+  storepath: /home/exouser/Echodataflow/EK60/stores/MVBSStore/zarr_files/{{file_name}}.zarr
+  parameters:
+    file_name: Bell_M._Shimada-SH2208-EK80
+  storage_options:
+    anon: true
+  window_size: 500
+  time_travel_hours: 2
+  time_travel_mins: 0
+  rolling_size: 500
+  json_export: true 
+output: 
+  urlpath: /home/exouser/Echodataflow/EK60/echodataflow-output/ml
+  retention: true
+  overwrite: true
+  
