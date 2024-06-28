@@ -220,6 +220,8 @@ def process_stages_disk(
         groups = process_output_groups(
             name=stage.name, stage=stage, config=config, groups=groups, error_groups=error_groups
         )
+        output.group = groups
+        
         store_json_output(data=output, name=stage.name + "_output", config=config)
 
         store_json_output(data=error_groups, name=stage.name + "_ErroredGroups", config=config)
@@ -232,20 +234,6 @@ def process_stages_disk(
             },
             eflogging=config.logging,
         )
-
-        if prev_stage is not None:
-            if config.output.retention == False:
-                if (
-                    prev_stage.options.get("save_offline") is None
-                    or prev_stage.options.get("save_offline") == False
-                ):
-                    cleanup(config, prev_stage)
-            else:
-                if (
-                    prev_stage.options.get("save_offline") is not None
-                    and prev_stage.options.get("save_offline") == False
-                ):
-                    cleanup(config, prev_stage)
 
         prev_stage = stage
 
@@ -261,6 +249,8 @@ def process_stages_disk(
             eflogging=config.logging,
         )
 
+    cleanup(output=output, config=config, pipeline=active_pipeline)
+    
     # Incase where the output is too big, this call might be expensive and not feasible on
     # systems with low memory, commenting the call.
     # output = get_last_run_output(data=output, storage_options=config.output.storage_options_dict)

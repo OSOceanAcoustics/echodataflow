@@ -30,6 +30,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+from collections import defaultdict
 import json
 import os
 import platform
@@ -48,7 +49,7 @@ from prefect import task
 
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, Group, Output
-from echodataflow.models.pipeline import Stage
+from echodataflow.models.pipeline import Pipeline, Stage
 from echodataflow.utils import log_util
 
 
@@ -566,7 +567,7 @@ def get_output(type: str = "Output"):
     return output_list
 
 
-def cleanup(config: Dataset, stage: Stage):
+def cleanup(output:Output, config: Dataset, pipeline: Pipeline):
     """
     Clean up working directory associated with a specific stage of processing.
 
@@ -583,16 +584,26 @@ def cleanup(config: Dataset, stage: Stage):
         >>> output_data = [Output(data=[...]), Output(data=[...])]
         >>> cleanup(dataset_config, processing_stage, output_data)
     """
-    if stage is not None:
-        working_dir = get_working_dir(stage=stage, config=config)
-        fs = extract_fs(working_dir, storage_options=config.output.storage_options_dict)
-        print("Cleaning : ", working_dir)
+    
+    stages = defaultdict(bool)
+    
+    for stage in pipeline.stages:
+        
+        if not stage.options.get("save_offline"):
+            stages[stage.name] = config.output.retention
+        else:
+            stages[stage.name] = stage.options.get("save_offline") 
+    print(stages)
+    for _, group in output.group.items():
+        for edf in group.data:
+            for sname, path in edf.stages.items():
+                print(sname, path)
+                if not stages[sname]:
         try:
-            fs.rm(working_dir, recursive=True)
-            print("Cleanup complete")
+                        fs = extract_fs(path, storage_options=config.output.storage_options_dict)
+                        fs.rm(path, recursive=True)
         except Exception as e:
-            print(e)
-            print("Failed to cleanup " + working_dir)
+                        print("Failed to cleanup " + path)
 
 
 def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any] = {}):

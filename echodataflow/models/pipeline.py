@@ -48,7 +48,7 @@ class Stage(BaseModel):
     name: str
     module: Optional[str] = None
     external_params: Optional[Dict[str, Any]] = None
-    options: Optional[Dict[str, Any]] = None
+    options: Optional[Dict[str, Any]] = {}
     prefect_config: Optional[Dict[str, Any]] = None
     dependson: Optional[Dict[str, Any]] = None
 
