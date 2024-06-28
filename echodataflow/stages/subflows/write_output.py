@@ -4,7 +4,7 @@ import xarray as xr
 from prefect.task_runners import SequentialTaskRunner
 import zarr.sync
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.output_model import Group
+from echodataflow.models.output_model import ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
 from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zarr_list, isFile
@@ -75,7 +75,7 @@ def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_s
                     encoding = {}
                     if mode == "w":
                         for k, _ in ed_list.data_vars.items():
-                            encoding[k] = {"compressor": Zlib(level=2)}
+                            encoding[k] = {"compressor": Zlib(level=1)}
                     else:
                         encoding = None
                                         
@@ -90,14 +90,18 @@ def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_s
                         safe_chunks=False
                     )
                     
-                    if prev_stage.name == "echodataflow_compute_Sv":
+                    if "echodataflow_compute_Sv" in edf.stages.keys():
                         edf.stages["Sv_store"] = out_zarr                    
-                    elif prev_stage.name == "echodataflow_compute_MVBS":
+                    elif "echodataflow_compute_MVBS" in edf.stages.keys():
                         edf.stages["MVBS_store"] = out_zarr   
                     else:
                         edf.stages["store"] = out_zarr   
                     
     except Exception as e:
-        print(e)
-        raise e
+        log_util.log(
+            msg={"msg": f"Some Error Occurred {str(e)}", "mod_name": __file__, "func_name": "Write Output"},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+        edf.error = ErrorObject(errorFlag=True, error_desc=str(e))  
     return groups

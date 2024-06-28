@@ -165,10 +165,8 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
                 use_dask=stage.options["use_dask"],
                 eflogging=config.logging,
             )
-            if stage.external_params:
-                external_kwargs = stage.external_params                
-            else:
-                external_kwargs = None
+            
+            external_kwargs = stage.external_params                
                 
             ceds = combine_echodata(echodata_list=ed_list, **external_kwargs)
 
@@ -206,7 +204,13 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
         ed.out_path = out_zarr
         ed.error = ErrorObject(errorFlag=False)
         group.data = [ed]
+        ed.stages[stage.name] = out_zarr
     except Exception as e:
+        log_util.log(
+            msg={"msg": f"Some Error Occurred {str(e)}", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
         ed = group.data[0]
         ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:

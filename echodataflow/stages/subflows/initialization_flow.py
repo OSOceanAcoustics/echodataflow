@@ -170,6 +170,9 @@ def process_stages_disk(
             client.forward_logging("echodataflow_logs")
             stage.options["use_dask"] = True
 
+        if not stage.external_params:
+            stage.external_params = {}
+        
         if not sanitize_external_params(config, stage.external_params):
             raise ValueError(
                 "Sanity Check Failed. One or more external parameters passed have a problem."

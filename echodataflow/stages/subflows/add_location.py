@@ -26,7 +26,7 @@ from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
-from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zarr_list, isFile
+from echodataflow.utils.file_utils import get_ed_list, get_out_zarr, get_working_dir, get_zarr_list, isFile
 
 
 @flow
@@ -115,7 +115,7 @@ def process_add_location(ed: EchodataflowObject, config: Dataset, stage: Stage, 
         print(" Output :", add_location_output)
     """
 
-    file_name = ed.filename + "_add location.zarr"
+    file_name = ed.filename + "_location.zarr"
 
     try:
         log_util.log(
@@ -163,13 +163,17 @@ def process_add_location(ed: EchodataflowObject, config: Dataset, stage: Stage, 
                 eflogging=config.logging,
             )
             
-            if stage.external_params:
-                external_kwargs = stage.external_params                
-            else:
-                external_kwargs = None
+            external_kwargs = stage.external_params                
+            
+            if ed.stages.get('echodataflow_open_raw'):
+                ecd = ep.open_converted(ed.stages.get('echodataflow_open_raw'), 
+                                       storage_options=config.output.storage_options_dict)
+                # Fix for The echodata["Platform"]["time1"] array contains duplicate values.
+                ecd["Platform"] = ecd["Platform"].drop_duplicates("time1")
                 
             xr_d = ep.consolidate.add_location(
                 ds=ed_list[0],
+                echodata=ecd,
                 **external_kwargs
             )
 
@@ -203,7 +207,13 @@ def process_add_location(ed: EchodataflowObject, config: Dataset, stage: Stage, 
         )
         ed.out_path = out_zarr
         ed.error = ErrorObject(errorFlag=False)
+        ed.stages[stage.name] = out_zarr
     except Exception as e:
+        log_util.log(
+            msg={"msg": f"Some Error Occurred {str(e)}", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
         ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
         return ed

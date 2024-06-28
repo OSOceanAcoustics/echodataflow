@@ -171,12 +171,9 @@ def process_mask_prediction(
                 eflogging=config.logging,
             )
 
-            if not stage.external_params:
-                stage.external_params = {}
-            
             bottom_offset = stage.external_params.get('bottom_offset', 1.0)
             temperature = stage.external_params.get('temperature', 0.5)
-            freq_wanted = stage.external_params.get('freq_wanted', [18000, 38000, 12000])
+            freq_wanted = stage.external_params.get('freq_wanted', [120000, 38000, 18000])
             
             ch_wanted = [int((np.abs(ed_list[0]["frequency_nominal"]-freq)).argmin()) for freq in freq_wanted]
 
@@ -194,7 +191,7 @@ def process_mask_prediction(
             model = BinaryHakeModel("placeholder_experiment_name",
                                     Path("placeholder_score_tensor_dir"),
                                     "placeholder_tensor_log_dir", 0).eval()
-            model.load_state_dict(torch.load(f"/home/exouser/hake_data/Hake_ML/backup_model_weights/binary_hake_model_{bottom_offset}m_bottom_offset_1.0m_depth_2017_2019_ver_1.ckpt")["state_dict"])            
+            model.load_state_dict(torch.load(f"/home/exouser/hake_data/model/backup_model_weights/binary_hake_model_{bottom_offset}m_bottom_offset_1.0m_depth_2017_2019_ver_1.ckpt")["state_dict"])            
             
             mvbs_tensor = torch.tensor(mvbs_slice['Sv'].values, dtype=torch.float32).unsqueeze(0)
 
@@ -209,7 +206,7 @@ def process_mask_prediction(
             MVBS_tensor_normalized = (
                 (da_MVBS_tensor - (-70.0)) / (-36.0 - (-70.0)) * 255.0
             )
-            input_tensor = MVBS_tensor_normalized.unsqueeze(0).float()
+            input_tensor = MVBS_tensor_normalized.float()
             
             score_tensor = model(input_tensor).detach().squeeze(0)
             
@@ -219,7 +216,7 @@ def process_mask_prediction(
                 eflogging=config.logging,
             )
 
-            dims = ['ping_time', 'echo_range']
+            dims = ['ping_time', 'depth']
             
             softmax_score_tensor = torch.nn.functional.softmax(
                 score_tensor / temperature, dim=0
@@ -287,7 +284,13 @@ def process_mask_prediction(
         )
         ed.stages["mask"] = out_zarr
         ed.error = ErrorObject(errorFlag=False)
+        ed.stages[stage.name] = out_zarr
     except Exception as e:
+        log_util.log(
+            msg={"msg": f"Some Error Occurred {str(e)}", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
         ed.error = ErrorObject(errorFlag=True, error_desc=e)
     finally:
         return ed

@@ -384,12 +384,21 @@ def process_output_groups(
     #         log_util.log(msg={'msg':f'Encountered Some Error in {file}', 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)
     #         log_util.log(msg={'msg':error_description, 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)
     #         error_groups[edf.group_name] = g
-
+    error = None
+    error_type = None
     for _, gr in groups.items():
         for ed in gr.data:
             if ed.error and ed.error.errorFlag == True:
                 error_flag = True
-                error_description = str(ed.error.error_desc)
+                
+                if error_type:
+                    if error_type != "INTERNAL":
+                        error_type = ed.error.error_type
+                        error = ed.error.error_desc
+                else:
+                    error_type = ed.error.error_type 
+                    error = ed.error.error_desc
+                    
                 file = str(ed.filename)
                 log_util.log(
                     msg={
@@ -401,7 +410,7 @@ def process_output_groups(
                     eflogging=config.logging,
                 )
                 log_util.log(
-                    msg={"msg": error_description, "mod_name": __file__, "func_name": "file_utils"},
+                    msg={"msg": error, "mod_name": __file__, "func_name": "file_utils"},
                     use_dask=stage.options["use_dask"],
                     eflogging=config.logging,
                 )
@@ -411,6 +420,10 @@ def process_output_groups(
         for name, _ in error_groups.items():
             print("Deleting ", groups[name])
             del groups[name]
+            
+    if len(groups.keys()) == 0 and error_type and error_type != "INTERNAL":
+        raise ValueError(f"Some Error Occurred {error}") 
+    
     return groups
 
 

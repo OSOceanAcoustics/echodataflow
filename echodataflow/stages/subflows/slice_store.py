@@ -15,7 +15,6 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-from datetime import datetime
 from typing import Dict, Optional
 
 from prefect import flow
@@ -91,6 +90,11 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                     
                     nextsub = sub.isel(ping_time=slice(0, last_v))
        
+                time_diffs = pd.Series(nextsub['ping_time'].values).diff()
+
+                one_hour = pd.Timedelta(hours=stage.external_params.get('ping_diff_threshold', 1))
+                time_diff_exceeds_one_hour = time_diffs > one_hour
+    
                 nextsub.compute().to_zarr(
                     store=out_zarr,
                     mode="w",
@@ -99,12 +103,23 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                     safe_chunks=False,                    
                 )
                 
-                edf.out_path = out_zarr
-                edf.error = ErrorObject(errorFlag=False)     
+                if any(time_diff_exceeds_one_hour):
+                        # Fail softly, probably rename the zarr store?
+                        edf.error = ErrorObject(errorFlag=True, 
+                                                error_desc=f"Time difference between any two pings crossed the threshold of {stage.external_params.get('ping_diff_threshold', 1)} hour(s)", 
+                                                error_type="INTERNAL")        
+                else:
+                    edf.out_path = out_zarr
+                    edf.error = ErrorObject(errorFlag=False)     
                 
                 if not edf.start_time or not edf.end_time:
                     Variable.set(name="last_"+ identifier +"_index", value=str(last_v + int(var.value)), overwrite=True)           
+                edf.stages[stage.name] = out_zarr
     except Exception as e:
-        print(e)
-        raise e
+        log_util.log(
+            msg={"msg": f"Some Error Occurred {str(e)}", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+        edf.error = ErrorObject(errorFlag=True, error_desc=str(e))  
     return groups

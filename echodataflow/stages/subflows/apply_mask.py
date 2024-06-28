@@ -184,13 +184,10 @@ def process_apply_mask(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
             
             # temporary fix
             if "range_sample" not in ed_list[0].coords:
-                ed_list[0] = ed_list[0].swap_dims({"echo_range": "range_sample"}).rename_vars({"echo_range": "range_sample"})
-                mask = mask.swap_dims({"echo_range": "range_sample"})
+                ed_list[0] = ed_list[0].swap_dims({"depth": "range_sample"}).rename_vars({"depth": "range_sample"})
+                mask = mask.swap_dims({"depth": "range_sample"})
             
-            if stage.external_params:
-                external_kwargs = stage.external_params                
-            else:
-                external_kwargs = None
+            external_kwargs = stage.external_params                
                 
             xr_d = apply_mask(
                 source_ds=ed_list[0],
@@ -205,7 +202,7 @@ def process_apply_mask(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
                 eflogging=config.logging,
             )
 
-            xr_d.to_zarr(
+            xr_d.compute().to_zarr(
                 store=out_zarr,
                 mode="w",
                 consolidated=True,
@@ -231,7 +228,13 @@ def process_apply_mask(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
 
         ed.out_path = out_zarr
         ed.error = ErrorObject(errorFlag=False)
+        ed.stages[stage.name] = out_zarr
     except Exception as e:
+        log_util.log(
+            msg={"msg": f"Some Error Occurred {str(e)}", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
         ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
         return ed

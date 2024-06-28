@@ -27,6 +27,7 @@ class ErrorObject(BaseModel):
         error_desc (Optional[str]): Description of the error.
     """
 
+    error_type: str = "EXTERNAL"
     errorFlag: bool = False
     error_desc: str = None
 
