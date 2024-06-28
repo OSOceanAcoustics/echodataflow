@@ -136,8 +136,11 @@ def process_stages_disk(
                 msg={"msg": f"{client}", "mod_name": __file__, "func_name": "Init Flow"},
                 eflogging=config.logging,
             )
-            client.forward_logging("echodataflow")
             stage.options["use_dask"] = True
+            gea = Singleton_Echodataflow().get_instance()
+            
+            if gea.logger:
+                client.subscribe_topic("echodataflow", lambda event: log_util.log_event(event=event))
         elif (
             pipeline.use_local_dask == True
             and prefect_config_dict is not None
@@ -167,8 +170,11 @@ def process_stages_disk(
                 },
                 eflogging=config.logging,
             )
-            client.forward_logging("echodataflow_logs")
             stage.options["use_dask"] = True
+            gea = Singleton_Echodataflow().get_instance()
+            
+            if gea.logger:
+                client.subscribe_topic("echodataflow", lambda event: log_util.log_event(event))
 
         if not stage.external_params:
             stage.external_params = {}
@@ -242,8 +248,6 @@ def process_stages_disk(
                     cleanup(config, prev_stage)
 
         prev_stage = stage
-
-    log_util.log_stream()
 
     # Close the local cluster but not the cluster hosted.
     if pipeline.scheduler_address is None and pipeline.use_local_dask == True:

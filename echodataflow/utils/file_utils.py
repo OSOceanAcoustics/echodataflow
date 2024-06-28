@@ -392,7 +392,7 @@ def process_output_groups(
                 error_flag = True
                 
                 if error_type:
-                    if error_type != "INTERNAL":
+                    if error_type == "INTERNAL":
                         error_type = ed.error.error_type
                         error = ed.error.error_desc
                 else:

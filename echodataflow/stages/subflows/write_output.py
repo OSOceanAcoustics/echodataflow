@@ -99,9 +99,10 @@ def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_s
                     
     except Exception as e:
         log_util.log(
-            msg={"msg": f"Some Error Occurred {str(e)}", "mod_name": __file__, "func_name": "Write Output"},
+            msg={"msg": "", "mod_name": __file__, "func_name": filename},
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
+            error=e
         )
         edf.error = ErrorObject(errorFlag=True, error_desc=str(e))  
     return groups

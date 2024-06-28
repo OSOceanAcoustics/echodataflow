@@ -207,9 +207,10 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
         ed.stages[stage.name] = out_zarr
     except Exception as e:
         log_util.log(
-            msg={"msg": f"Some Error Occurred {str(e)}", "mod_name": __file__, "func_name": file_name},
+            msg={"msg": "", "mod_name": __file__, "func_name": file_name},
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
+            error=e
         )
         ed = group.data[0]
         ed.error = ErrorObject(errorFlag=True, error_desc=str(e))

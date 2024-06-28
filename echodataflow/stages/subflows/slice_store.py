@@ -15,6 +15,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+
 from typing import Dict, Optional
 
 from prefect import flow
@@ -117,9 +118,10 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                 edf.stages[stage.name] = out_zarr
     except Exception as e:
         log_util.log(
-            msg={"msg": f"Some Error Occurred {str(e)}", "mod_name": __file__, "func_name": file_name},
+            msg={"msg": "", "mod_name": __file__, "func_name": file_name},
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
+            error=e
         )
         edf.error = ErrorObject(errorFlag=True, error_desc=str(e))  
     return groups

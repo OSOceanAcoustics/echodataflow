@@ -206,9 +206,10 @@ def process_compute_ts(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
         ed.stages[stage.name] = out_zarr
     except Exception as e:
         log_util.log(
-            msg={"msg": f"Some Error Occurred {str(e)}", "mod_name": __file__, "func_name": file_name},
+            msg={"msg": "", "mod_name": __file__, "func_name": file_name},
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
+            error=e
         )
         ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
