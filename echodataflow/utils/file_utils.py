@@ -599,10 +599,10 @@ def cleanup(output:Output, config: Dataset, pipeline: Pipeline):
             for sname, path in edf.stages.items():
                 print(sname, path)
                 if not stages[sname]:
-        try:
+                    try:
                         fs = extract_fs(path, storage_options=config.output.storage_options_dict)
                         fs.rm(path, recursive=True)
-        except Exception as e:
+                    except Exception as e:
                         print("Failed to cleanup " + path)
 
 
