@@ -7,7 +7,7 @@ from prefect import flow, task
 from prefect.blocks.core import Block
 from prefect.deployments import run_deployment
 from prefect.client.schemas.objects import FlowRun, StateType
-
+from prefect.variables import Variable
 from datetime import datetime
 
 from echodataflow.models.datastore import StorageType
@@ -127,7 +127,15 @@ def file_monitor(
         all_files = all_files[:-1]
 
     futures = []
-
+    
+    var: Variable = Variable.get(name="run_name", default=None)
+    
+    if not var:
+        value = f"Bell_M._Shimada-SH2407-EK80_{datetime.now().isoformat()}"
+        Variable.set(name="run_name", value=value, overwrite=True)
+    else:
+        value = var.value
+        
     if fail_safe:
         for file_path, file_mtime, file in all_files:
             edfrun.processed_files[file].retry_count += 1
@@ -166,6 +174,12 @@ def file_monitor(
             
             # TODO
             # check if retry threshold has reached, if yes, start a new store?
+            if edfrun.processed_files[file].retry_count == retry_threshold:
+                value = f"Bell_M._Shimada-SH2407-EK80_{datetime.now().isoformat()}"
+                Variable.set(name="run_name", value=value, overwrite=True)
+                options["run_name"] = value
+            else:
+                options["run_name"] = value
             
             status = execute_flow.with_options(tags=["edfFM"], task_run_name=file_path)(
                 dataset_config=dataset_config,
