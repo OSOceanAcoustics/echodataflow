@@ -1,25 +1,24 @@
-"""
-Echodataflow Combine Echodata Stage
 
-This module defines a Prefect Flow and associated tasks for the Echodataflow Combine Echodata stage.
-The stage involves combining echodata files into a single zarr file, organized by transects.
+"""
+Echodataflow Compute_nasc Task
+
+This module defines a Prefect Flow and associated tasks for the Echodataflow Compute_nasc stage.
 
 Classes:
     None
 
 Functions:
-    echodataflow_combine_echodata(config: Dataset, stage: Stage, data: List[Output])
-    process_combine_echodata(config: Dataset, stage: Stage, out_data: Union[List[Dict], List[Output]], working_dir: str)
+    echodataflow_compute_NASC(config: Dataset, stage: Stage, data: Union[str, List[Output]])
+    process_compute_NASC(config: Dataset, stage: Stage, out_data: Union[List[Dict], List[Output]], working_dir: str)
 
 Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-
 from collections import defaultdict
 from typing import Dict, Optional
 
-from echopype import combine_echodata
+import echopype as ep
 from prefect import flow, task
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
@@ -27,21 +26,16 @@ from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
-from echodataflow.utils.file_utils import (
-    get_ed_list,
-    get_out_zarr,
-    get_working_dir,
-    isFile,
-)
+from echodataflow.utils.file_utils import get_ed_list, get_out_zarr, get_working_dir, get_zarr_list, isFile
 
 
 @flow
-@echodataflow(processing_stage="Combine-Echodata", type="FLOW")
-def echodataflow_combine_echodata(
-    groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
+@echodataflow(processing_stage="compute-NASC", type="FLOW")
+def echodataflow_compute_NASC(
+        groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
-    Combine echodata files into a single zarr file organized by transects.
+    compute NASC from echodata.
 
     Args:
         config (Dataset): Configuration for the dataset being processed.
@@ -49,59 +43,62 @@ def echodataflow_combine_echodata(
         prev_stage (Stage): Configuration for the previous processing stage.
 
     Returns:
-        List[Output]: List of combined outputs organized by transects.
+        List[Output]: List of The input dataset with the compute NASC data added.
 
     Example:
         # Define configuration and data
         dataset_config = ...
         pipeline_stage = ...
-        processed_data = ...
+        echodata_outputs = ...
 
-        # Execute the Echodataflow Combine Echodata stage
-        combined_outputs = echodataflow_combine_echodata(
+        # Execute the Echodataflow compute_NASC stage
+        compute_NASC_output = echodataflow_compute_NASC(
             config=dataset_config,
             stage=pipeline_stage,
-            data=processed_data
+            data=echodata_outputs
         )
-        print("Combined outputs:", combined_outputs)
+        print("Output :", compute_NASC_output)
     """
-
     working_dir = get_working_dir(stage=stage, config=config)
 
-    futures = defaultdict()
+    futures = defaultdict(list)
 
     for name, gr in groups.items():
-        gname = gr.group_name.split(".")[0] + ".zarr"
-        new_process = process_combine_echodata.with_options(
-            task_run_name=gname, name=gname, retries=3
-        )
-        future = new_process.submit(
-            group=gr, working_dir=working_dir, config=config, stage=stage
-        )
-        futures[name] = future
+        for ed in gr.data:
+            gname = ed.out_path.split(".")[0] + ".Computenasc"
+            new_process = process_compute_NASC.with_options(
+                task_run_name=gname, name=gname, retries=3
+                    )
+            future = new_process.submit(
+                ed=ed, working_dir=working_dir, config=config, stage=stage
+                )
+            futures[name].append(future)
 
-    for name, f in futures.items():
+    for name, flist in futures.items():
         try:
-            groups[name] = f.result()
+            groups[name].data = [f.result() for f in flist]
         except Exception as e:
             groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
+
     return groups
 
 
 @task
 @echodataflow()
-def process_combine_echodata(group: Group, config: Dataset, stage: Stage, working_dir: str):
+def process_compute_NASC(
+    ed: EchodataflowObject, config: Dataset, stage: Stage, working_dir: str
+):
     """
-    Process and combine echodata files into a single zarr file.
+    Process and compute NASC from Echodata object into the dataset.
 
     Args:
         config (Dataset): Configuration for the dataset being processed.
         stage (Stage): Configuration for the current processing stage.
-        out_data (Union[List[Dict], List[Output]]): List of processed outputs to be combined.
+        out_data (Union[Dict, Output]): Processed outputs (xr.Dataset) to compute NASC.
         working_dir (str): Working directory for processing.
 
     Returns:
-        Output: Combined output information.
+        The input dataset with the compute NASC data added
 
     Example:
         # Define configuration, processed data, and working directory
@@ -110,30 +107,33 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
         processed_outputs = ...
         working_directory = ...
 
-        # Process and combine echodata
-        combined_output = process_combine_echodata(
+        # Process and compute NASC
+        compute_NASC_output = process_compute_NASC(
             config=dataset_config,
             stage=pipeline_stage,
             out_data=processed_outputs,
             working_dir=working_directory
         )
-        print("Combined output:", combined_output)
+        print(" Output :", compute_NASC_output)
     """
-    file_name = group.group_name
-    log_util.log(
-        msg={"msg": f" ---- Entering ----", "mod_name": __file__, "func_name": "Combine Echodata"},
-        use_dask=stage.options["use_dask"],
-        eflogging=config.logging,
-    )
-    ed_list = []
-    out_zarr = get_out_zarr(
-        group=stage.options.get("group", True),
-        working_dir=working_dir,
-        transect=file_name,
-        file_name=file_name + ".zarr",
-        storage_options=config.output.storage_options_dict,
-    )
+
+    file_name = ed.filename + "_NASC.zarr"
+
     try:
+        log_util.log(
+            msg={"msg": " ---- Entering ----", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+
+        out_zarr = get_out_zarr(
+            group=stage.options.get("group", True),
+            working_dir=working_dir,
+            transect=ed.group_name,
+            file_name=file_name,
+            storage_options=config.output.storage_options_dict,
+        )
+
         log_util.log(
             msg={
                 "msg": f"Processing file, output will be at {out_zarr}",
@@ -158,17 +158,20 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
                 eflogging=config.logging,
             )
 
-            ed_list = get_ed_list.fn(config=config, stage=stage, transect_data=group.data)
+            ed_list = get_zarr_list.fn(transect_data=ed, storage_options=config.output.storage_options_dict)
 
             log_util.log(
-                msg={"msg": f"Combining Zarr", "mod_name": __file__, "func_name": file_name},
+                msg={"msg": 'Computing compute_NASC', "mod_name": __file__, "func_name": file_name},
                 use_dask=stage.options["use_dask"],
                 eflogging=config.logging,
             )
-            
-            external_kwargs = stage.external_params                
-                
-            ceds = combine_echodata(echodata_list=ed_list, **external_kwargs)
+
+            external_kwargs = stage.external_params
+
+            xr_d = ep.commongrid.compute_NASC(
+                ds_Sv=ed_list[0],
+                **external_kwargs
+            )
 
             log_util.log(
                 msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": file_name},
@@ -176,13 +179,12 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
                 eflogging=config.logging,
             )
 
-            ceds.to_zarr(
-                save_path=out_zarr,
-                overwrite=True,
-                output_storage_options=dict(config.output.storage_options_dict),
-                compute=False,
+            xr_d.to_zarr(
+                store=out_zarr,
+                mode="w",
+                consolidated=True,
+                storage_options=config.output.storage_options_dict,
             )
-            del ceds
         else:
             log_util.log(
                 msg={
@@ -199,11 +201,8 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
         )
-
-        ed = EchodataflowObject(filename=group.group_name, out_path=out_zarr, group_name=file_name)
         ed.out_path = out_zarr
         ed.error = ErrorObject(errorFlag=False)
-        group.data = [ed]
         ed.stages[stage.name] = out_zarr
     except Exception as e:
         log_util.log(
@@ -212,7 +211,6 @@ def process_combine_echodata(group: Group, config: Dataset, stage: Stage, workin
             eflogging=config.logging,
             error=e
         )
-        ed = group.data[0]
         ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
-        return group
+        return ed

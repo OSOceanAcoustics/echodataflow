@@ -18,9 +18,10 @@ Date: August 22, 2023
 from collections import defaultdict
 from typing import Dict, Optional
 
-import echopype as ep
+from echopype.utils.io import validate_source
+from echopype.mask import apply_mask
 from prefect import flow, task
-
+import xarray as xr
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
@@ -178,11 +179,22 @@ def process_apply_mask(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
                 for _, v in stage.dependson.items():
                     input_feed[v] = ed.stages.get("mask")
 
-            xr_d = ep.mask.apply_mask(
+            mask, file_type = validate_source(input_feed["mask"], config.output.storage_options_dict)
+            mask: xr.DataArray = xr.open_dataarray(mask, engine=file_type, chunks={}, **config.output.storage_options_dict)
+            
+            # temporary fix
+            if "range_sample" not in ed_list[0].coords:
+                ed_list[0] = ed_list[0].swap_dims({"depth": "range_sample"}).rename_vars({"depth": "range_sample"})
+                mask = mask.swap_dims({"depth": "range_sample"})
+            
+            external_kwargs = stage.external_params                
+                
+            xr_d = apply_mask(
                 source_ds=ed_list[0],
-                mask=input_feed["mask"],
+                mask=mask,
                 storage_options_ds=config.output.storage_options_dict,
                 storage_options_mask=config.output.storage_options_dict,
+                **external_kwargs
             )
             log_util.log(
                 msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": file_name},
@@ -190,7 +202,7 @@ def process_apply_mask(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
                 eflogging=config.logging,
             )
 
-            xr_d.to_zarr(
+            xr_d.compute().to_zarr(
                 store=out_zarr,
                 mode="w",
                 consolidated=True,
@@ -216,7 +228,14 @@ def process_apply_mask(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
 
         ed.out_path = out_zarr
         ed.error = ErrorObject(errorFlag=False)
+        ed.stages[stage.name] = out_zarr
     except Exception as e:
+        log_util.log(
+            msg={"msg": "", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+            error=e
+        )
         ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
         return ed

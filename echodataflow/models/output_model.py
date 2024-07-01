@@ -27,6 +27,7 @@ class ErrorObject(BaseModel):
         error_desc (Optional[str]): Description of the error.
     """
 
+    error_type: str = "EXTERNAL"
     errorFlag: bool = False
     error_desc: str = None
 
@@ -60,6 +61,8 @@ class EchodataflowObject(BaseModel):
     group_name: str = "DefaultGroup"
     error: ErrorObject = ErrorObject()
     local_path: str = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
 
 
 class Group(BaseModel):

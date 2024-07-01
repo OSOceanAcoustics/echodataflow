@@ -1,0 +1,28 @@
+active_recipe: target_strength 
+use_local_dask: true
+pipeline:
+- recipe_name: target_strength
+  stages:
+  - name: slice_store
+    module: echodataflow.stages.subflows.slice_store
+    options:      
+      group: False
+  - name: echodataflow_mask_prediction
+    module: echodataflow.stages.subflows.mask_prediction
+    options:
+      use_offline: true
+      group: False
+  - name: echodataflow_apply_mask
+    module: echodataflow.stages.subflows.apply_mask
+    options:
+      use_offline: true
+      group: False
+    dependson:
+      frequency_diff: mask
+  - name: echodataflow_compute_NASC
+    module: echodataflow.stages.subflows.compute_NASC
+    options:
+      use_offline: true
+      group: False
+    external_params:
+      range_bin: 1m

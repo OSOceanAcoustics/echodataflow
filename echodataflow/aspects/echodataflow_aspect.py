@@ -85,29 +85,6 @@ def echodataflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
                 after_function_call(gea, *args, **kwargs)
                 return result
             except Exception as e:
-                if type == "TASK":
-                    return {"error": True, "error_desc": e}
-                else:
-                    try:
-                        client = get_client()
-                        if client:
-                            ev = client.get_events("echodataflow")
-                        if isinstance(ev, Coroutine):
-                            ev = asyncio.run(ev)
-                        for log in ev:
-                            if gea:
-                                gea.log(
-                                    msg=log[1]["msg"],
-                                    extra={
-                                        "mod_name": log[1]["mod_name"],
-                                        "func_name": log[1]["func_name"],
-                                    },
-                                    level=logging.DEBUG,
-                                )
-                            else:
-                                print(log)
-                    except Exception as ex:
-                        pass
                 raise e
 
         return wrapper

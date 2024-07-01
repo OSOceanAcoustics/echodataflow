@@ -1,0 +1,70 @@
+active_recipe: target_strength 
+# scheduler_address: tcp://127.0.0.1:3467
+use_local_dask: true
+n_workers: 3
+pipeline:
+- recipe_name: target_strength
+  stages:
+  - name: echodataflow_open_raw
+    module: echodataflow.stages.subflows.open_raw
+    options:
+      save_raw_file: true
+      use_raw_offline: true
+      use_offline: true
+      group: False
+  - name: echodataflow_compute_Sv
+    module: echodataflow.stages.subflows.compute_Sv
+    options:
+      use_offline: true
+      group: False
+  - name: echodataflow_add_depth
+    module: echodataflow.stages.subflows.add_depth
+    options:
+      use_offline: true
+      group: False  
+  - name: echodataflow_add_location
+    module: echodataflow.stages.subflows.add_location
+    options:
+      use_offline: true
+      group: False
+  - name: write_output
+    module: echodataflow.stages.subflows.write_output
+    options:
+      out_path: /home/exouser/Echodataflow/EK60/stores/SvStore
+      store_mode: True
+      group: False 
+  - name: slice_store
+    module: echodataflow.stages.subflows.slice_store
+    options:
+      out_path: /home/exouser/Echodataflow/EK60/stores/SvStore
+      store_mode: True
+      group: False
+    external_params:
+      ping_time_bin: 5S
+  - name: echodataflow_compute_MVBS
+    module: echodataflow.stages.subflows.compute_MVBS
+    options:
+      use_offline: true
+      group: False
+    external_params:
+      range_bin: 1m 
+      ping_time_bin: 5S
+      range_var: depth
+  - name: write_output
+    module: echodataflow.stages.subflows.write_output
+    options:
+      out_path: /home/exouser/Echodataflow/EK60/stores/MVBSStore
+      store_mode: True
+      group: False
+  # - name: echodataflow_mask_prediction
+  #   module: echodataflow.stages.subflows.mask_prediction
+  #   options:
+  #     use_offline: true
+  #     group: False
+  # - name: echodataflow_apply_mask
+  #   module: echodataflow.stages.subflows.apply_mask
+  #   options:
+  #     use_offline: true
+  #     group: False
+  #   dependson:
+  #     frequency_diff: mask

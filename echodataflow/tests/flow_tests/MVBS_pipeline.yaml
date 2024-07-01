@@ -24,7 +24,7 @@ pipeline:
     options:
       use_offline: true
     external_params:
-      range_meter_bin: 20m 
+      range_bin: 20m 
       ping_time_bin: 20S
       
   # - name: echodataflow_frequency_differencing
