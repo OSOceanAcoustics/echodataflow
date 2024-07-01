@@ -40,12 +40,14 @@ from prefect_azure import AzureCosmosDbCredentials
 from pydantic import SecretStr
 
 from echodataflow.models.datastore import StorageType
-from echodataflow.models.echodataflow_config import (BaseConfig, EchodataflowConfig,
-                                             EchodataflowPrefectConfig)
-from echodataflow.utils.config_utils import get_storage_options, load_block
+from echodataflow.models.echodataflow_config import (
+    BaseConfig,
+    EchodataflowConfig,
+    EchodataflowPrefectConfig,
+)
+from echodataflow.utils.config_utils import load_block
 
 from echodataflow.stages.echodataflow_trigger import echodataflow_trigger
-from echodataflow.utils.file_utils import format_windows_path
 
 
 def check_internet_connection(host="8.8.8.8", port=53, timeout=5):
@@ -151,8 +153,7 @@ def load_profile(name: str):
 
     # Check if the specified profile exists
     if config.get("profiles").get(name) is None:
-        raise ValueError(
-            "No such profile exists. Please try creating profile with this name")
+        raise ValueError("No such profile exists. Please try creating profile with this name")
 
     # Set the specified profile as the active profile
     config["active"] = name
@@ -195,7 +196,7 @@ def echodataflow_start(
     logging_config: Union[Dict[str, Any], str, Path] = None,
     storage_options: Union[Dict[str, Any], Block] = None,
     options: Optional[Dict[str, Any]] = {},
-    json_data_path: Union[str, Path] = None
+    json_data_path: Union[str, Path] = None,
 ):
     """
     Start an Echodataflow pipeline execution.
@@ -230,15 +231,16 @@ def echodataflow_start(
     """
 
     print("\nChecking Configuration")
+
     # Try loading the Prefect config block
     try:
-        echodataflow_config = load_block(
-            name="echodataflow-config", type=StorageType.ECHODATAFLOW)
+        echodataflow_config = load_block(name="echodataflow-config", type=StorageType.ECHODATAFLOW)
     except ValueError as e:
-        print("\nNo Prefect Cloud Configuration found. Creating Prefect Local named 'echodataflow-local'. Please add your prefect cloud ")
+        print(
+            "\nNo Prefect Cloud Configuration found. Creating Prefect Local named 'echodataflow-local'. Please add your prefect cloud "
+        )
         # Add local profile to echodataflow config but keep default as active since user might configure using Prefect setup
-        echodataflow_create_prefect_profile(
-            name="echodataflow-local", set_active=False)
+        echodataflow_create_prefect_profile(name="echodataflow-local", set_active=False)
     print("\nConfiguration Check Completed")
 
     print("\nChecking Connection to Prefect Server")
@@ -250,12 +252,12 @@ def echodataflow_start(
                 "Please connect to internet or consider switching to a local prefect environment. This can be done by calling load_profile(name_of_local_prefect_profile or 'echodataflow-local' if no prefect profile was created) method."
             )
         else:
-            print("\nUsing a local prefect environment. To go back to your cloud workspace call load_profile(<name>) with <name> of your cloud profile.")
-
-    if isinstance(storage_options, Block):
-        storage_options = get_storage_options(storage_options=storage_options)
+            print(
+                "\nUsing a local prefect environment. To go back to your cloud workspace call load_profile(<name>) with <name> of your cloud profile."
+            )
 
     print("\nStarting the Pipeline")
+
     # Call the actual pipeline
     return echodataflow_trigger(
         dataset_config=dataset_config,
@@ -263,7 +265,7 @@ def echodataflow_start(
         logging_config=logging_config,
         storage_options=storage_options,
         options=options,
-        json_data_path=json_data_path
+        json_data_path=json_data_path,
     )
 
 
@@ -318,7 +320,6 @@ def update_prefect_config(
         if isinstance(current_config, Coroutine):
             current_config = asyncio.run(current_config)
         if current_config.prefect_configs is not None:
-
             if active_profile is None:
                 active_profile = current_config.active
 
@@ -329,9 +330,9 @@ def update_prefect_config(
                     profiles.remove(p)
             profiles.append(profile_name)
 
-        ecfg = EchodataflowConfig(active=active_profile, prefect_configs=profiles, blocks=current_config.blocks).save(
-            "echodataflow-config", overwrite=True
-        )
+        ecfg = EchodataflowConfig(
+            active=active_profile, prefect_configs=profiles, blocks=current_config.blocks
+        ).save("echodataflow-config", overwrite=True)
         if isinstance(ecfg, Coroutine):
             ecfg = asyncio.run(ecfg)
     except ValueError as e:
@@ -343,7 +344,9 @@ def update_prefect_config(
     return ecfg
 
 
-def update_base_config(name: str, b_type: StorageType, active: bool = False, options: Dict[str, Any] = {}):
+def update_base_config(
+    name: str, b_type: StorageType, active: bool = False, options: Dict[str, Any] = {}
+):
     """
     Update or create a base configuration in the echodataflow configuration block.
 
@@ -365,8 +368,7 @@ def update_base_config(name: str, b_type: StorageType, active: bool = False, opt
             options={"option_key": "option_value"}
         )
     """
-    aws_base = BaseConfig(name=name, type=b_type,
-                          active=active, options=options)
+    aws_base = BaseConfig(name=name, type=b_type, active=active, options=options)
     ecfg: Any = None
     try:
         blocks: List[BaseConfig] = []
@@ -402,7 +404,7 @@ def echodataflow_config_AWS(
     region_name: str = None,
     options: Union[str, Dict[str, Any]] = {},
     active: bool = False,
-    **kwargs
+    **kwargs,
 ):
     """
     Configure AWS credentials in the echodataflow configuration block.
@@ -438,8 +440,7 @@ def echodataflow_config_AWS(
         coro = asyncio.run(coro)
     if isinstance(options, str):
         options = json.loads(options)
-    update_base_config(name=name, active=active,
-                       options=options, b_type=StorageType.AWS)
+    update_base_config(name=name, active=active, options=options, b_type=StorageType.AWS)
 
 
 def echodataflow_config_AZ_cosmos(
@@ -447,7 +448,7 @@ def echodataflow_config_AZ_cosmos(
     connection_string: str = None,
     options: Union[str, Dict[str, Any]] = {},
     active: bool = False,
-    **kwargs
+    **kwargs,
 ):
     """
     Configure Azure Cosmos DB credentials in the local configuration file.
@@ -472,15 +473,12 @@ def echodataflow_config_AZ_cosmos(
     """
     if connection_string is None:
         raise ValueError("Connection string cannot be empty.")
-    coro = AzureCosmosDbCredentials(
-        connection_string=connection_string
-    ).save(name, overwrite=True)
+    coro = AzureCosmosDbCredentials(connection_string=connection_string).save(name, overwrite=True)
     if isinstance(coro, Coroutine):
         coro = asyncio.run(coro)
     if isinstance(options, str):
         options = json.loads(options)
-    update_base_config(name=name, active=active,
-                       options=options, b_type=StorageType.AZCosmos)
+    update_base_config(name=name, active=active, options=options, b_type=StorageType.AZCosmos)
 
 
 def load_credential_configuration(sync: bool = False):
@@ -533,20 +531,17 @@ def load_credential_configuration(sync: bool = False):
     if sync:
         current_config: EchodataflowConfig = None
         try:
-            current_config = EchodataflowConfig.load(
-                "echodataflow-config", validate=False)
+            current_config = EchodataflowConfig.load("echodataflow-config", validate=False)
             if isinstance(current_config, Coroutine):
                 current_config = asyncio.run(current_config)
             if current_config is not None:
-
                 for base in current_config.blocks:
-
                     block = load_block(base.name, base.type)
                     block_dict = dict(block)
-                    block_dict['name'] = base.name
-                    block_dict['active'] = base.active
-                    block_dict['options'] = json.dumps(base.options)
-                    block_dict['provider'] = base.type
+                    block_dict["name"] = base.name
+                    block_dict["active"] = base.active
+                    block_dict["options"] = json.dumps(base.options)
+                    block_dict["provider"] = base.type
                     converted_dict = {}
                     for key, value in block_dict.items():
                         if isinstance(value, SecretStr):
@@ -560,10 +555,10 @@ def load_credential_configuration(sync: bool = False):
         except ValueError:
             raise ("No Echodataflow configuration found.")
     for section in config.sections():
-        provider = config.get(section, 'provider')
+        provider = config.get(section, "provider")
         data_dict = dict(config[section])
-        data_dict['name'] = section
-        data_dict.pop('provider')
+        data_dict["name"] = section
+        data_dict.pop("provider")
         if provider == "AWS":
             echodataflow_config_AWS(**data_dict)
         elif provider == "AZCosmos":

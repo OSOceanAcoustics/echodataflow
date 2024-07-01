@@ -12,3 +12,4 @@ jupyter-book
 fastapi
 sphinx
 kafka-python
+pytest

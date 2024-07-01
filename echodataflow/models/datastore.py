@@ -39,7 +39,7 @@ class StorageType(Enum):
     AZCosmos = "AZCosmos"
     GCP = "GCP"
     ECHODATAFLOW = "ECHODATAFLOW"
-
+    EDFRUN = "EDFRUN"
 
 class StorageOptions(BaseModel):
     """
