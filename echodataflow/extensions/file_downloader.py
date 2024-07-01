@@ -3,8 +3,9 @@ import time
 from typing import List, Dict, Any, Union
 from prefect import flow, task
 from prefect.concurrency.sync import concurrency
+import zarr
 
-from echodataflow.utils.config_utils import glob_url
+from echodataflow.utils.config_utils import get_storage_options, glob_url, load_block
 from echodataflow.utils.file_utils import extract_fs, make_temp_folder
 
 
@@ -36,12 +37,15 @@ def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir:
     if not file_system_dest.exists(out_path):
         with concurrency("edf-data-transfer", occupy=1):
             print(f"Downloading {file_url} to {out_path} ...")
-            with file_system_source.open(file_url, "rb") as source_file:
-                with file_system_dest.open(out_path, "wb") as dest_file:
-                    dest_file.write(source_file.read())
+            if file_url.endswith('.zarr'):
+                zarr.copy_store(file_system_source.get_mapper(file_url), file_system_dest.get_mapper(out_path), if_exists='replace')
+            else:    
+                with file_system_source.open(file_url, "rb") as source_file:
+                    with file_system_dest.open(out_path, "wb") as dest_file:
+                        dest_file.write(source_file.read())
         if delete_on_transfer:
             try:
-                file_system_source.rm(file_url)
+                file_system_source.rm(file_url, recursive=True)
                 print("Cleanup complete")
             except Exception as e:
                 print(e)
@@ -49,6 +53,16 @@ def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir:
 
     return out_path
 
+@task
+def get_storage_options_from_block(storage_options: Dict[str, Any]):
+    if storage_options.get("name") and storage_options.get("type"):
+        block = load_block(
+                    name=storage_options.get("name"),
+                    type=storage_options.get("type"),
+                )
+        storage_options = get_storage_options(block)
+    
+    return storage_options
 
 @flow
 def edf_data_transfer(
@@ -70,10 +84,17 @@ def edf_data_transfer(
     if not source:
         raise ValueError("No Source Provided.")
 
+    source_storage_options = get_storage_options_from_block(source_storage_options)
+    
+    destination_storage_options = get_storage_options_from_block(destination_storage_options)
+    
     if isinstance(source, str):
         files = glob_url(source, source_storage_options)
     else:
         files = source
+    
+    print(source)
+    print(files)
 
     storage_options: Dict[str, Any] = {}
     storage_options["source"] = source_storage_options
