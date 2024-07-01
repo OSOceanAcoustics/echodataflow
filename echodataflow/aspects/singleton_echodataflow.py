@@ -38,7 +38,7 @@ from echodataflow.models.datastore import Dataset
 from echodataflow.models.db_log_model import DB_Log, Log_Data, Process
 from echodataflow.models.pipeline import Recipe
 from echodataflow.rule_engine.dependency_engine import DependencyEngine
-from echodataflow.utils.databse_utils import (create_log_table, get_connection,
+from echodataflow.utils.database_utils import (create_log_table, get_connection,
                                           get_last_log,
                                           insert_log_data_by_conn,
                                           update_log_data_by_conn)
