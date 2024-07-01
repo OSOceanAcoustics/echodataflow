@@ -31,6 +31,7 @@ from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
 from echodataflow.utils.file_utils import (
     download_temp_file,
+    extract_fs,
     get_out_zarr,
     get_working_dir,
     isFile,
@@ -216,7 +217,8 @@ def process_raw(
                     use_dask=stage.options["use_dask"],
                     eflogging=config.logging,
                 )
-                local_file.unlink()
+                fs = extract_fs(local_file, storage_options=config.output.storage_options_dict)
+                fs.rm(local_file, recursive=True)
         else:
             log_util.log(
                 msg={

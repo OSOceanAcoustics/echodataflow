@@ -585,25 +585,57 @@ def cleanup(output:Output, config: Dataset, pipeline: Pipeline):
         >>> cleanup(dataset_config, processing_stage, output_data)
     """
     
-    stages = defaultdict(bool)
+    stages = {}
     
     for stage in pipeline.stages:
         
-        if not stage.options.get("save_offline"):
+        if stage.options.get("save_offline") == None:
             stages[stage.name] = config.output.retention
         else:
             stages[stage.name] = stage.options.get("save_offline") 
-    print(stages)
+    
+    log_util.log(
+        msg={
+            "msg": f"Stages to cleanup",
+            "mod_name": __file__,
+            "func_name": "Init Flow",
+        },
+        eflogging=config.logging,
+    )
+    
     for _, group in output.group.items():
         for edf in group.data:
             for sname, path in edf.stages.items():
-                print(sname, path)
-                if not stages[sname]:
+                if sname in stages.keys() and stages[sname] == False:
+                    log_util.log(
+                        msg={
+                            "msg": f"Cleaning {path}",
+                            "mod_name": __file__,
+                            "func_name": "Init Flow",
+                        },
+                        eflogging=config.logging,
+                    )
                     try:
                         fs = extract_fs(path, storage_options=config.output.storage_options_dict)
                         fs.rm(path, recursive=True)
                     except Exception as e:
-                        print("Failed to cleanup " + path)
+                        log_util.log(
+                            msg={
+                                "msg": f"Failed to cleanup {path}",
+                                "mod_name": __file__,
+                                "func_name": "Init Flow",
+                            },
+                            eflogging=config.logging,
+                        )
+                        log_util.log(
+                            msg={
+                                "msg": "",
+                                "mod_name": __file__,
+                                "func_name": "Init Flow",
+                            },
+                            eflogging=config.logging,
+                            error=e
+                        )
 
 
 def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any] = {}):
