@@ -38,10 +38,13 @@ from echodataflow.models.datastore import Dataset
 from echodataflow.models.db_log_model import DB_Log, Log_Data, Process
 from echodataflow.models.pipeline import Recipe
 from echodataflow.rule_engine.dependency_engine import DependencyEngine
-from echodataflow.utils.database_utils import (create_log_table, get_connection,
-                                          get_last_log,
-                                          insert_log_data_by_conn,
-                                          update_log_data_by_conn)
+from echodataflow.utils.database_utils import (
+    create_log_table,
+    get_connection,
+    get_last_log,
+    insert_log_data_by_conn,
+    update_log_data_by_conn,
+)
 
 
 class Singleton_Echodataflow:
@@ -52,21 +55,20 @@ class Singleton_Echodataflow:
     dataset: Dataset
     db_log: DB_Log
     logger: logging.Logger = None
-    log_level: int  = 0
+    log_level: int = 0
 
     def __new__(
         cls,
         log_file: Union[Dict[str, str], str] = None,
         pipeline: Recipe = None,
-        dataset: Dataset = None 
+        dataset: Dataset = None,
     ) -> "Singleton_Echodataflow":
-        
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             if log_file is not None:
                 cls._instance.logger = cls._instance.logger_init(log_file)
                 cls._instance.log_level = cls._instance.logger.level
-                
+
         cls._instance.pipeline = pipeline
         cls._instance.dataset = dataset
         # cls._instance.db_log = cls._instance.setup_echodataflow_db()
@@ -82,7 +84,7 @@ class Singleton_Echodataflow:
             Singleton_Echodataflow: The Singleton_Echodataflow instance.
         """
         return self._instance
-    
+
     @classmethod
     def get_logger(self) -> "logging.Logger":
         """
@@ -180,7 +182,6 @@ class Singleton_Echodataflow:
             print(e)
         finally:
             conn.close()
-        
 
     def log_memory_usage(self):
         """
@@ -192,7 +193,7 @@ class Singleton_Echodataflow:
         process = psutil.Process()
         mem = process.memory_info().rss
         return mem
-    
+
     def get_possible_next_functions(self, function_name: str):
         """
         Get Possible Next Functions
@@ -211,7 +212,7 @@ class Singleton_Echodataflow:
             next_functions = executor.get_possible_next_functions(function_name="data_download")
         """
         return self.rengine.get_possible_next_functions(function_name)
-        
+
     def load(self):
         """
         Load Rules and Dependencies
@@ -227,10 +228,12 @@ class Singleton_Echodataflow:
             loaded_rengine = executor.load()
         """
         rengine: DependencyEngine = DependencyEngine()
-        rules_file_path = os.path.expanduser(os.path.join("~", ".echodataflow", "echodataflow_rules.txt"))
+        rules_file_path = os.path.expanduser(
+            os.path.join("~", ".echodataflow", "echodataflow_rules.txt")
+        )
 
-        with open(rules_file_path, 'r') as file:
+        with open(rules_file_path, "r") as file:
             for line in file:
-                target, dependent = line.strip().split(':')
+                target, dependent = line.strip("\r\n").split(":")
                 rengine.add_dependency(target_function=target, dependent_function=dependent)
         return rengine

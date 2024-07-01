@@ -30,12 +30,11 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-from collections import defaultdict
 import json
 import os
 import platform
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 from urllib.parse import urlparse
 
 from echodataflow.utils import log_util
@@ -48,12 +47,12 @@ from fsspec.implementations.local import LocalFileSystem
 from prefect import task
 
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.output_model import Output
+from echodataflow.models.output_model import EchodataflowObject, Group, Output
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
 
 
-def download_temp_file(raw, working_dir: str, stage: Stage, config: Dataset):
+def download_temp_file(raw: EchodataflowObject, working_dir: str, stage: Stage, config: Dataset):
     """
     Downloads a temporary raw file from a URL path.
 
@@ -74,39 +73,53 @@ def download_temp_file(raw, working_dir: str, stage: Stage, config: Dataset):
         updated_raw = download_temp_file(raw_data, working_directory, stage_object, dataset_config)
     """
 
-    urlpath = raw.get("file_path")
+    urlpath = raw.file_path
     fname = os.path.basename(urlpath)
-    
-    if stage.options['group'] == False:
-       out_path = format_windows_path(working_dir+"/raw_files/"+fname, slash=True)
-       make_temp_folder(format_windows_path(working_dir+"/raw_files/", slash=True), config.output.storage_options_dict)
-    else: 
-        out_path = format_windows_path(working_dir+"/"+ str(raw.get("transect_num")) +"_raw_files/"+fname, slash=True)
-        make_temp_folder(format_windows_path(working_dir+"/"+ str(raw.get("transect_num")) +"_raw_files/", slash=True), config.output.storage_options_dict)    
-    
-    print(out_path)
-    working_dir_fs = extract_fs(
-        out_path, storage_options=config.output.storage_options_dict)
 
-    if stage.options.get("use_raw_offline") == False or isFile(out_path, config.output.storage_options_dict) == False:
+    if stage.options["group"] == False:
+        out_path = format_windows_path(working_dir + "/raw_files/" + fname, slash=True)
+        make_temp_folder(
+            format_windows_path(working_dir + "/raw_files/", slash=True),
+            config.output.storage_options_dict,
+        )
+    else:
+        out_path = format_windows_path(
+            working_dir + "/" + str(raw.group_name) + "_raw_files/" + fname, slash=True
+        )
+        make_temp_folder(
+            format_windows_path(
+                working_dir + "/" + str(raw.group_name) + "_raw_files/", slash=True
+            ),
+            config.output.storage_options_dict,
+        )
+
+    print(out_path)
+    working_dir_fs = extract_fs(out_path, storage_options=config.output.storage_options_dict)
+
+    if (
+        stage.options.get("use_raw_offline") == False
+        or isFile(out_path, config.output.storage_options_dict) == False
+    ):
         print("Downloading ...", out_path)
-        file_system = extract_fs(
-            urlpath, storage_options=config.args.storage_options_dict)
-        with file_system.open(urlpath, 'rb') as source_file:
+        file_system = extract_fs(urlpath, storage_options=config.args.storage_options_dict)
+        with file_system.open(urlpath, "rb") as source_file:
             with working_dir_fs.open(out_path, mode="wb") as f:
                 f.write(source_file.read())
-    raw.update({"local_path": out_path})
-    return raw
+    raw.local_path = out_path
+
 
 def format_windows_path(path: str, slash: bool = False):
-    if platform.system() == "Windows" and not path.startswith(('file:///', 's3://', 'http://', 'https://')):            
+    if platform.system() == "Windows" and not path.startswith(
+        ("file:///", "s3://", "http://", "https://")
+    ):
         if slash:
-            return path.replace('/', '\\')
+            return path.replace("/", "\\")
         else:
-            return 'file:///' + path.replace('/', '\\')
+            return "file:///" + path.replace("/", "\\")
     else:
         return path
-    
+
+
 def extract_fs(
     url: str,
     storage_options: Dict[Any, Any] = {},
@@ -132,6 +145,7 @@ def extract_fs(
         return file_system, parsed_path.scheme
     return file_system
 
+
 def make_temp_folder(folder_name: str, storage_options: Dict[str, Any]) -> str:
     """
     Creates a temporary folder locally or remotely using fsspec.
@@ -145,13 +159,14 @@ def make_temp_folder(folder_name: str, storage_options: Dict[str, Any]) -> str:
 
     Example:
         temp_folder = make_temp_folder('temp_folder', storage_options={'anon': True})
-    """    
+    """
     fsmap = fsspec.get_mapper(folder_name, **storage_options)
     if fsmap.fs.isdir(fsmap.root) == False:
         fsmap.fs.mkdir(fsmap.root, exists_ok=True, create_parents=True)
     if isinstance(fsmap.fs, LocalFileSystem):
         return str(Path(folder_name).resolve())
     return folder_name
+
 
 @task
 def get_output_file_path(raw_dicts, config: Dataset):
@@ -188,6 +203,7 @@ def get_output_file_path(raw_dicts, config: Dataset):
         out_fname = f"x{transect_num:04}-{date_name}.zarr"
     return format_windows_path("/".join([config.output.urlpath, out_fname]))
 
+
 def isFile(file_path: str, storage_options: Dict[str, Any] = {}):
     """
     Check if a file exists at the specified path using the fsspec file system.
@@ -207,6 +223,7 @@ def isFile(file_path: str, storage_options: Dict[str, Any] = {}):
         return fs.isdir(file_path)
     return fs.isfile(file_path)
 
+
 def get_working_dir(stage: Stage, config: Dataset):
     """
     Get the working directory for a stage based on stage options and configuration.
@@ -224,19 +241,27 @@ def get_working_dir(stage: Stage, config: Dataset):
         working_directory = get_working_dir(stage_object, dataset_config)
     """
     if stage.options is not None and stage.options.get("out_path") is not None:
-        working_dir = make_temp_folder(stage.options.get(
-            "out_path"), config.output.storage_options_dict)
+        working_dir = make_temp_folder(
+            stage.options.get("out_path"), config.output.storage_options_dict
+        )
     elif config.output.urlpath is not None:
         working_dir = make_temp_folder(
-            config.output.urlpath+"/"+stage.name, config.output.storage_options_dict)
+            config.output.urlpath + "/" + stage.name, config.output.storage_options_dict
+        )
     else:
         working_dir = make_temp_folder(
-            "Echodataflow_working_dir"+"/"+stage.name, config.output.storage_options_dict)
+            "Echodataflow_working_dir" + "/" + stage.name, config.output.storage_options_dict
+        )
 
     return working_dir
 
+
 @task
-def get_ed_list(config: Dataset, stage: Stage, transect_data: Union[Output, List[Dict], Dict]):
+def get_ed_list(
+    config: Dataset,
+    stage: Stage,
+    transect_data: Union[EchodataflowObject, List[EchodataflowObject]],
+):
     """
     Get a list of open_converted objects for echopype data.
 
@@ -258,27 +283,24 @@ def get_ed_list(config: Dataset, stage: Stage, transect_data: Union[Output, List
     if type(transect_data) == list:
         for zarr_path_data in transect_data:
             ed = open_converted(
-                converted_raw_path=str(zarr_path_data.get("out_path")),
+                converted_raw_path=str(zarr_path_data.out_path),
                 storage_options=dict(config.output.storage_options_dict),
             )
-            ed_list.append(ed)
-    elif type(transect_data) == dict:
-        ed = open_converted(
-            converted_raw_path=str(transect_data.get("out_path")),
-            storage_options=dict(config.output.storage_options_dict),
-        )
         ed_list.append(ed)
     else:
-        zarr_path_data = transect_data.data
         ed = open_converted(
-            converted_raw_path=str(zarr_path_data.get("out_path")),
+            converted_raw_path=str(transect_data.out_path),
             storage_options=dict(config.output.storage_options_dict),
         )
         ed_list.append(ed)
     return ed_list
 
+
 @task
-def get_zarr_list(transect_data: Union[Output, Dict], storage_options: Dict[str, Any] = {}):
+def get_zarr_list(
+    transect_data: Union[EchodataflowObject, List[EchodataflowObject]],
+    storage_options: Dict[str, Any] = {},
+):
     """
     Get a list of xarray.Dataset objects for zarr data.
 
@@ -295,19 +317,24 @@ def get_zarr_list(transect_data: Union[Output, Dict], storage_options: Dict[str,
         zarr_list = get_zarr_list(transect_output, storage_options)
     """
     zarr_list = []
-    if type(transect_data) == dict:
-        zarr = xr.open_zarr(transect_data.get("out_path"),
-                            storage_options=storage_options)
+    if type(transect_data) == list:
+        for td in transect_data:
+            zarr = xr.open_zarr(td.out_path, storage_options=storage_options)
         zarr_list.append(zarr)
     else:
-        zarr_path_data = transect_data.data
-        zarr = xr.open_zarr(zarr_path_data.get("out_path"),
-                            storage_options=storage_options)
+        zarr = xr.open_zarr(transect_data.out_path, storage_options=storage_options)
         zarr_list.append(zarr)
 
     return zarr_list
 
-def process_output_groups(name: str, config: Dataset, stage: Stage, ed_list: List[Dict[str, Any]]) -> List[Output]:
+
+def process_output_groups(
+    name: str,
+    config: Dataset,
+    stage: Stage,
+    groups: Dict[str, Group],
+    error_groups: Dict[str, Group],
+) -> List[Output]:
     """
     Process and aggregate output transects.
 
@@ -339,28 +366,107 @@ def process_output_groups(name: str, config: Dataset, stage: Stage, ed_list: Lis
 
     """
     error_flag = False
-    transect_dict = defaultdict(list)
-    outputs: List[Output] = []
-    for ed in ed_list:
-        if ed["error"] == True:
-            error_flag = True         
-            error_description = str(ed.get('error_desc', 'Unknown error')) 
-            file = str(ed['file_name'])
-            log_util.log(msg={'msg':f'Encountered Some Error in {file}', 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)         
-            log_util.log(msg={'msg':error_description, 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)         
-        else:
-            transect = ed['transect']
-            transect_dict[transect].append(ed)
 
-    for transect in transect_dict.keys():
-        output = Output(data=transect_dict[transect])
-        outputs.append(output)
+    # updated_output = Output()
+    # for edf in resultList:
+
+    #     g = updated_output.group.get(edf.group_name, Group())
+    #     g.group_name = edf.group_name
+    #     g.instrument = group.get(edf.group_name).instrument
+    #     g.data.append(edf)
+
+    #     updated_output.group[edf.group_name] = g
+
+    #     if edf.error and edf.error.errorFlag:
+    #         error_flag = True
+    #         error_description = str(edf.error.error_desc)
+    #         file = str(edf.filename)
+    #         log_util.log(msg={'msg':f'Encountered Some Error in {file}', 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+    #         log_util.log(msg={'msg':error_description, 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+    #         error_groups[edf.group_name] = g
+
+    for _, gr in groups.items():
+        for ed in gr.data:
+            if ed.error and ed.error.errorFlag == True:
+                error_flag = True
+                error_description = str(ed.error.error_desc)
+                file = str(ed.filename)
+                log_util.log(
+                    msg={
+                        "msg": f"Encountered Some Error in {file}",
+                        "mod_name": __file__,
+                        "func_name": "file_utils",
+                    },
+                    use_dask=stage.options["use_dask"],
+                    eflogging=config.logging,
+                )
+                log_util.log(
+                    msg={"msg": error_description, "mod_name": __file__, "func_name": "file_utils"},
+                    use_dask=stage.options["use_dask"],
+                    eflogging=config.logging,
+                )
+                error_groups[ed.group_name] = gr
+
     if error_flag:
-        store_json_output(data=outputs, config=config, name=name)
-        raise ValueError("Could not complete "+name+" successfully since 1 or more raw files" 
-                                + "failed to convert. Try fixing or skipping the files from the process."
-                                + "If `use_offline` flag is set to true, processed files will be skipped the next run.")
-    return outputs
+        for name, _ in error_groups.items():
+            print("Deleting ", groups[name])
+            del groups[name]
+    return groups
+
+
+def process_output_group(name: str, config: Dataset, stage: Stage, group: Group) -> List[Output]:
+    """
+    Process and aggregate output transects.
+
+    This function processes a list of echodata (ed) dictionaries and aggregates them based on transect numbers.
+    It raises a ValueError if any of the echodata dictionaries have an error flag set to True.
+
+    Parameters:
+        name (str): The name of the process.
+        ed_list (List[Dict[str, Any]]): A list of echodata dictionaries.
+        config (Dataset): Datastore configuration
+
+    Returns:
+        List[Output]: A list of Output instances, each containing aggregated data for a transect.
+
+    Raises:
+        ValueError: If any echodata dictionary has an error flag set to True.
+
+    Example:
+        ed_list = [
+            {"transect": 1, "data": {...}, "error": False},
+            {"transect": 1, "data": {...}, "error": False},
+            {"transect": 2, "data": {...}, "error": False},
+            {"transect": 2, "data": {...}, "error": False},
+            {"transect": 2, "data": {...}, "error": True}
+        ]
+
+        output_list = process_output_groups("Data Processing", ed_list)
+        # Returns a list of Output instances with aggregated data per transect.
+
+    """
+
+    for ed in group.data:
+        if ed.error and ed.error.errorFlag == True:
+            error_description = str(ed.error.error_desc)
+            file = str(ed.filename)
+            log_util.log(
+                msg={
+                    "msg": f"Encountered Some Error in {file}",
+                    "mod_name": __file__,
+                    "func_name": "file_utils",
+                },
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+            log_util.log(
+                msg={"msg": error_description, "mod_name": __file__, "func_name": "file_utils"},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+            return True
+    return False
+
 
 def store_json_output(data, config: Dataset, name: str):
     """
@@ -385,8 +491,10 @@ def store_json_output(data, config: Dataset, name: str):
 
     """
     print("Storing JSON Metadata")
-    json_data_path = os.path.expanduser(os.path.join("~", ".echodataflow", "echodataflow_working_data.json"))
-    
+    json_data_path = os.path.expanduser(
+        os.path.join("~", ".echodataflow", "echodataflow_working_data.json")
+    )
+
     serialized_data_list = jsonable_encoder(data)
 
     # Serialize the list to JSON
@@ -397,14 +505,16 @@ def store_json_output(data, config: Dataset, name: str):
 
     if config.args.json_export:
         out_path = make_temp_folder(
-            config.output.urlpath+"/json_metadata", config.output.storage_options_dict)
-        out_path = out_path+"/"+name+".json" # Changed Needed
-        print("Output metdata will be loaded to ",out_path)
+            config.output.urlpath + "/json_metadata", config.output.storage_options_dict
+        )
+        out_path = out_path + "/" + name + ".json"
+        print("Output metdata will be loaded to ", out_path)
         fs = extract_fs(out_path, config.output.storage_options_dict)
         with fs.open(out_path, mode="w") as f:
             f.write(json_data)
-   
-def get_output(type : str = "Output"):
+
+
+def get_output(type: str = "Output"):
     """
     Retrieve stored output data from the Echodataflow working directory.
 
@@ -427,20 +537,23 @@ def get_output(type : str = "Output"):
         {"key": "value", ...}
 
     """
-    data = None    
-    json_data_path = os.path.expanduser(os.path.join('~', '.echodataflow', 'echodataflow_working_data.json'))
+    data = None
+    json_data_path = os.path.expanduser(
+        os.path.join("~", ".echodataflow", "echodataflow_working_data.json")
+    )
     with open(json_data_path, "r") as outfile:
         data = json.load(outfile)
 
     if type != "Output":
-        return data  
+        return data
     output_list = []
     for item in data:
         output_item = Output(**item)
         output_list.append(output_item)
     return output_list
-    
-def cleanup(config: Dataset, stage: Stage, data: List[Output]):
+
+
+def cleanup(config: Dataset, stage: Stage):
     """
     Clean up working directory associated with a specific stage of processing.
 
@@ -460,15 +573,16 @@ def cleanup(config: Dataset, stage: Stage, data: List[Output]):
     if stage is not None:
         working_dir = get_working_dir(stage=stage, config=config)
         fs = extract_fs(working_dir, storage_options=config.output.storage_options_dict)
-        print("Cleaning : ",working_dir)
+        print("Cleaning : ", working_dir)
         try:
             fs.rm(working_dir, recursive=True)
             print("Cleanup complete")
         except Exception as e:
             print(e)
-            print("Failed to cleanup "+working_dir)
+            print("Failed to cleanup " + working_dir)
 
-def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any]={}):
+
+def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any] = {}):
     """
     Retrieve Zarr arrays from the last run's output data.
 
@@ -485,7 +599,7 @@ def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, An
         >>> output_data = [Output(data=[...]), Output(data=[...])]
         >>> zarr_arrays = get_last_run_output(output_data, storage_options={"key": "value"})
     """
-    outputs : List[List]= []
+    outputs: List[List] = []
     if data is None:
         data = get_output()
     if isinstance(data, list) and isinstance(data[0], Output):
@@ -509,12 +623,15 @@ def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, An
     else:
         return data
 
-def get_out_zarr(group: bool, working_dir: str, file_name: str, storage_options: Dict[str, Any], transect: str) -> str:
+
+def get_out_zarr(
+    group: bool, working_dir: str, file_name: str, storage_options: Dict[str, Any], transect: str
+) -> str:
     """
     Constructs the output path for a Zarr file based on the provided parameters and storage options.
 
     Depending on the file system (local or remote) determined by `storage_options` and the presence
-    of a group structure (`group` parameter), this function constructs and returns the appropriate 
+    of a group structure (`group` parameter), this function constructs and returns the appropriate
     file path for storing Zarr datasets.
 
     Parameters:
@@ -534,16 +651,16 @@ def get_out_zarr(group: bool, working_dir: str, file_name: str, storage_options:
         and the provided `storage_options`.
     """
     fsmap = fsspec.get_mapper(working_dir, **storage_options)
-    
+
     print("File System is : ", fsmap.fs)
-    
+
     if isinstance(fsmap.fs, LocalFileSystem):
-        if group:        
+        if group:
             return os.path.join(working_dir, transect, file_name)
         else:
-            return os.path.join(working_dir,file_name)
+            return os.path.join(working_dir, file_name)
     else:
-        slash_pattern = '/' if '/' in working_dir else '\\'
+        slash_pattern = "/" if "/" in working_dir else "\\"
         if group:
             return slash_pattern.join([working_dir, transect, file_name])
         else:
