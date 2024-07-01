@@ -16,12 +16,7 @@ import zarr.storage
 # Coerce time if required
 
 @flow(task_runner=SequentialTaskRunner())
-def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]):      
-    try:
-        zarr.storage.default_compressor = Zlib(level=3)
-    except Exception as e:
-        print(e)
-        pass
+def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
     log_util.log(
             msg={
                 "msg": f" ---- Entering ----",

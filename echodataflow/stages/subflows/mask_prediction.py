@@ -17,9 +17,8 @@ Date: August 22, 2023
 """
 from collections import defaultdict
 from pathlib import Path
-from typing import Dict, Optional, Union
+from typing import Dict, Optional
 
-import echopype as ep
 from prefect import flow, task
 import torch
 import xarray as xr
@@ -27,10 +26,10 @@ import numpy as np
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group, Output
+from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
-from echodataflow.utils.file_utils import get_ed_list, get_out_zarr, get_working_dir, get_zarr_list, isFile
+from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zarr_list, isFile
 from src.model.BinaryHakeModel import BinaryHakeModel
 
 
@@ -216,7 +215,7 @@ def process_mask_prediction(
                 eflogging=config.logging,
             )
 
-            dims = ['ping_time', 'depth']
+            dims = stage.external_params.get('dims', ['ping_time', 'depth'])
             
             da_score_hake = assemble_da(score_tensor.numpy()[1,:,:], ds_ref=ed_list[0], dims=dims)
             
