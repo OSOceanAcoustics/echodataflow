@@ -19,28 +19,21 @@ Or, using Python's venv:
 python -m venv echodataflow-env
 source echodataflow-env/bin/activate  # On Windows, use `echodataflow-env\Scripts\activate`
 ```
-### Step 0.2: Clone the Repository
-Now that you have a virtual environment set up, you can clone the Echodataflow project repository to your local machine using the following command:
+
+### Step 0.2: Install the Package
+Once you have a virtual environment set up, just like any other python package you need to install using pip. Now, take a moment and let the echodataflow do its thing while you enjoy your coffee.
 
 ```bash
-git clone <echodataflow_repo>
-```
-
-### Step 0.3: Install the Package
-Navigate to the project directory you've just cloned and install the Echodataflow package. The -e flag is crucial as it enables editable mode, which is especially helpful during development and testing. Now, take a moment and let the echodataflow do its thing while you enjoy your coffee.
-
-```bash
-cd <project_directory>
-pip install -e .
+pip install echodataflow
 ```
 
 ---
 
-### Step 0.4: Initialize Echodataflow and Prefect
+### Step 0.3: Initialize Echodataflow and Prefect
 
 To kickstart your journey with Echodataflow and Prefect, follow these simple initialization steps:
 
-#### 0.4.1 Initializing Echodataflow
+#### 0.3.1 Initializing Echodataflow
 Begin by initializing Echodataflow with the following command:
 
 ```bash
@@ -49,7 +42,7 @@ echodataflow init
 
 This command sets up the groundwork for your Echodataflow environment, preparing it for seamless usage.
 
-#### 0.4.2 Initializing Prefect
+#### 0.3.2 Initializing Prefect
 For Prefect, initialization involves a few extra steps, including secure authentication. Enter the following command to initiate the Prefect authentication process:
 
 - If you have a Prefect Cloud account, provide your Prefect API key to securely link your account. Type your API key when prompted and press Enter.

@@ -85,6 +85,7 @@ def get_connection(path: str = "") -> sqlite3.Connection:
     Example:
         db_connection = get_connection('/path/to/db')
     """
+
     if not hasattr(db_connections, "db_connection"):
         if os.path.isdir(path) == False:
             dir = Path(path)
@@ -354,7 +355,6 @@ def parse_log(row):
     for key, value in data_dict.items():
         log_data_obj = Log_Data(**value)
         log_data_dict[key] = log_data_obj
-
     log_obj = DB_Log(
         run_id=run_id,
         start_time=start_time,
@@ -363,5 +363,6 @@ def parse_log(row):
         status=status,
         error=error,
     )
+
 
     return log_obj

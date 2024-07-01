@@ -1,4 +1,4 @@
-# Echodataflow on Local Machine
+# Local Machine
 
 Welcome to this beginner-friendly notebook that guides you through the process of using `echodataflow` to process EK60 data from the SH1707 survey. `echodataflow` is a powerful tool for ocean acoustics data processing. In this notebook, we'll walk through the following steps:
 

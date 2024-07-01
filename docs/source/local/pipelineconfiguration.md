@@ -1,5 +1,5 @@
 # Pipeline Configuration
-In this section, we will provide you with the pipeline configuration that we'll be using for our target strength processing. The configuration is presented in YAML format, which is a structured and human-readable way to define settings for data processing.
+In this section, we will have a look at the pipeline configuration that we'll be using for our target strength processing. The configuration is presented in YAML format, which is a structured and human-readable way to define settings for data processing.
 
 Here's the configuration we'll be using:
 
