@@ -15,3 +15,20 @@ write_to = "echodataflow/version.py"
 
 [tool.black]
 line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["echodataflow/tests/flow_tests"]
+addopts = "--cov=./ --cov-report=term --cov-report=xml"
+filterwarnings = [
+    "ignore::DeprecationWarning"
+]
+
+[tool.coverage.report]
+include_namespace_packages = true
+
+[tool.coverage.run]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/docs/*"
+]
