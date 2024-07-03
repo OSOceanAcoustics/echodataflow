@@ -174,11 +174,13 @@ def process_frequency_differencing(
                 use_dask=stage.options["use_dask"],
                 eflogging=config.logging,
             )
-
+            
+            external_kwargs = stage.external_params                
+                
             xr_d = ep.mask.frequency_differencing(
                 source_Sv=ed_list[0],
-                freqABEq=stage.external_params.get("freqABEq"),
                 storage_options=config.output.storage_options_dict,
+                **external_kwargs
             )
 
             log_util.log(
@@ -213,7 +215,14 @@ def process_frequency_differencing(
 
         ed.stages["mask"] = out_zarr
         ed.error = ErrorObject(errorFlag=False)
+        ed.stages[stage.name] = out_zarr
     except Exception as e:
+        log_util.log(
+            msg={"msg": "", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+            error=e
+        )
         ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
         return ed

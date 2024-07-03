@@ -30,6 +30,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+from collections import defaultdict
 import json
 import os
 import platform
@@ -48,7 +49,7 @@ from prefect import task
 
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, Group, Output
-from echodataflow.models.pipeline import Stage
+from echodataflow.models.pipeline import Pipeline, Stage
 from echodataflow.utils import log_util
 
 
@@ -300,7 +301,7 @@ def get_ed_list(
 def get_zarr_list(
     transect_data: Union[EchodataflowObject, List[EchodataflowObject]],
     storage_options: Dict[str, Any] = {},
-):
+) -> List[xr.Dataset]:
     """
     Get a list of xarray.Dataset objects for zarr data.
 
@@ -384,12 +385,21 @@ def process_output_groups(
     #         log_util.log(msg={'msg':f'Encountered Some Error in {file}', 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)
     #         log_util.log(msg={'msg':error_description, 'mod_name':__file__, 'func_name':'file_utils'}, use_dask=stage.options['use_dask'], eflogging=config.logging)
     #         error_groups[edf.group_name] = g
-
+    error = None
+    error_type = None
     for _, gr in groups.items():
         for ed in gr.data:
             if ed.error and ed.error.errorFlag == True:
                 error_flag = True
-                error_description = str(ed.error.error_desc)
+                
+                if error_type:
+                    if error_type == "INTERNAL":
+                        error_type = ed.error.error_type
+                        error = ed.error.error_desc
+                else:
+                    error_type = ed.error.error_type 
+                    error = ed.error.error_desc
+                    
                 file = str(ed.filename)
                 log_util.log(
                     msg={
@@ -401,7 +411,7 @@ def process_output_groups(
                     eflogging=config.logging,
                 )
                 log_util.log(
-                    msg={"msg": error_description, "mod_name": __file__, "func_name": "file_utils"},
+                    msg={"msg": error, "mod_name": __file__, "func_name": "file_utils"},
                     use_dask=stage.options["use_dask"],
                     eflogging=config.logging,
                 )
@@ -411,6 +421,10 @@ def process_output_groups(
         for name, _ in error_groups.items():
             print("Deleting ", groups[name])
             del groups[name]
+            
+    if len(groups.keys()) == 0 and error_type and error_type != "INTERNAL":
+        raise ValueError(f"Some Error Occurred {error}") 
+    
     return groups
 
 
@@ -553,7 +567,7 @@ def get_output(type: str = "Output"):
     return output_list
 
 
-def cleanup(config: Dataset, stage: Stage):
+def cleanup(output:Output, config: Dataset, pipeline: Pipeline):
     """
     Clean up working directory associated with a specific stage of processing.
 
@@ -570,16 +584,58 @@ def cleanup(config: Dataset, stage: Stage):
         >>> output_data = [Output(data=[...]), Output(data=[...])]
         >>> cleanup(dataset_config, processing_stage, output_data)
     """
-    if stage is not None:
-        working_dir = get_working_dir(stage=stage, config=config)
-        fs = extract_fs(working_dir, storage_options=config.output.storage_options_dict)
-        print("Cleaning : ", working_dir)
-        try:
-            fs.rm(working_dir, recursive=True)
-            print("Cleanup complete")
-        except Exception as e:
-            print(e)
-            print("Failed to cleanup " + working_dir)
+    
+    stages = {}
+    
+    for stage in pipeline.stages:
+        
+        if stage.options.get("save_offline") == None:
+            stages[stage.name] = config.output.retention
+        else:
+            stages[stage.name] = stage.options.get("save_offline") 
+    
+    log_util.log(
+        msg={
+            "msg": f"Stages to cleanup",
+            "mod_name": __file__,
+            "func_name": "Init Flow",
+        },
+        eflogging=config.logging,
+    )
+    
+    for _, group in output.group.items():
+        for edf in group.data:
+            for sname, path in edf.stages.items():
+                if sname in stages.keys() and stages[sname] == False:
+                    log_util.log(
+                        msg={
+                            "msg": f"Cleaning {path}",
+                            "mod_name": __file__,
+                            "func_name": "Init Flow",
+                        },
+                        eflogging=config.logging,
+                    )
+                    try:
+                        fs = extract_fs(path, storage_options=config.output.storage_options_dict)
+                        fs.rm(path, recursive=True)
+                    except Exception as e:
+                        log_util.log(
+                            msg={
+                                "msg": f"Failed to cleanup {path}",
+                                "mod_name": __file__,
+                                "func_name": "Init Flow",
+                            },
+                            eflogging=config.logging,
+                        )
+                        log_util.log(
+                            msg={
+                                "msg": "",
+                                "mod_name": __file__,
+                                "func_name": "Init Flow",
+                            },
+                            eflogging=config.logging,
+                            error=e
+                        )
 
 
 def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any] = {}):
@@ -658,10 +714,10 @@ def get_out_zarr(
         if group:
             return os.path.join(working_dir, transect, file_name)
         else:
-            return os.path.join(working_dir, file_name)
+            return os.path.join(working_dir, "zarr_files", file_name)
     else:
         slash_pattern = "/" if "/" in working_dir else "\\"
         if group:
             return slash_pattern.join([working_dir, transect, file_name])
         else:
-            return slash_pattern.join([working_dir, file_name])
+            return slash_pattern.join([working_dir, "zarr_files", file_name])

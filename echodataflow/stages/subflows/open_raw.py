@@ -31,6 +31,7 @@ from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
 from echodataflow.utils.file_utils import (
     download_temp_file,
+    extract_fs,
     get_out_zarr,
     get_working_dir,
     isFile,
@@ -182,10 +183,14 @@ def process_raw(
                 use_dask=stage.options["use_dask"],
                 eflogging=config.logging,
             )
+            
+            external_kwargs = stage.external_params
+            
             ed = open_raw(
                 raw_file=local_file,
                 sonar_model=group.instrument,
                 storage_options=config.output.storage_options_dict,
+                **external_kwargs
             )
 
             log_util.log(
@@ -212,7 +217,8 @@ def process_raw(
                     use_dask=stage.options["use_dask"],
                     eflogging=config.logging,
                 )
-                local_file.unlink()
+                fs = extract_fs(local_file, storage_options=config.output.storage_options_dict)
+                fs.rm(local_file, recursive=True)
         else:
             log_util.log(
                 msg={
@@ -231,7 +237,14 @@ def process_raw(
         )
         raw.out_path = out_zarr
         raw.error = ErrorObject(errorFlag=False)
+        raw.stages[stage.name] = out_zarr
     except Exception as e:
+        log_util.log(
+            msg={"msg": "", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+            error=e
+        )
         raw.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
         return raw
