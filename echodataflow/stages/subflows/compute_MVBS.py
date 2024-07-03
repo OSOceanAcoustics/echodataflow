@@ -15,26 +15,26 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-import os
-from typing import Dict, List, Optional, Union
+
+from collections import defaultdict
+from typing import Dict, Optional
 
 import echopype as ep
 from prefect import flow, task
+import xarray as xr
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
-from echodataflow.models.output_model import Output
+from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
-from echodataflow.utils.file_utils import (get_out_zarr, get_output, get_working_dir,
-                                       get_zarr_list, isFile,
-                                       process_output_groups)
+from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zarr_list, isFile
 
 
 @flow
 @echodataflow(processing_stage="Compute-MVBS", type="FLOW")
 def echodataflow_compute_MVBS(
-        config: Dataset, stage: Stage, prev_stage: Optional[Stage]
+    groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
     Compute Mean Volume Backscattering Strength (MVBS) from echodata.
@@ -61,43 +61,33 @@ def echodataflow_compute_MVBS(
         )
         print("Computed MVBS outputs:", computed_mvbs_outputs)
     """
-    data: Union[str, List[Output]] = get_output()
-    outputs: List[Output] = []
-    futures = []
-    working_dir = get_working_dir(config=config, stage=stage)
+    working_dir = get_working_dir(stage=stage, config=config)
 
-    if type(data) == list:
-        if type(data[0].data) == list:
-            for output_data in data:
-                transect_list = output_data.data
-                for ed in transect_list:
-                    transect = str(ed.get("out_path")).split(".")[0] + ".MVBS"
-                    process_compute_MVBS_wo = process_compute_MVBS.with_options(
-                        name=transect, task_run_name=transect, retries=3
-                    )
-                    future = process_compute_MVBS_wo.submit(
-                        config=config, stage=stage, out_data=ed, working_dir=working_dir
-                    )
-                    futures.append(future)
-        else:
-            for output_data in data:
-                future = process_compute_MVBS.submit(
-                    config=config, stage=stage, out_data=output_data, working_dir=working_dir
-                )
-                futures.append(future)
+    futures = defaultdict(list)
 
-        ed_list = [f.result() for f in futures]
+    for name, gr in groups.items():
+        for ed in gr.data:
+            gname = ed.out_path.split(".")[0] + ".MVBS"
+            new_process = process_compute_mvbs.with_options(
+                task_run_name=gname, name=gname, retries=3
+            )
+            future = new_process.submit(
+                ed=ed, working_dir=working_dir, config=config, stage=stage
+            )
+            futures[name].append(future)
 
-        outputs = process_output_groups(name=stage.name, stage=stage, config=config, ed_list=ed_list)
+    for name, flist in futures.items():
+        try:
+            groups[name].data = [f.result() for f in flist]
+        except Exception as e:
+            groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
 
-    return outputs
+    return groups
 
 
 @task
 @echodataflow()
-def process_compute_MVBS(
-    config: Dataset, stage: Stage, out_data: Union[Dict, Output], working_dir: str
-):
+def process_compute_mvbs(ed: EchodataflowObject, config: Dataset, stage: Stage, working_dir: str):
     """
     Process and compute Mean Volume Backscattering Strength (MVBS) from xarray dataset.
 
@@ -126,43 +116,102 @@ def process_compute_MVBS(
         )
         print("Computed MVBS output:", computed_mvbs_output)
     """
-
-    if type(out_data) == dict:
-        file_name = str(out_data.get("file_name")).split(".")[0] + "_MVBS.zarr"
-        transect = str(out_data.get("transect"))
-    else:
-        file_name = str(out_data.data.get("file_name")).split(".")[0] + "_MVBS.zarr"
-        transect = str(out_data.data.get("transect"))
+    file_name = ed.filename + "_MVBS.zarr"
+    transect = ed.group_name
     try:
-        log_util.log(msg={'msg':f' ---- Entering ----', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-        
-        out_zarr = get_out_zarr(group = stage.options.get('group', True), working_dir=working_dir, transect=transect, file_name=file_name, storage_options=config.output.storage_options_dict)
-        
-        log_util.log(msg={'msg':f'Processing file, output will be at {out_zarr}', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-        
-        if stage.options.get("use_offline") == False or isFile(out_zarr, config.output.storage_options_dict) == False:
-            log_util.log(msg={'msg':f'File not found in the destination folder / use_offline flag is False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
+        log_util.log(
+            msg={"msg": " ---- Entering ----", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+
+        out_zarr = get_out_zarr(
+            group=stage.options.get("group", True),
+            working_dir=working_dir,
+            transect=transect,
+            file_name=file_name,
+            storage_options=config.output.storage_options_dict,
+        )
+
+        log_util.log(
+            msg={
+                "msg": f"Processing file, output will be at {out_zarr}",
+                "mod_name": __file__,
+                "func_name": file_name,
+            },
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+
+        if (
+            stage.options.get("use_offline") == False
+            or isFile(out_zarr, config.output.storage_options_dict) == False
+        ):
+            log_util.log(
+                msg={
+                    "msg": f"File not found in the destination folder / use_offline flag is False",
+                    "mod_name": __file__,
+                    "func_name": file_name,
+                },
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+
+            ed_list = get_zarr_list.fn(
+                transect_data=ed, storage_options=config.output.storage_options_dict
+            )
+
+            log_util.log(
+                msg={"msg": f"Computing MVBS", "mod_name": __file__, "func_name": file_name},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+
+            external_kwargs = stage.external_params                
             
-            ed_list = get_zarr_list.fn(transect_data=out_data, storage_options=config.output.storage_options_dict)
-            
-            log_util.log(msg={'msg':f'Computing MVBS', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-            
-            xr_d_mvbs = ep.commongrid.compute_MVBS(
-                        ds_Sv=ed_list[0],
-                        range_bin=stage.external_params.get(
-                            "range_meter_bin"),
-                        ping_time_bin=stage.external_params.get("ping_time_bin")
-                    )
-            log_util.log(msg={'msg':f'Converting to Zarr', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-            
-            xr_d_mvbs.to_zarr(store=out_zarr, mode="w", consolidated=True,
-                            storage_options=config.output.storage_options_dict)
-            
+            xr_d_mvbs: xr.Dataset = ep.commongrid.compute_MVBS(
+                ds_Sv=ed_list[0],
+                **external_kwargs
+            )
+            log_util.log(
+                msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": file_name},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+
+            xr_d_mvbs.to_zarr(
+                store=out_zarr,
+                mode="w",
+                consolidated=True,
+                storage_options=config.output.storage_options_dict,
+            )
+
         else:
-            log_util.log(msg={'msg':f'Skipped processing {file_name}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-            
-        log_util.log(msg={'msg':f' ---- Exiting ----', 'mod_name':__file__, 'func_name':file_name}, use_dask=stage.options['use_dask'], eflogging=config.logging)
-        
-        return {'out_path': out_zarr, 'transect': transect, 'file_name': file_name, 'error': False}
+            log_util.log(
+                msg={
+                    "msg": f"Skipped processing {file_name}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False",
+                    "mod_name": __file__,
+                    "func_name": file_name,
+                },
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+
+        log_util.log(
+            msg={"msg": f" ---- Exiting ----", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+        ed.out_path = out_zarr
+        ed.error = ErrorObject(errorFlag=False)
+        ed.stages[stage.name] = out_zarr
     except Exception as e:
-        return {'transect': transect, 'file_name': file_name, 'error': True, 'error_desc': e}   
+        log_util.log(
+            msg={"msg": "", "mod_name": __file__, "func_name": file_name},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+            error=e
+        )
+        ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
+    finally:
+        return ed

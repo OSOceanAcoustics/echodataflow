@@ -106,7 +106,8 @@ class Args(BaseModel):
         raw_json_path (Optional[str]): Path for raw JSON data.
     """
 
-    urlpath: str
+    storepath: Optional[str] = None
+    urlpath: Optional[str] = None
     parameters: Parameters
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}
@@ -115,6 +116,11 @@ class Args(BaseModel):
     zarr_store: Optional[str] = None
     json_export: Optional[bool] = False
     raw_json_path: Optional[str] = None
+
+    window_size: Optional[int] = 1
+    time_travel_hours: Optional[int] = 0
+    time_travel_mins: Optional[int] = 0
+    rolling_size: Optional[int] = 1
 
     @property
     def rendered_path(self):
@@ -130,6 +136,21 @@ class Args(BaseModel):
             return template.render(self.parameters)
         return self.urlpath
 
+    @property
+    def store_path(self):
+        """
+        Rendered URL path from input parameters.
+
+        Returns:
+            str: Rendered URL path.
+        """
+        if self.parameters is not None:
+            env = jinja2.Environment()
+            template = env.from_string(self.storepath)
+            return template.render(self.parameters)
+        return self.storepath
+
+    
     @field_validator("group_name", mode="before", check_fields=True)
     def disallow_regex_chars(cls, v):
         if isinstance(v, int):

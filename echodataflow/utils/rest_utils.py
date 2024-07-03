@@ -43,9 +43,7 @@ def send_request(method : str, url : str, headers : Dict[str, Any] = {}, payload
     try:
         conn = http.client.HTTPConnection("127.0.0.1", 4200)
         if method == "POST":
-            headers.update({
-            'Content-Type': 'application/json'
-            })
+            headers.update({"Content-Type": "application/json"})
             conn.request(str(method), url, payload, headers)
         elif method == "GET":
             conn.request(method=str(method), url=url, headers=headers)
@@ -77,19 +75,14 @@ def get_last_flow_run(name : str, type : str = "FLOW"):
     data : str = None
     id_value : str = None
 
-    payload = json.dumps({
+    payload = json.dumps(
+        {
     "sort": "END_TIME_DESC",
     "limit": 1,
     "offset": 0,
-    "flows": {
-        "operator": "and_",
-        "name": {
-        "any_": [
-            name
-        ]
+            "flows": {"operator": "and_", "name": {"any_": [name]}},
         }
-    }
-    })
+    )
     
     data = send_request(method="POST", payload=payload, url="/api/ui/flow_runs/history")
 
@@ -99,7 +92,7 @@ def get_last_flow_run(name : str, type : str = "FLOW"):
         # Access the 'id' value from the first dictionary in the list
         if parsed_data and isinstance(parsed_data, list):
             first_dict = parsed_data[0]
-            id_value = first_dict.get('id')
+            id_value = first_dict.get("id")
         
     return id_value
     

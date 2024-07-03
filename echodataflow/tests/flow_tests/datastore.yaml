@@ -10,7 +10,7 @@ args:
   storage_options:
     anon: true
   group:
-    file: ./EK60_SH1707_Shimada.txt
+    file: ./echodataflow/tests/flow_tests/EK60_SH1707_Shimada.txt
   # group_name: 2017
   json_export: true 
 output: 

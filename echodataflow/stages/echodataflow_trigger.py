@@ -22,6 +22,7 @@ from fastapi.encoders import jsonable_encoder
 from prefect import flow
 from prefect.task_runners import SequentialTaskRunner
 from prefect.blocks.core import Block
+from prefect.variables import Variable
 
 from echodataflow.aspects.singleton_echodataflow import Singleton_Echodataflow
 from echodataflow.models.datastore import Dataset
@@ -214,9 +215,22 @@ def echodataflow_trigger(
     print("\nInitiliazing Singleton Object")
     Singleton_Echodataflow(log_file=logging_config_dict, pipeline=pipeline, dataset=dataset)
 
+    if dataset.args.parameters.file_name == "VAR_RUN_NAME":
+        var: Variable = Variable.get("run_name", default=None)
+        if not var:
+            raise ValueError("No variable found for name `run_name`")
+        else:
+            dataset.args.parameters.file_name = var.value
+
     # Change made to enable dynamic execution using an extension
     if options and options.get("file_name"):
         dataset.args.parameters.file_name = options.get("file_name")
 
+    if options and options.get("run_name"):
+        dataset.name = options.get("run_name")
+    
     print("\nReading Configurations")
     return init_flow(config=dataset, pipeline=pipeline, json_data_path=json_data_path)
+
+if __name__ == "__main__":
+    echodataflow_trigger.serve(name="Echodataflow")
