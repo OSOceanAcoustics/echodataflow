@@ -78,9 +78,9 @@ def echodataflow_open_raw(
 
     for name, gr in groups.items():
         for raw in gr.data:
-                new_processed_raw = process_raw.with_options(
-                task_run_name=raw.file_path, name=raw.file_path, retries=3
-                )
+            new_processed_raw = process_raw.with_options(
+            task_run_name=raw.file_path, name=raw.file_path, retries=3
+            )
             future = new_processed_raw.submit(raw, gr, working_dir, config, stage)
             futures[name].append(future)
 

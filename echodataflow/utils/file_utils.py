@@ -78,7 +78,7 @@ def download_temp_file(raw: EchodataflowObject, working_dir: str, stage: Stage, 
     fname = os.path.basename(urlpath)
     
     if stage.options["group"] == False:
-       out_path = format_windows_path(working_dir+"/raw_files/"+fname, slash=True)
+        out_path = format_windows_path(working_dir+"/raw_files/"+fname, slash=True)
         make_temp_folder(
             format_windows_path(working_dir + "/raw_files/", slash=True),
             config.output.storage_options_dict,
