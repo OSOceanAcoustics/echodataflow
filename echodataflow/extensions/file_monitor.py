@@ -73,7 +73,8 @@ def file_monitor(
     deployment_name: str = "echodataflowv2/Echodataflowv2",
     hour_threshold: int = 2,
     minute_threshold: int = 0,
-    retry_threshold: int = 3
+    retry_threshold: int = 3,
+    extension: str = None
 ):
     """
     Monitors a directory for file changes and processes new or modified files.
@@ -111,11 +112,15 @@ def file_monitor(
     for root, _, files in os.walk(dir_to_watch):
         for file in files:
             file_path = os.path.join(root, file)
-            file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
-            print(file_path)
-            if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
-                edfrun.processed_files[file] = FileDetails()
-                all_files.append((file_path, file_mtime, file))
+            
+            if not extension or (extension and extension == os.path.basename(file_path).split('.')[1]):
+                file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+            
+                if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
+                    if not edfrun.processed_files.get(file):
+                        edfrun.processed_files[file] = FileDetails()
+                    all_files.append((file_path, file_mtime, file))
+                            
 
     # Sort files by modification time
     all_files.sort(key=lambda x: x[1])
@@ -170,33 +175,33 @@ def file_monitor(
     else:
         for file_path, file_mtime, file in all_files:
             
-            edfrun.processed_files[file].retry_count += 1
-            
-            # TODO
-            # check if retry threshold has reached, if yes, start a new store?
-            if edfrun.processed_files[file].retry_count == retry_threshold:
-                value = f"Bell_M._Shimada-SH2407-EK80_{datetime.now().isoformat()}"
-                Variable.set(name="run_name", value=value, overwrite=True)
-                options["run_name"] = value
-            else:
-                options["run_name"] = value
-            
-            status = execute_flow.with_options(tags=["edfFM"], task_run_name=file_path)(
-                dataset_config=dataset_config,
-                pipeline_config=pipeline_config,
-                logging_config=logging_config,
-                storage_options=storage_options,
-                options=options,
-                file_path=file_path,
-                json_data_path=json_data_path,
-                deployment_name=deployment_name,
-            )[1]
-            edfrun.processed_files[file].status = status
-            edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
-            if not status:                
-                exceptionFlag = True
-                break
-            
+            if edfrun.processed_files[file].retry_count < retry_threshold:
+                edfrun.processed_files[file].retry_count += 1
+                
+                if edfrun.processed_files[file].retry_count == retry_threshold:
+                    value = f"Bell_M._Shimada-SH2407-EK80_{datetime.now().isoformat()}"
+                    Variable.set(name="run_name", value=value, overwrite=True)
+                    Variable.set(name="last_sv_index", value=0, overwrite=True)
+                    options["run_name"] = value
+                else:
+                    options["run_name"] = value
+                
+                status = execute_flow.with_options(tags=["edfFM"], task_run_name=file_path)(
+                    dataset_config=dataset_config,
+                    pipeline_config=pipeline_config,
+                    logging_config=logging_config,
+                    storage_options=storage_options,
+                    options=options,
+                    file_path=file_path,
+                    json_data_path=json_data_path,
+                    deployment_name=deployment_name,
+                )[1]
+                edfrun.processed_files[file].status = status
+                edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
+                if not status:                
+                    exceptionFlag = True
+                    break
+                
     edfrun.last_run_time = new_run
 
     block = edfrun.save(
