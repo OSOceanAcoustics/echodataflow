@@ -1,4 +1,4 @@
-# Echodataflow on AWS
+# AWS EC2
 
 Welcome to the Echodataflow AWS Deployment Guide notebook! This notebook will walk you through the steps to deploy an Echodataflow pipeline on Amazon Web Services (AWS). Echodataflow is a powerful tool for acoustics data processing and analysis, and AWS provides a scalable and reliable cloud platform for running your workflows.
 
