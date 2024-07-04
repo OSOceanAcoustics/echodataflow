@@ -10,7 +10,7 @@ from echodataflow.utils.file_utils import extract_fs, make_temp_folder
 
 
 @task
-def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir: str, delete_on_transfer: bool) -> str:
+def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir: str, delete_on_transfer: bool, replace: bool) -> str:
     """
     Downloads a file from a URL to a destination directory.
 
@@ -34,7 +34,7 @@ def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir:
     file_system_dest = extract_fs(out_path, storage_options.get("dest", {}))
 
     # Check if file needs to be downloaded
-    if not file_system_dest.exists(out_path):
+    if not file_system_dest.exists(out_path) or replace:
         with concurrency("edf-data-transfer", occupy=1):
             print(f"Downloading {file_url} to {out_path} ...")
             if file_url.endswith('.zarr'):
@@ -70,7 +70,8 @@ def edf_data_transfer(
     destination: str = "./temp",
     source_storage_options: Dict[str, Any] = {},
     destination_storage_options: Dict[str, Any] = {},
-    delete_on_transfer=False
+    delete_on_transfer=False,
+    replace=True,
 ):
     """
     Downloads multiple files from a list of URLs to a destination directory.
@@ -102,7 +103,7 @@ def edf_data_transfer(
 
     for file_url in files:
         time.sleep(1)
-        local_path = download_temp_file.with_options(task_run_name=os.path.basename(file_url)).submit(file_url, storage_options, destination, delete_on_transfer)
+        local_path = download_temp_file.with_options(task_run_name=os.path.basename(file_url)).submit(file_url, storage_options, destination, delete_on_transfer, replace)
         downloaded_files.append(local_path)
 
     return downloaded_files
