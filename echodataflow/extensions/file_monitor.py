@@ -112,15 +112,22 @@ def file_monitor(
     all_files = []
     for root, _, files in os.walk(dir_to_watch):
         for file in files:
+            
             file_path = os.path.join(root, file)
             
-            if not extension or (extension and extension == os.path.basename(file_path).split('.')[1]):
+            try:
+                fext = os.path.basename(file_path).split('.')[1]
+            except Exception:
+                fext = ""
+                
+            if not extension or (extension and extension == fext):
                 file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
             
                 if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
                     if not edfrun.processed_files.get(file):
                         edfrun.processed_files[file] = FileDetails()
                     all_files.append((file_path, file_mtime, file))
+        break
                             
 
     # Sort files by modification time

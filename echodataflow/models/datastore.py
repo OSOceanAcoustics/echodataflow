@@ -108,7 +108,7 @@ class Args(BaseModel):
 
     storepath: Optional[str] = None
     urlpath: Optional[str] = None
-    parameters: Parameters
+    parameters: Parameters = None
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}
     group: Optional[Transect] = None

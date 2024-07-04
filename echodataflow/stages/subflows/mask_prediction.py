@@ -246,7 +246,22 @@ def process_mask_prediction(
                 file_name=ed.filename + "_score_hake.zarr",
                 storage_options=config.output.storage_options_dict,
             )
-
+            
+            da_score_hake.to_zarr(
+                store=score_zarr,
+                mode="w",
+                consolidated=True,
+                storage_options=config.output.storage_options_dict,
+            ) 
+            
+            score_zarr = get_out_zarr(
+                group=True,
+                working_dir=working_dir,
+                transect="Hake_Score/Resampled",
+                file_name=ed.filename + "_score_hake_resampled.zarr",
+                storage_options=config.output.storage_options_dict,
+            )
+            
             da_score_hake.resample(ping_time="30S").mean().to_zarr(
                 store=score_zarr,
                 mode="w",
