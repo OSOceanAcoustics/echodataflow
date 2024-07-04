@@ -74,7 +74,8 @@ def file_monitor(
     hour_threshold: int = 2,
     minute_threshold: int = 0,
     retry_threshold: int = 3,
-    extension: str = None
+    extension: str = None,
+    file_name: str = "Bell_M._Shimada-SH2407-EK80",
 ):
     """
     Monitors a directory for file changes and processes new or modified files.
@@ -136,7 +137,7 @@ def file_monitor(
     var: Variable = Variable.get(name="run_name", default=None)
     
     if not var:
-        value = f"Bell_M._Shimada-SH2407-EK80_{datetime.now().isoformat()}"
+        value = file_name + f"_{datetime.now().isoformat()}"
         Variable.set(name="run_name", value=value, overwrite=True)
     else:
         value = var.value
