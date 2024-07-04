@@ -186,11 +186,15 @@ def process_mask_prediction(
                 channel=ch_wanted
             )
             
+            model_path = "/home/exouser/hake_data/model/backup_model_weights/binary_hake_model_{bottom_offset}m_bottom_offset_1.0m_depth_2017_2019_ver_1.ckpt"
+            
             # Load binary hake models with weights
             model = BinaryHakeModel("placeholder_experiment_name",
                                     Path("placeholder_score_tensor_dir"),
                                     "placeholder_tensor_log_dir", 0).eval()
-            model.load_state_dict(torch.load(f"/home/exouser/hake_data/model/backup_model_weights/binary_hake_model_{bottom_offset}m_bottom_offset_1.0m_depth_2017_2019_ver_1.ckpt")["state_dict"])            
+            model.load_state_dict(torch.load(
+                stage.external_params.get('model_path', model_path),
+                )["state_dict"])
             
             mvbs_tensor = torch.tensor(mvbs_slice['Sv'].values, dtype=torch.float32).unsqueeze(0)
 
