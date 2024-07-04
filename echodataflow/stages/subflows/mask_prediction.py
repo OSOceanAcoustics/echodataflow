@@ -186,7 +186,7 @@ def process_mask_prediction(
                 channel=ch_wanted
             )
             
-            model_path = "/home/exouser/hake_data/model/backup_model_weights/binary_hake_model_{bottom_offset}m_bottom_offset_1.0m_depth_2017_2019_ver_1.ckpt"
+            model_path = f"/home/exouser/hake_data/model/backup_model_weights/binary_hake_model_{bottom_offset}m_bottom_offset_1.0m_depth_2017_2019_ver_1.ckpt"
             
             # Load binary hake models with weights
             model = BinaryHakeModel("placeholder_experiment_name",
