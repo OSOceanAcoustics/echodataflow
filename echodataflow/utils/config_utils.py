@@ -109,7 +109,7 @@ def check_config(dataset_config: Dict[str, Any], pipeline_config: Dict[str, Any]
             raise ValueError("Active recipe name not found in the recipe list!")
 
 
-def glob_url(path: str, storage_options: Dict[str, Any] = {}) -> List[str]:
+def glob_url(path: str, storage_options: Dict[str, Any] = {}, maxdepth: int = 1) -> List[str]:
     """
     Glob files based on the given path string using fsspec.filesystem.glob.
 
@@ -126,7 +126,7 @@ def glob_url(path: str, storage_options: Dict[str, Any] = {}) -> List[str]:
     """
 
     file_system, scheme = extract_fs(path, storage_options, include_scheme=True)
-    all_files = [f if f.startswith(scheme) else f"{scheme}://{f}" for f in file_system.glob(path)]
+    all_files = [f if f.startswith(scheme) else f"{scheme}://{f}" for f in file_system.glob(path, maxdepth=maxdepth)]
     return all_files
 
 

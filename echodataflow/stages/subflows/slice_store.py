@@ -59,9 +59,9 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                     file_name= file_name,
                     storage_options=config.output.storage_options_dict,
                 )
-            
-                # out_path will have sv and 'store' will have path to store
+
                 identifier = None
+                # out_path will have sv and 'store' will have path to store
                 if edf.stages.get("Sv_store"):
                     identifier = "sv"
                     storepath = edf.stages.get("Sv_store")
@@ -71,7 +71,26 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                 else:
                     identifier = "store"
                     storepath = edf.stages.get("store")
-                    
+                
+                if stage.dependson:
+                    for k, v in stage.dependson.items():
+                        if k == "store":
+                            log_util.log(
+                                msg={
+                                    "msg": f"Working on {v}",
+                                    "mod_name": __file__,
+                                    "func_name": "write_output",
+                                },
+                                use_dask=stage.options["use_dask"],
+                                eflogging=config.logging,
+                            )
+                            if v.lower() == "mvbs":
+                                identifier = "mvbs"
+                                storepath = edf.stages.get("MVBS_store")
+                            elif v.lower() == "sv":
+                                identifier = "sv"
+                                storepath = edf.stages.get("Sv_store")
+
                 log_util.log(
                     msg={
                         "msg": f"Working on {identifier}",
@@ -96,7 +115,7 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                         eflogging=config.logging,
                     )
                     nextsub = store.sel(ping_time=slice(pd.to_datetime(edf.start_time, unit="ns"), pd.to_datetime(edf.end_time, unit="ns")))
-                else:                 
+                else:
                     # get last processed index
                     var: Variable = Variable.get(name="last_"+ identifier +"_index", default=Variable(name="last_"+ identifier +"_index", value=0))
                     log_util.log(
@@ -112,7 +131,7 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                     sub = store.isel(ping_time=slice(int(var.value), None))
                     
                     # resample sub and store the new last processed index
-                    sam = sub['ping_time'].resample(ping_time=stage.options.get("ping_time_bin", "10s"))                
+                    sam = sub['ping_time'].resample(ping_time=stage.external_params.get("ping_time_bin", "10s"))                
                     last_v = max([v.start for v in sam.groups.values()])
                     log_util.log(
                         msg={

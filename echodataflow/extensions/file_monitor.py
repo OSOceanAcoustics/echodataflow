@@ -12,7 +12,7 @@ from datetime import datetime
 
 from echodataflow.models.datastore import StorageType
 from echodataflow.models.run import EDFRun, FileDetails
-from echodataflow.utils.config_utils import load_block
+from echodataflow.utils.config_utils import glob_url, load_block
 
 
 @task
@@ -110,24 +110,41 @@ def file_monitor(
 
     # List all files and their modification times
     all_files = []
-    for root, _, files in os.walk(dir_to_watch):
+    
+    if "*" in dir_to_watch:
+        files = glob_url(dir_to_watch, storage_options=storage_options if storage_options else {})
         for file in files:
-            
-            file_path = os.path.join(root, file)
-            
             try:
-                fext = os.path.basename(file_path).split('.')[1]
+                fext = os.path.basename(file).split('.')[1]
             except Exception:
                 fext = ""
                 
             if not extension or (extension and extension == fext):
-                file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+                file_mtime = datetime.fromtimestamp(os.path.getmtime(file))
             
                 if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
                     if not edfrun.processed_files.get(file):
                         edfrun.processed_files[file] = FileDetails()
-                    all_files.append((file_path, file_mtime, file))
-        break
+                    all_files.append((file, file_mtime, file))
+    else:
+        for root, _, files in os.walk(dir_to_watch):
+            for file in files:
+                
+                file_path = os.path.join(root, file)
+                
+                try:
+                    fext = os.path.basename(file_path).split('.')[1]
+                except Exception:
+                    fext = ""
+                    
+                if not extension or (extension and extension == fext):
+                    file_mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+                
+                    if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
+                        if not edfrun.processed_files.get(file):
+                            edfrun.processed_files[file] = FileDetails()
+                        all_files.append((file_path, file_mtime, file))
+            break
                             
 
     # Sort files by modification time
@@ -190,6 +207,7 @@ def file_monitor(
                     value = f"Bell_M._Shimada-SH2407-EK80_{datetime.now().isoformat()}"
                     Variable.set(name="run_name", value=value, overwrite=True)
                     Variable.set(name="last_sv_index", value=0, overwrite=True)
+                    Variable.set(name="last_mvbs_index", value=0, overwrite=True)
                     options["run_name"] = value
                 else:
                     options["run_name"] = value
@@ -208,7 +226,10 @@ def file_monitor(
                 edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
                 if not status:                
                     exceptionFlag = True
-                    break
+                    value = f"Bell_M._Shimada-SH2407-EK80_{datetime.now().isoformat()}"
+                    Variable.set(name="run_name", value=value, overwrite=True)
+                    Variable.set(name="last_sv_index", value=0, overwrite=True)
+                    Variable.set(name="last_mvbs_index", value=0, overwrite=True)
                 
     edfrun.last_run_time = new_run
 
