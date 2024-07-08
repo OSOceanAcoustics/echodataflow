@@ -102,6 +102,7 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                 )
                 
                 nextsub = None
+                newstore = None
                 store = xr.open_zarr(storepath, storage_options=config.output.storage_options_dict)                
                 
                 if edf.start_time and edf.end_time:
@@ -117,7 +118,7 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                     nextsub = store.sel(ping_time=slice(pd.to_datetime(edf.start_time, unit="ns"), pd.to_datetime(edf.end_time, unit="ns")))
                 else:
                     # get last processed index
-                    var: Variable = Variable.get(name="last_"+ identifier +"_index", default=Variable(name="last_"+ identifier +"_index", value=0))
+                    var: Variable = Variable.get(name="last_"+ identifier +"_index", default=Variable(name="last_"+ identifier +"_index", value=str(store["ping_time"][0].data)))
                     log_util.log(
                         msg={
                             "msg": f"Slicing from last known index {var.value}",
@@ -127,12 +128,16 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                         use_dask=stage.options["use_dask"],
                         eflogging=config.logging,
                     )
+                    
+                    start = pd.to_datetime(var.value, unit="ns")
+                    
                     # slice the store from the last processed index
-                    sub = store.isel(ping_time=slice(int(var.value), None))
+                    sub = store.sel(ping_time=slice(start, None))
                     
                     # resample sub and store the new last processed index
-                    sam = sub['ping_time'].resample(ping_time=stage.external_params.get("ping_time_bin", "10s"))                
-                    last_v = max([v.start for v in sam.groups.values()])
+                    sam = sub['ping_time'].resample(ping_time=stage.external_params.get("ping_time_bin", "10s"))
+                    last_v = max([(v.start, k) for k, v in sam.groups.items()])[1]
+                    
                     log_util.log(
                         msg={
                             "msg": f"Slicing till {last_v}",
@@ -142,7 +147,11 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                         use_dask=stage.options["use_dask"],
                         eflogging=config.logging,
                     )
-                    nextsub = sub.isel(ping_time=slice(0, last_v))
+                    
+                    last_v = pd.to_datetime(last_v, unit="ns")
+                    
+                    nextsub = sub.sel(ping_time=slice(None, last_v))
+                    newstore = sub.sel(ping_time=slice(last_v, None))
                     
                 time_diffs = pd.Series(nextsub['ping_time'].values).diff()
 
@@ -167,6 +176,15 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                     safe_chunks=False,                    
                 )
                 
+                if newstore:
+                    newstore.compute().to_zarr(
+                        store=storepath,
+                        mode="w",
+                        consolidated=True,
+                        storage_options=config.output.storage_options_dict,
+                        safe_chunks=False,   
+                    )
+                
                 if any(time_diff_exceeds_one_hour):
                         log_util.log(
                             msg={
@@ -185,7 +203,7 @@ def slice_store(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_st
                     edf.error = ErrorObject(errorFlag=False)     
                 
                 if not edf.start_time or not edf.end_time:
-                    Variable.set(name="last_"+ identifier +"_index", value=str(last_v + int(var.value)), overwrite=True)           
+                    Variable.set(name="last_"+ identifier +"_index", value=str(last_v), overwrite=True)           
                 edf.stages[stage.name] = out_zarr
     except Exception as e:
         log_util.log(

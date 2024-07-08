@@ -1,19 +1,26 @@
 import asyncio
-from datetime import datetime, timedelta
 import os
+import time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Coroutine, Dict, Optional, Union
-from prefect import flow, task
+
+from prefect import flow, get_client, task
 from prefect.blocks.core import Block
-from prefect.deployments import run_deployment
+from prefect.client.schemas.filters import (DeploymentFilter,
+                                            DeploymentFilterId, FlowRunFilter,
+                                            FlowRunFilterState,
+                                            FlowRunFilterStateType)
 from prefect.client.schemas.objects import FlowRun, StateType
+from prefect.deployments import run_deployment
+from prefect.runtime import deployment
+from prefect.states import Cancelled
 from prefect.variables import Variable
-from datetime import datetime
 
 from echodataflow.models.datastore import StorageType
 from echodataflow.models.run import EDFRun, FileDetails
 from echodataflow.utils.config_utils import glob_url, load_block
-
+from prefect.task_runners import SequentialTaskRunner
 
 @task
 def execute_flow(
@@ -60,7 +67,7 @@ def execute_flow(
     return (os.path.basename(file_path), True)
 
 
-@flow
+@flow(task_runner=SequentialTaskRunner())
 def file_monitor(
     dir_to_watch: str,
     dataset_config: Union[Dict[str, Any], str, Path],
@@ -76,6 +83,7 @@ def file_monitor(
     retry_threshold: int = 3,
     extension: str = None,
     file_name: str = "Bell_M._Shimada-SH2407-EK80",
+    min_time: str = "2024-07-05T15:45:00.000000"
 ):
     """
     Monitors a directory for file changes and processes new or modified files.
@@ -94,6 +102,10 @@ def file_monitor(
     Raises:
         ValueError: If an exception occurs in one or more files.
     """
+    
+    if deployment_already_running():
+        return Cancelled()
+    
     new_run = datetime.now().isoformat()
     edfrun: EDFRun = None
     try:
@@ -107,6 +119,7 @@ def file_monitor(
     
     last_run = datetime.fromisoformat(edfrun.last_run_time)
     exceptionFlag = False
+    min_time = datetime.fromisoformat(min_time)
 
     # List all files and their modification times
     all_files = []
@@ -123,9 +136,10 @@ def file_monitor(
                 file_mtime = datetime.fromtimestamp(os.path.getmtime(file))
             
                 if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
-                    if not edfrun.processed_files.get(file):
-                        edfrun.processed_files[file] = FileDetails()
-                    all_files.append((file, file_mtime, file))
+                    if file_mtime > min_time:
+                        if not edfrun.processed_files.get(file):
+                            edfrun.processed_files[file] = FileDetails()
+                        all_files.append((file, file_mtime, file))
     else:
         for root, _, files in os.walk(dir_to_watch):
             for file in files:
@@ -170,9 +184,6 @@ def file_monitor(
         for file_path, file_mtime, file in all_files:
             edfrun.processed_files[file].retry_count += 1
             
-            # TODO
-            # check if retry threshold has reached, if yes, start a new store?
-            # Might be tricky though in parallel situation. If appending to a zarr store then FM should switch fail_safe to False
             try:
                 futures.append(
                     execute_flow.with_options(tags=["edfFM"], task_run_name=file_path).submit(
@@ -206,8 +217,6 @@ def file_monitor(
                 if edfrun.processed_files[file].retry_count == retry_threshold:
                     value = f"Bell_M._Shimada-SH2407-EK80_{datetime.now().isoformat()}"
                     Variable.set(name="run_name", value=value, overwrite=True)
-                    Variable.set(name="last_sv_index", value=0, overwrite=True)
-                    Variable.set(name="last_mvbs_index", value=0, overwrite=True)
                     options["run_name"] = value
                 else:
                     options["run_name"] = value
@@ -222,14 +231,12 @@ def file_monitor(
                     json_data_path=json_data_path,
                     deployment_name=deployment_name,
                 )[1]
-                edfrun.processed_files[file].status = status
+                edfrun.processed_files[file].status = True # hardcoded to true to avaoid backlog processing in different schedules
                 edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
                 if not status:                
                     exceptionFlag = True
                     value = f"Bell_M._Shimada-SH2407-EK80_{datetime.now().isoformat()}"
                     Variable.set(name="run_name", value=value, overwrite=True)
-                    Variable.set(name="last_sv_index", value=0, overwrite=True)
-                    Variable.set(name="last_mvbs_index", value=0, overwrite=True)
                 
     edfrun.last_run_time = new_run
 
@@ -241,6 +248,26 @@ def file_monitor(
 
     if exceptionFlag:
         raise ValueError("Encountered Exception in one or more files")
+
+@task
+async def deployment_already_running() -> bool:
+    deployment_id = deployment.get_id()
+    async with get_client() as client:
+        # find any running flows for this deployment
+        running_flows = await client.read_flow_runs(
+            deployment_filter=DeploymentFilter(
+                id=DeploymentFilterId(any_=[deployment_id])
+            ),
+            flow_run_filter=FlowRunFilter(
+                state=FlowRunFilterState(
+                    type=FlowRunFilterStateType(any_=[StateType.RUNNING])
+                ),
+            ),
+        )
+    if len(running_flows) > 1:
+        return True
+    else:
+        return False
 
 
 if __name__ == "__main__":

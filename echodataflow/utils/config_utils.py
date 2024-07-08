@@ -33,10 +33,8 @@ import itertools as it
 import json
 import os
 import re
-import xarray as xr
 from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
 from zipfile import ZipFile
-from echodataflow.models.echodataflow_config import EchodataflowConfig
 
 import nest_asyncio
 import yaml
@@ -45,11 +43,10 @@ from prefect import task
 from prefect.filesystems import Block
 from prefect_aws import AwsCredentials
 from prefect_azure import AzureCosmosDbCredentials
-from prefect.variables import Variable
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset, StorageOptions, StorageType
-from echodataflow.models.output_model import EchodataflowObject
+from echodataflow.models.echodataflow_config import EchodataflowConfig
 from echodataflow.models.pipeline import Stage
 from echodataflow.models.run import EDFRun
 from echodataflow.utils.file_utils import extract_fs, isFile
@@ -610,8 +607,9 @@ def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
     """
     if external_params:
         for k, v in external_params.items():
-            if not v and isinstance(v, str) and "\\" in v or "/" in v:
-                if not isFile(v, config.output.storage_options_dict):
-                    return False
+            if not v and isinstance(v, str): 
+                if "\\" in v or "/" in v:
+                    if not isFile(v, config.output.storage_options_dict):
+                        return False
     
     return True
