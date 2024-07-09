@@ -196,7 +196,7 @@ def process_mask_prediction(
                 stage.external_params.get('model_path', model_path),
                 )["state_dict"])
             
-            mvbs_tensor = torch.tensor(mvbs_slice['Sv'].values, dtype=torch.float32).unsqueeze(0)
+            mvbs_tensor = torch.tensor(mvbs_slice['Sv'].sel(depth=slice(None, 590)).values, dtype=torch.float32).unsqueeze(0)
 
             da_MVBS_tensor = torch.clip(
                 torch.tensor(mvbs_tensor, dtype=torch.float16),
@@ -220,8 +220,6 @@ def process_mask_prediction(
             )
 
             dims = stage.external_params.get('dims', ['ping_time', 'depth'])
-            
-            da_score_hake = assemble_da(score_tensor.numpy()[1,:,:], ds_ref=ed_list[0], dims=dims)
             
             # Not required
             # softmax_zarr = get_out_zarr(
@@ -247,6 +245,8 @@ def process_mask_prediction(
                 storage_options=config.output.storage_options_dict,
             )
             
+            da_score_hake = assemble_da(score_tensor.numpy(), ds_ref=ed_list[0], dims=dims)
+            
             da_score_hake.to_zarr(
                 store=score_zarr,
                 mode="w",
@@ -254,22 +254,7 @@ def process_mask_prediction(
                 storage_options=config.output.storage_options_dict,
             ) 
             
-            score_zarr = get_out_zarr(
-                group=True,
-                working_dir=working_dir,
-                transect="Hake_Score",
-                file_name=ed.filename + "_score_hake.zarr",
-                storage_options=config.output.storage_options_dict,
-            )
-            
-            da_score_hake.to_zarr(
-                store=score_zarr,
-                mode="w",
-                consolidated=True,
-                storage_options=config.output.storage_options_dict,
-            )
-            
-            # Get mask from softmax score
+            # Get mask from score
             da_mask_hake = assemble_da(score_tensor.max(dim=0)[1].int().numpy(), ds_ref=ed_list[0], dims=dims)
             
             da_mask_hake.to_zarr(
