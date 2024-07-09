@@ -371,7 +371,7 @@ def get_input_from_store(config: Dataset):
             obj = EchodataflowObject(
                 file_path=" ",   
                 group_name="DefaultGroup",
-                filename=f"win_{stime.strftime("D%Y%m%d-T%H%M%S")}_{etime.strftime("D%Y%m%d-T%H%M%S")}",
+                filename=f"win_{stime.strftime('D%Y%m%d-T%H%M%S')}_{etime.strftime('D%Y%m%d-T%H%M%S')}",
                 start_time=stime.isoformat(timespec='nanoseconds'),
                 end_time=etime.isoformat(timespec='nanoseconds')
             )

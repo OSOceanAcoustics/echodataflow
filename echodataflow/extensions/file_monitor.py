@@ -175,7 +175,7 @@ def file_monitor(
     var: Variable = Variable.get(name="run_name", default=None)
     
     if not var:
-        value = file_name + f"_{datetime.now().strftime("D%Y%m%d-T%H%M%S")}"
+        value = file_name + f"_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
         Variable.set(name="run_name", value=value, overwrite=True)
     else:
         value = var.value
@@ -215,7 +215,7 @@ def file_monitor(
                 edfrun.processed_files[file].retry_count += 1
                 
                 if edfrun.processed_files[file].retry_count == retry_threshold:
-                    value = f"{file_name}_{datetime.now().strftime("D%Y%m%d-T%H%M%S")}"
+                    value = f"{file_name}_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
                     Variable.set(name="run_name", value=value, overwrite=True)
                     options["run_name"] = value
                 else:
@@ -235,7 +235,7 @@ def file_monitor(
                 edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
                 if not status:                
                     exceptionFlag = True
-                    value = f"{file_name}_{datetime.now().strftime("D%Y%m%d-T%H%M%S")}"
+                    value = f"{file_name}_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
                     Variable.set(name="run_name", value=value, overwrite=True)
                 
     edfrun.last_run_time = new_run
