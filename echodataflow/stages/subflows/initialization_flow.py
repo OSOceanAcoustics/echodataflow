@@ -36,6 +36,7 @@ from echodataflow.utils.config_utils import (
     club_raw_files,
     get_prefect_config_dict,
     glob_all_files,
+    glob_url,
     parse_raw_paths,
     sanitize_external_params,
 )
@@ -370,7 +371,7 @@ def get_input_from_store(config: Dataset):
             obj = EchodataflowObject(
                 file_path=" ",   
                 group_name="DefaultGroup",
-                filename=f"win_{int(stime.timestamp())}_{int(etime.timestamp())}",
+                filename=f"win_{stime.strftime("D%Y%m%d-T%H%M%S")}_{etime.strftime("D%Y%m%d-T%H%M%S")}",
                 start_time=stime.isoformat(timespec='nanoseconds'),
                 end_time=etime.isoformat(timespec='nanoseconds')
             )
@@ -382,3 +383,36 @@ def get_input_from_store(config: Dataset):
     else:
         raise ValueError("Not enough frames to process, try reducing the window size")
         
+def get_input_from_store_folder(config: Dataset):
+    return None
+#     curr_time = datetime.now()
+#     output: Output = Output()
+    
+#     end_time = curr_time - timedelta(hours=config.args.time_travel_hours, minutes=config.args.time_travel_mins)
+#     start_time = end_time - timedelta(hours=config.args.window_hours, minutes=config.args.window_mins)
+    
+#     end_time.replace(second=0, microsecond=0)
+#     start_time.replace(second=0, microsecond=0)
+    
+#     store = config.args.store_folder
+    
+#     files = sorted(glob_url(path=store, storage_options=config.output.storage_options))
+    
+#     relevant_files = {}
+    
+#     for file in files:
+#         try:
+#             basename = os.path.basename(file)
+#             # Hake-D20240625-T214345
+#             date_time_str = basename.split('-')[1].split('_')[0][1:] + basename.split('-')[2].split('_')[0]
+#             file_time = datetime.strptime(date_time_str, "%Y%m%dT%H%M%S")
+#             relevant_files[file_time] = file
+#         except ValueError:
+#             continue
+    
+#     timestamps = list(relevant_files.keys())
+    
+#     start_index = next((i for i, ts in enumerate(timestamps) if ts >= start_time), None) - 1 
+    
+#     end_index = next((i for i, ts in enumerate(reversed(timestamps)) if ts <= end_time), None) + 1
+    
