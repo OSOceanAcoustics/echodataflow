@@ -205,8 +205,10 @@ def process_mask_prediction(
                 min=-70,
                 max=-36,
             )
+            
             # Replace NaN values with min Sv
-            da_MVBS_tensor[torch.isnan(da_MVBS_tensor)] = -36
+            # 07/10/2024 Caesar -> will need to be set to minimum value -70 not -36.
+            da_MVBS_tensor[torch.isnan(da_MVBS_tensor)] = -70
             
             MVBS_tensor_normalized = (
                 (da_MVBS_tensor - (-70.0)) / (-36.0 - (-70.0)) * 255.0
