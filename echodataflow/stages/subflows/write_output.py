@@ -113,7 +113,7 @@ def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_s
                         )
                         
                         
-                    if "echodataflow_compute_Sv" in edf.stages.keys() and "Sv_store" not in edf.stages.keys():
+                    if ("echodataflow_compute_Sv" in edf.stages.keys() or "edf_Sv_pipeline" in edf.stages.keys()) and "Sv_store" not in edf.stages.keys():
                         edf.stages["Sv_store"] = out_zarr                    
                     elif "echodataflow_compute_MVBS" in edf.stages.keys() and "MVBS_store" not in edf.stages.keys():
                         edf.stages["MVBS_store"] = out_zarr   
