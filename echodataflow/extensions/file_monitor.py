@@ -83,7 +83,8 @@ def file_monitor(
     retry_threshold: int = 3,
     extension: str = None,
     file_name: str = "Bell_M._Shimada-SH2407-EK80",
-    min_time: str = "2024-07-05T15:45:00.000000"
+    min_time: str = "2024-07-05T15:45:00.000000",
+    max_folder_depth: int = 1
 ):
     """
     Monitors a directory for file changes and processes new or modified files.
@@ -125,7 +126,7 @@ def file_monitor(
     all_files = []
     
     if "*" in dir_to_watch:
-        files = glob_url(dir_to_watch, storage_options=storage_options if storage_options else {})
+        files = glob_url(dir_to_watch, storage_options=storage_options if storage_options else {}, maxdepth=max_folder_depth)
         for file in files:
             try:
                 fext = os.path.basename(file).split('.')[1]
@@ -164,6 +165,8 @@ def file_monitor(
     # Sort files by modification time
     all_files.sort(key=lambda x: x[1])
     print("Files To be processed : ",len(all_files))
+    
+    last_file = all_files[-1]
     
     print(all_files)
     # Skip the most recently modified file
@@ -237,7 +240,11 @@ def file_monitor(
                     exceptionFlag = True
                     value = f"{file_name}_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
                     Variable.set(name="run_name", value=value, overwrite=True)
-                
+    
+    
+    _, _, file = last_file
+    edfrun.processed_files[file].status = False
+    
     edfrun.last_run_time = new_run
 
     block = edfrun.save(
