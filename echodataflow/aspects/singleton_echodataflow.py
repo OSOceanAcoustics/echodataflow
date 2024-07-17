@@ -144,10 +144,7 @@ class Singleton_Echodataflow:
             extra: Extra information to include in the log record.
         """
         if self.logger is not None:
-            self.logger.log(level=logging.DEBUG, msg=msg, extra=extra)
-            self.logger.log(level=logging.ERROR, msg=msg, extra=extra)
-            self.logger.log(level=logging.INFO, msg=msg, extra=extra)
-            self.logger.log(level=logging.WARNING, msg=msg, extra=extra)
+            self.logger.log(level=level, msg=msg, extra=extra)            
         else:
             print(f"{extra} : {msg}")
 
