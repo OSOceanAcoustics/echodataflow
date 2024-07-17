@@ -1,11 +1,12 @@
 import os
+import subprocess
 import time
 from typing import List, Dict, Any, Union
 from prefect import flow, task
 from prefect.concurrency.sync import concurrency
 import zarr
 
-from echodataflow.utils.config_utils import get_storage_options, glob_url, load_block
+from echodataflow.utils.config_utils import get_storage_options, glob_url, handle_storage_options, load_block
 from echodataflow.utils.file_utils import extract_fs, make_temp_folder
 
 
@@ -54,16 +55,23 @@ def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir:
     return out_path
 
 @task
-def get_storage_options_from_block(storage_options: Dict[str, Any]):
-    if storage_options.get("name") and storage_options.get("type"):
-        block = load_block(
-                    name=storage_options.get("name"),
-                    type=storage_options.get("type"),
-                )
-        storage_options = get_storage_options(block)
-    
-    return storage_options
+def sync_with_rclone(source: Union[str, List[str]], destination: str):
+    """
+    Syncs files using rclone.
 
+    Args:
+        source (Union[str, List[str]]): Source directory or list of directories to sync.
+        destination (str): Destination directory for the sync.
+    """
+    source_dirs = source if isinstance(source, list) else [source]
+    for src in source_dirs:
+        src_basename = os.path.basename(src.rstrip('/'))  # Get the base name of the source directory
+        dest_dir = os.path.join(destination, src_basename)
+        print(f"Syncing {src} with {destination} using rclone ...")
+        subprocess.run(["rclone", "sync", src, dest_dir], check=True)
+        print(f"Sync of {src} complete.")
+        
+        
 @flow
 def edf_data_transfer(
     source: Union[List[str], str],
@@ -72,6 +80,7 @@ def edf_data_transfer(
     destination_storage_options: Dict[str, Any] = {},
     delete_on_transfer=False,
     replace=True,
+    rclone_sync=True
 ):
     """
     Downloads multiple files from a list of URLs to a destination directory.
@@ -81,18 +90,24 @@ def edf_data_transfer(
         storage_options (Dict[str, Any]): Dictionary containing storage options for source and destination.
         dest_dir (str): Destination directory where the files will be downloaded.
     """
+    if rclone_sync:
+        sync_with_rclone.submit(source, destination)
+        return
+    
     downloaded_files = []
     if not source:
         raise ValueError("No Source Provided.")
 
-    source_storage_options = get_storage_options_from_block(source_storage_options)
+    source_storage_options = handle_storage_options(source_storage_options)
     
-    destination_storage_options = get_storage_options_from_block(destination_storage_options)
+    destination_storage_options = handle_storage_options(destination_storage_options)
+    
+    files = []
     
     if isinstance(source, str):
         files = glob_url(source, source_storage_options)
     else:
-        files = source
+        files.extend([file for s in source for file in glob_url(s, source_storage_options)])
     
     print(source)
     print(files)
@@ -110,4 +125,4 @@ def edf_data_transfer(
 
 
 if __name__ == "__main__":
-    edf_data_transfer.serve()
+    edf_data_transfer.serve(name="edf-data-transfer-sb")
