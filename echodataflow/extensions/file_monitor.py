@@ -166,7 +166,10 @@ def file_monitor(
     all_files.sort(key=lambda x: x[1])
     print("Files To be processed : ",len(all_files))
     
-    last_file = all_files[-1]
+    last_file = None
+    
+    if len(all_files) > 0:
+        last_file = all_files[-1]
     
     print(all_files)
     # Skip the most recently modified file
@@ -241,9 +244,9 @@ def file_monitor(
                     value = f"{file_name}_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
                     Variable.set(name="run_name", value=value, overwrite=True)
     
-    
-    _, _, file = last_file
-    edfrun.processed_files[file].status = False
+    if last_file:
+        _, _, file = last_file
+        edfrun.processed_files[file].status = False
     
     edfrun.last_run_time = new_run
 
