@@ -12,3 +12,5 @@ jupyter-book
 fastapi
 sphinx
 kafka-python
+torch
+numpy

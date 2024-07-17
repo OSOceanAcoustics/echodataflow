@@ -12,44 +12,38 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 
-from collections import defaultdict
 import json
 import os
-from typing import Dict, List, Optional, Tuple
-import xarray as xr
-import pandas as pd
+from collections import defaultdict
 from datetime import datetime, timedelta
-import numpy as np
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np
+import pandas as pd
+import torch
+import xarray as xr
 from distributed import Client, LocalCluster
-from echodataflow.aspects.singleton_echodataflow import Singleton_Echodataflow
-from echodataflow.models.output_model import EchodataflowObject, Group, Metadata, Output
 from fastapi.encoders import jsonable_encoder
 from prefect import flow
 from prefect.task_runners import SequentialTaskRunner
 from prefect_dask import DaskTaskRunner
-import torch
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
+from echodataflow.aspects.singleton_echodataflow import Singleton_Echodataflow
 from echodataflow.models.datastore import Dataset
+from echodataflow.models.output_model import (EchodataflowObject, Group,
+                                              Metadata, Output)
 from echodataflow.models.pipeline import Pipeline, ProcessingType, Recipe
 from echodataflow.utils import log_util
-from echodataflow.utils.config_utils import (
-    club_raw_files,
-    get_prefect_config_dict,
-    glob_all_files,
-    glob_url,
-    parse_raw_paths,
-    sanitize_external_params,
-)
-from echodataflow.utils.file_utils import (
-    cleanup,
-    extract_fs,
-    get_last_run_output,
-    get_out_zarr,
-    process_output_groups,
-    store_json_output,
-)
+from echodataflow.utils.config_utils import (club_raw_files,
+                                             get_prefect_config_dict,
+                                             glob_all_files, glob_url,
+                                             parse_raw_paths,
+                                             sanitize_external_params)
+from echodataflow.utils.file_utils import (cleanup, extract_fs,
+                                           get_last_run_output, get_out_zarr,
+                                           process_output_groups,
+                                           store_json_output)
 from echodataflow.utils.function_utils import dynamic_function_call
 
 
