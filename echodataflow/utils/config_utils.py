@@ -536,6 +536,17 @@ def get_storage_options(storage_options: Block = None) -> Dict[str, Any]:
     return storage_options_dict
 
 
+def handle_storage_options(storage_options: Optional[Dict] = None) -> Dict:
+    if storage_options:
+        if isinstance(storage_options, Block):
+            return get_storage_options(storage_options=storage_options)
+        elif isinstance(storage_options, dict) and storage_options.get("block_name"):
+            block = load_block(
+                name=storage_options.get("block_name"), type=storage_options.get("type")
+            )
+            return get_storage_options(block)
+    return {}
+
 def load_block(name: str = None, type: StorageType = None):
     """
     Load a block of a specific type by name.

@@ -277,16 +277,25 @@ def get_ed_list(
     ed_list = []
     if type(transect_data) == list:
         for zarr_path_data in transect_data:
+            if zarr_path_data.data:
+                ed = zarr_path_data.data
+                del zarr_path_data.data
+                zarr_path_data.data = None
             ed = open_converted(
                 converted_raw_path=str(zarr_path_data.out_path),
             storage_options=dict(config.output.storage_options_dict),
         )
         ed_list.append(ed)
     else:
-        ed = open_converted(
-            converted_raw_path=str(transect_data.out_path),
-            storage_options=dict(config.output.storage_options_dict),
-        )
+        if transect_data.data:
+            ed = transect_data.data
+            del transect_data.data
+            transect_data.data = None
+        else:
+            ed = open_converted(
+                converted_raw_path=str(transect_data.out_path),
+                storage_options=dict(config.output.storage_options_dict),
+            )
         ed_list.append(ed)
     return ed_list
 
@@ -313,10 +322,20 @@ def get_zarr_list(
     zarr_list = []
     if type(transect_data) == list:
         for td in transect_data:
-            zarr = xr.open_zarr(td.out_path, storage_options=storage_options)
+            if td.data:
+                zarr = td.data
+                del td.data
+                td.data = None
+            else:
+                zarr = xr.open_zarr(td.out_path, storage_options=storage_options)
         zarr_list.append(zarr)
     else:
-        zarr = xr.open_zarr(transect_data.out_path, storage_options=storage_options)
+        if transect_data.data:
+            zarr = transect_data.data
+            del transect_data.data
+            transect_data.data = None
+        else:
+            zarr = xr.open_zarr(transect_data.out_path, storage_options=storage_options)
         zarr_list.append(zarr)
 
     return zarr_list

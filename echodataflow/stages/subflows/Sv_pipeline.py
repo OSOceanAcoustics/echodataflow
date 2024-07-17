@@ -149,7 +149,7 @@ def process_Sv_pipeline(
     download_temp_file(raw, working_dir, stage, config)
     local_file = raw.local_path
     raw.filename = os.path.basename(raw.local_path).split(".", maxsplit=1)[0]
-    file_name = raw.filename + ".zarr"
+    file_name = raw.filename + "_Sv.zarr"
     try:
         log_util.log(
             msg={
