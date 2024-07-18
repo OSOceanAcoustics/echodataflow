@@ -68,7 +68,7 @@ def sync_with_rclone(source: Union[str, List[str]], destination: str):
         src_basename = os.path.basename(src.rstrip('/'))  # Get the base name of the source directory
         dest_dir = os.path.join(destination, src_basename)
         print(f"Syncing {src} with {destination} using rclone ...")
-        subprocess.run(["rclone", "sync", src, dest_dir], check=True)
+        subprocess.run(["rclone", "copy --max-age 20m --no-traverse", src, dest_dir], check=True)
         print(f"Sync of {src} complete.")
         
         
@@ -101,13 +101,15 @@ def edf_data_transfer(
     source_storage_options = handle_storage_options(source_storage_options)
     
     destination_storage_options = handle_storage_options(destination_storage_options)
-    
+
     files = []
     
     if isinstance(source, str):
         files = glob_url(source, source_storage_options)
     else:
-        files.extend([file for s in source for file in glob_url(s, source_storage_options)])
+        for s in source:
+            flist = glob_url(s, source_storage_options)
+            files.extend([f for f in flist])
     
     print(source)
     print(files)

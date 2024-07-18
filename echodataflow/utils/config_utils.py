@@ -545,6 +545,8 @@ def handle_storage_options(storage_options: Optional[Dict] = None) -> Dict:
                 name=storage_options.get("block_name"), type=storage_options.get("type")
             )
             return get_storage_options(block)
+        else:
+            return storage_options if storage_options and len(storage_options.keys()) > 0 else {}
     return {}
 
 def load_block(name: str = None, type: StorageType = None):
