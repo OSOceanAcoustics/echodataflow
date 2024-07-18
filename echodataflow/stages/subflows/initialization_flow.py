@@ -80,7 +80,17 @@ def init_flow(pipeline: Recipe, config: Dataset, json_data_path: Optional[str] =
     elif config.args.storefolder:
         output = get_input_from_store_folder(config=config)
 
-    store_json_output(output, config=config, name=config.name)
+    store_json_output(output.model_copy(deep=True), config=config, name=config.name)
+
+    if output and isinstance(output, Output):      
+        for _, gr in output.group.items():
+            for edf in gr.data:
+                status = "No" if edf.data is not None else "Yes"
+                log_util.log(
+                    msg={"msg": f"is tensor data None ? {status}", "mod_name": __file__, "func_name": "File Utils"},
+                    use_dask=False,
+                    eflogging=config.logging,
+                )                
 
     process_list = pipeline.pipeline
 
@@ -199,6 +209,13 @@ def process_stages_disk(
 
         prefect_config_dict["name"] = stage.name
         prefect_config_dict["flow_run_name"] = stage.name
+
+        if stage.name == "process_mask_prediction_tensor":
+            if "flow_run_name" in prefect_config_dict.keys():
+                prefect_config_dict.pop("flow_run_name")
+            if "task_runner" in prefect_config_dict.keys():
+                prefect_config_dict.pop("task_runner")
+            
         function = function.with_options(**prefect_config_dict)
 
         # Dict of Group
@@ -222,7 +239,7 @@ def process_stages_disk(
         )
         output.group = groups
         
-        store_json_output(data=output, name=stage.name + "_output", config=config)
+        store_json_output(data=output.model_copy(deep=True), name=stage.name + "_output", config=config)
 
         store_json_output(data=error_groups, name=stage.name + "_ErroredGroups", config=config)
 
@@ -394,8 +411,8 @@ def get_input_from_store_folder(config: Dataset):
     else:
         combo_output = Output()
         
-        store_18 = config.args.store_folder[0]
-        store_5 = config.args.store_folder[1]
+        store_18 = config.args.storefolder[0]
+        store_5 = config.args.storefolder[1]
         
         store_18_output = process_store_folder(config, store_18, end_time)
         store_5_output = process_store_folder(config, store_5, end_time)
@@ -426,6 +443,19 @@ def get_input_from_store_folder(config: Dataset):
             combo_output.group[name] = gr.model_copy()
             combo_output.group[name].data = [edf_5]
             
+            log_util.log(
+                    msg={"msg": f"{ name }", "mod_name": __file__, "func_name": "Mask"},
+                    use_dask=False,
+                    eflogging=config.logging,
+                )
+
+            for dim, size in edf_5.data_ref.dims.items():
+                log_util.log(
+                    msg={"msg": f"{ dim } : {size}", "mod_name": __file__, "func_name": "Mask"},
+                    use_dask=False,
+                    eflogging=config.logging,
+                )
+            
         return combo_output
 
 def process_xrd(ds: xr.Dataset, freq_wanted = [120000, 38000, 18000]) -> xr.Dataset:
@@ -442,14 +472,14 @@ def combine_datasets(store_18: xr.Dataset, store_5: xr.Dataset) -> Tuple[torch.T
     ds_18k = None
     combined_ds = None
     try:
-        partial_channel_name = ["18 kHz"]
+        partial_channel_name = ["ES18"]
         ds_18k = extract_channels(store_18, partial_channel_name)        
-        partial_channel_name = ["38 kHz", "120 kHz"]
+        partial_channel_name = ["ES38", "ES120"]
         ds_32k_120k = extract_channels(store_5, partial_channel_name)
     except Exception as e:
-        partial_channel_name = ["18 kHz"]
+        partial_channel_name = ["ES18"]
         ds_18k = extract_channels(store_5, partial_channel_name)
-        partial_channel_name = ["38 kHz", "120 kHz"]
+        partial_channel_name = ["ES38", "ES120"]
         ds_32k_120k = extract_channels(store_18, partial_channel_name)
         
     if not ds_18k or not ds_32k_120k:
@@ -511,7 +541,7 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
         try:
             basename = os.path.basename(file)
             date_time_str = basename.split('-')[1].split('_')[0][1:] + basename.split('-')[2].split('_')[0]
-            file_time = datetime.strptime(date_time_str, "%Y%m%dT%H%M%S")
+            file_time = datetime.strptime(date_time_str, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
             relevant_files[file_time] = file
             timestamps.append(file_time)
         except ValueError:
@@ -520,15 +550,7 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
     
     for _ in range(config.args.number_of_windows):
         start_time = end_time - timedelta(hours=config.args.window_hours, minutes=config.args.window_mins)
-        start_time = start_time.replace(second=0, microsecond=0)
-        log_util.log(
-                msg={
-                    "msg": f"Range is {start_time} to {end_time}",
-                    "mod_name": __file__,
-                    "func_name": "Init Flow",
-                },
-                eflogging=config.logging,
-            )
+        start_time = start_time.replace(second=0, microsecond=0)        
         
         start_index = next((i for i, ts in enumerate(timestamps) if ts >= start_time), 0) - 1 
         if start_index <= 0:
@@ -551,6 +573,15 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
         
         gname = f"win_{start_time.strftime('D%Y%m%d-T%H%M%S')}_{end_time.strftime('D%Y%m%d-T%H%M%S')}"
         
+        log_util.log(
+            msg={
+                "msg": f"Range is {start_time} to {end_time}; Found {len(relevant_files)} -> {win_relevant_files}" ,
+                "mod_name": __file__,
+                "func_name": "Init Flow",
+            },
+            eflogging=config.logging,
+        )
+
         for fpath in win_relevant_files:    
             g = output.group.get(gname, Group())
             g.group_name = gname
@@ -562,8 +593,8 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
                 out_path=fpath,
                 group_name=gname,
                 filename="Hake-"+str(start_time.strftime('D%Y%m%d-T%H%M%S')),
-                start_time= start_time.isoformat(),
-                end_time=end_time.isoformat()
+                start_time= start_time.replace(tzinfo=None).isoformat(),
+                end_time=end_time.replace(tzinfo=None).isoformat()
             )
             g.data.append(obj)
 

@@ -111,7 +111,7 @@ def file_monitor(
     edfrun: EDFRun = None
     try:
         edfrun = load_block(
-                    name="edf-fm-last-run",
+                    name="edf-fm-last-run-18kHz",
                     type=StorageType.EDFRUN,
                 )
     except Exception as e:
@@ -251,7 +251,7 @@ def file_monitor(
     edfrun.last_run_time = new_run
 
     block = edfrun.save(
-            "edf-fm-last-run", overwrite=True
+            "edf-fm-last-run-18kHz", overwrite=True
     )
     if isinstance(block, Coroutine):
         block = asyncio.run(block)
@@ -281,4 +281,4 @@ async def deployment_already_running() -> bool:
 
 
 if __name__ == "__main__":
-    file_monitor.serve(name="file-monitor-5Freq")
+    file_monitor.serve(name="file-monitor-18kHz")

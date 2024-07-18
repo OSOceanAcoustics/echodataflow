@@ -234,8 +234,7 @@ def process_Sv_pipeline(
             
             del xr_d_sv
             del xr_d
-            del ed
-            del local_file
+            del ed            
             
             if stage.options.get("save_raw_file") == False:
                 log_util.log(
@@ -249,7 +248,10 @@ def process_Sv_pipeline(
                 )
                 fs = extract_fs(local_file, storage_options=config.output.storage_options_dict)
                 fs.rm(local_file, recursive=True)
+                
+            del local_file
         else:
+
             log_util.log(
                 msg={
                     "msg": f"Skipped processing {raw.filename}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False",

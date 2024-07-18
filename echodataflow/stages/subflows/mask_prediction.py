@@ -323,19 +323,29 @@ def process_mask_prediction_tensor(
 ):
     working_dir = get_working_dir(stage=stage, config=config)
 
-    futures = defaultdict(list)
-
     for name, gr in groups.items():
         results = []
         for ed in gr.data:
-            results.append(process_mask_prediction_util(ed, config, stage, working_dir))
+            if ed.data is not None:
+                log_util.log(
+                msg={"msg": "ed data is not none", "mod_name": __file__, "func_name": "Mask"},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )                
+            else:
+                log_util.log(
+                msg={"msg": "ed data is none", "mod_name": __file__, "func_name": "Mask"},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+            pmpu = process_mask_prediction_util.with_options(task_run_name=ed.filename)
+            results.append(pmpu.fn(ed, config, stage, working_dir))
             
         groups[name].data = results
-            
 
     return groups
 
-
+@task
 def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage: Stage, working_dir: str):
     file_name = ed.filename + "_mask.zarr"
 
@@ -397,6 +407,7 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
                 stage.external_params.get('model_path', model_path),
                 )["state_dict"])
             
+
             mvbs_tensor = ed.data # tensor
 
             da_MVBS_tensor = torch.clip(
@@ -477,6 +488,31 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
         ed.stages["mask"] = out_zarr
         ed.error = ErrorObject(errorFlag=False)
         ed.stages[stage.name] = out_zarr
+        ed.data = None
+        
+        slice_zarr = get_out_zarr(
+            group=stage.options.get("group", True),
+            working_dir=working_dir,
+            transect=ed.group_name,
+            file_name=ed.filename+"_MVBS_Slice.zarr",
+            storage_options=config.output.storage_options_dict,
+        )
+
+        ed.data_ref.to_zarr(
+                store=slice_zarr,
+                mode="w",
+                consolidated=True,
+                storage_options=config.output.storage_options_dict,
+        )
+        ed.out_path = slice_zarr
+        ed.data_ref = None
+
+        del da_mask_hake
+        del da_score_hake
+        del softmax_score_tensor
+        del score_tensor
+        del input_tensor
+        del model
     except Exception as e:
         log_util.log(
             msg={"msg": "", "mod_name": __file__, "func_name": file_name},
@@ -485,5 +521,7 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
             error=e
         )
         ed.error = ErrorObject(errorFlag=True, error_desc=e)
+        ed.data = None
+        ed.data_ref = None
     finally:
         return ed

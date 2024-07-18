@@ -521,6 +521,18 @@ def store_json_output(data, config: Dataset, name: str):
         os.path.join("~", ".echodataflow", "echodataflow_working_data.json")
     )
     
+    if data and isinstance(data, Output):      
+        for name, gr in data.group.items():
+            for edf in gr.data:
+                status = "No" if edf.data is not None else "Yes"
+                log_util.log(
+                    msg={"msg": f"is tensor data None ? {status}", "mod_name": __file__, "func_name": "File Utils"},
+                    use_dask=False,
+                    eflogging=config.logging,
+                )
+                edf.data = None
+                edf.data_ref = None
+
     serialized_data_list = jsonable_encoder(data)
 
     # Serialize the list to JSON
@@ -537,7 +549,17 @@ def store_json_output(data, config: Dataset, name: str):
         print("Output metdata will be loaded to ",out_path)
         fs = extract_fs(out_path, config.output.storage_options_dict)
         with fs.open(out_path, mode="w") as f:
-            f.write(json_data)
+            f.write(json_data)    
+    
+    if data and isinstance(data, Output):        
+        for name, gr in data.group.items():
+            for edf in gr.data:
+                status = "No" if edf.data is not None else "Yes"
+                log_util.log(
+                    msg={"msg": f"is tensor data None ? {status}", "mod_name": __file__, "func_name": "File Utils"},
+                    use_dask=False,
+                    eflogging=config.logging,
+                )
    
 def get_output(type : str = "Output"):
     """
