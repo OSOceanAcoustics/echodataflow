@@ -15,7 +15,7 @@ Date: August 22, 2023
 import json
 import os
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 
 import numpy as np
@@ -383,7 +383,7 @@ def get_input_from_store(config: Dataset):
         raise ValueError("Not enough frames to process, try reducing the window size")
         
 def get_input_from_store_folder(config: Dataset):
-    curr_time = datetime.now()
+    curr_time = datetime.now(timezone.utc)
 
     end_time = curr_time - timedelta(hours=config.args.time_travel_hours, minutes=config.args.time_travel_mins)
     end_time = end_time.replace(second=0, microsecond=0)
