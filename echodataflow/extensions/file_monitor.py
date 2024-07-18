@@ -282,4 +282,4 @@ async def deployment_already_running() -> bool:
 
 
 if __name__ == "__main__":
-    file_monitor.serve(name="file-monitor-5Freq")
+    file_monitor.serve(name="file-monitor")
