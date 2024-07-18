@@ -488,7 +488,11 @@ def combine_datasets(store_18: xr.Dataset, store_5: xr.Dataset) -> Tuple[torch.T
     ds_18k = process_xrd(ds_18k, freq_wanted=[18000])
     ds_32k_120k = process_xrd(ds_32k_120k, freq_wanted=[120000, 38000])
     
-    combined_ds = xr.merge([ds_18k["Sv"], ds_32k_120k["Sv"]])
+    combined_ds = xr.merge([ds_18k["Sv"], ds_32k_120k["Sv"], 
+                            ds_18k['latitude'], ds_18k['longitude'],
+                            ds_18k["frequency_nominal"], ds_32k_120k["frequency_nominal"]
+                            ])
+    combined_ds.attrs = ds_18k.attrs
 
     depth = combined_ds['depth']
     ping_time = combined_ds['ping_time']
