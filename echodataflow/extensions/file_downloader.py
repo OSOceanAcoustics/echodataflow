@@ -127,4 +127,4 @@ def edf_data_transfer(
 
 
 if __name__ == "__main__":
-    edf_data_transfer.serve(name="edf-data-transfer-sb")
+    edf_data_transfer.serve(name="edf-data-transfer")
