@@ -84,7 +84,8 @@ def file_monitor(
     extension: str = None,
     file_name: str = "Bell_M._Shimada-SH2407-EK80",
     min_time: str = "2024-07-05T15:45:00.000000",
-    max_folder_depth: int = 1
+    max_folder_depth: int = 1,
+    block_name: str = "edf-fm-last-run"
 ):
     """
     Monitors a directory for file changes and processes new or modified files.
@@ -111,7 +112,7 @@ def file_monitor(
     edfrun: EDFRun = None
     try:
         edfrun = load_block(
-                    name="edf-fm-last-run",
+                    name=block_name,
                     type=StorageType.EDFRUN,
                 )
     except Exception as e:
@@ -251,7 +252,7 @@ def file_monitor(
     edfrun.last_run_time = new_run
 
     block = edfrun.save(
-            "edf-fm-last-run", overwrite=True
+            block_name, overwrite=True
     )
     if isinstance(block, Coroutine):
         block = asyncio.run(block)
