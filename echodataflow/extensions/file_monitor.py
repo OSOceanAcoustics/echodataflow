@@ -3,7 +3,7 @@ import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Coroutine, Dict, Optional, Union
+from typing import Any, Coroutine, Dict, List, Optional, Union
 
 from prefect import flow, get_client, task
 from prefect.blocks.core import Block
@@ -85,7 +85,8 @@ def file_monitor(
     file_name: str = "Bell_M._Shimada-SH2407-EK80",
     min_time: str = "2024-07-05T15:45:00.000000",
     max_folder_depth: int = 1,
-    block_name: str = "edf-fm-last-run"
+    block_name: str = "edf-fm-last-run",
+    tags: List[str] = ["edfFM"]
 ):
     """
     Monitors a directory for file changes and processes new or modified files.
@@ -189,23 +190,24 @@ def file_monitor(
         
     if fail_safe:
         for file_path, file_mtime, file in all_files:
-            edfrun.processed_files[file].retry_count += 1
             
-            try:
-                futures.append(
-                    execute_flow.with_options(tags=["edfFM"], task_run_name=file_path).submit(
-                        dataset_config=dataset_config,
-                        pipeline_config=pipeline_config,
-                        logging_config=logging_config,
-                        storage_options=storage_options,
-                        options=options,
-                        file_path=file_path,
-                        json_data_path=json_data_path,
-                        deployment_name=deployment_name,
+            if edfrun.processed_files[file].retry_count < retry_threshold:
+                edfrun.processed_files[file].retry_count += 1
+                try:
+                    futures.append(
+                        execute_flow.with_options(tags=tags, task_run_name=file_path).submit(
+                            dataset_config=dataset_config,
+                            pipeline_config=pipeline_config,
+                            logging_config=logging_config,
+                            storage_options=storage_options,
+                            options=options,
+                            file_path=file_path,
+                            json_data_path=json_data_path,
+                            deployment_name=deployment_name,
+                        )
                     )
-                )
-            except Exception as e:
-                pass
+                except Exception as e:
+                    pass
 
         tuple_list = [f.result() for f in futures]
 
@@ -228,7 +230,7 @@ def file_monitor(
                 else:
                     options["run_name"] = value
                 
-                status = execute_flow.with_options(tags=["edfFM"], task_run_name=file_path)(
+                status = execute_flow.with_options(tags=tags, task_run_name=file_path)(
                     dataset_config=dataset_config,
                     pipeline_config=pipeline_config,
                     logging_config=logging_config,
@@ -238,7 +240,8 @@ def file_monitor(
                     json_data_path=json_data_path,
                     deployment_name=deployment_name,
                 )[1]
-                edfrun.processed_files[file].status = True # hardcoded to true to avaoid backlog processing in different schedules
+                # edfrun.processed_files[file].status = True # hardcoded to true to avoid backlog processing in different schedules
+                edfrun.processed_files[file].status = status
                 edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
                 if not status:                
                     exceptionFlag = True
