@@ -29,6 +29,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+import datetime
 import itertools as it
 import json
 import os
@@ -626,3 +627,9 @@ def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
                         return False
     
     return True
+
+def floor_time(end_time: datetime, window_minutes: int) -> datetime:
+    total_minutes = end_time.hour * 60 + end_time.minute
+    floored_minutes = (total_minutes // window_minutes) * window_minutes
+    floored_time = end_time.replace(hour=floored_minutes // 60, minute=floored_minutes % 60, second=0, microsecond=0)
+    return floored_time

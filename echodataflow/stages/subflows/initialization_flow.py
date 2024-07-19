@@ -35,7 +35,7 @@ from echodataflow.models.output_model import (EchodataflowObject, Group,
                                               Metadata, Output)
 from echodataflow.models.pipeline import Pipeline, ProcessingType, Recipe
 from echodataflow.utils import log_util
-from echodataflow.utils.config_utils import (club_raw_files,
+from echodataflow.utils.config_utils import (club_raw_files, floor_time,
                                              get_prefect_config_dict,
                                              glob_all_files, glob_url,
                                              parse_raw_paths,
@@ -551,6 +551,7 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
         except ValueError:
             continue
     
+    end_time = floor_time(end_time, config.args.window_mins)
     
     for _ in range(config.args.number_of_windows):
         start_time = end_time - timedelta(hours=config.args.window_hours, minutes=config.args.window_mins)
