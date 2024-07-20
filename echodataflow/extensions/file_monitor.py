@@ -67,7 +67,7 @@ def execute_flow(
     return (os.path.basename(file_path), True)
 
 
-@flow(task_runner=SequentialTaskRunner())
+@flow
 def file_monitor(
     dir_to_watch: str,
     dataset_config: Union[Dict[str, Any], str, Path],
