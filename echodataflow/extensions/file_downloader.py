@@ -72,7 +72,7 @@ def sync_with_rclone(source: Union[str, List[str]], destination: str, command: O
         dest_dir = os.path.join(destination, src_basename)
         print(f"Syncing {src} with {destination} using rclone ...")
         
-        subprocess.run(command.split(' '), check=True)
+        subprocess.run(command.split(' '), check=True, capture_output=True, text=True)
         print(f"Sync of {src} complete.")
         
         
@@ -96,7 +96,7 @@ def edf_data_transfer(
         dest_dir (str): Destination directory where the files will be downloaded.
     """
     if rclone_sync:
-        sync_with_rclone.submit(source, destination)
+        sync_with_rclone.submit(source, destination, command)
         return
     
     downloaded_files = []
