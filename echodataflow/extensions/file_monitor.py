@@ -63,11 +63,11 @@ def execute_flow(
         },
     )
     if flow_run.state and flow_run.state.type == StateType.FAILED:
-        return (os.path.basename(file_path), False)
-    return (os.path.basename(file_path), True)
+        return (file_path, False)
+    return (file_path, True)
 
 
-@flow(task_runner=SequentialTaskRunner())
+@flow
 def file_monitor(
     dir_to_watch: str,
     dataset_config: Union[Dict[str, Any], str, Path],
