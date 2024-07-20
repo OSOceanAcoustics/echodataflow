@@ -137,7 +137,7 @@ def file_monitor(
                 
             if not extension or (extension and extension == fext):
                 file_mtime = datetime.fromtimestamp(os.path.getmtime(file))
-            
+                file = os.path.basename(file)
                 if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
                     if file_mtime > min_time:
                         if not edfrun.processed_files.get(file):
@@ -148,7 +148,7 @@ def file_monitor(
             for file in files:
                 
                 file_path = os.path.join(root, file)
-                
+                file = os.path.basename(file)
                 try:
                     fext = os.path.basename(file_path).split('.')[1]
                 except Exception:
