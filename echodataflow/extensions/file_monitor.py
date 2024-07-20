@@ -63,11 +63,11 @@ def execute_flow(
         },
     )
     if flow_run.state and flow_run.state.type == StateType.FAILED:
-        return (file_path, False)
-    return (file_path, True)
+        return (os.path.basename(file_path), False)
+    return (os.path.basename(file_path), True)
 
 
-@flow
+@flow(task_runner=SequentialTaskRunner())
 def file_monitor(
     dir_to_watch: str,
     dataset_config: Union[Dict[str, Any], str, Path],
@@ -141,7 +141,7 @@ def file_monitor(
                 if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
                     if file_mtime > min_time:
                         if not edfrun.processed_files.get(file):
-                            edfrun.processed_files[file] = FileDetails()
+                            edfrun.processed_files[os.path.basename(file)] = FileDetails()
                         all_files.append((file, file_mtime, file))
     else:
         for root, _, files in os.walk(dir_to_watch):
