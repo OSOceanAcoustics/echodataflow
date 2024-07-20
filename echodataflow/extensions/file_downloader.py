@@ -1,7 +1,7 @@
 import os
 import subprocess
 import time
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Optional, Union
 from prefect import flow, task
 from prefect.concurrency.sync import concurrency
 import zarr
@@ -55,7 +55,7 @@ def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir:
     return out_path
 
 @task
-def sync_with_rclone(source: Union[str, List[str]], destination: str):
+def sync_with_rclone(source: Union[str, List[str]], destination: str, command: Optional[str] = None):
     """
     Syncs files using rclone.
 
@@ -63,12 +63,16 @@ def sync_with_rclone(source: Union[str, List[str]], destination: str):
         source (Union[str, List[str]]): Source directory or list of directories to sync.
         destination (str): Destination directory for the sync.
     """
+    if not command:
+        raise ValueError("No rclone command provided.")
+    
     source_dirs = source if isinstance(source, list) else [source]
     for src in source_dirs:
         src_basename = os.path.basename(src.rstrip('/'))  # Get the base name of the source directory
         dest_dir = os.path.join(destination, src_basename)
         print(f"Syncing {src} with {destination} using rclone ...")
-        subprocess.run(["rclone", "copy --max-age 20m --no-traverse", src, dest_dir], check=True)
+        
+        subprocess.run(command.split(' '), check=True)
         print(f"Sync of {src} complete.")
         
         
@@ -80,7 +84,8 @@ def edf_data_transfer(
     destination_storage_options: Dict[str, Any] = {},
     delete_on_transfer=False,
     replace=True,
-    rclone_sync=True
+    rclone_sync=True,
+    command: Optional[str] = None
 ):
     """
     Downloads multiple files from a list of URLs to a destination directory.
