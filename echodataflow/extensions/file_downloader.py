@@ -78,13 +78,13 @@ def sync_with_rclone(source: Union[str, List[str]], destination: str, command: O
         
 @flow
 def edf_data_transfer(
-    source: Union[List[str], str],
+    source: Union[List[str], str] = "",
     destination: str = "./temp",
     source_storage_options: Dict[str, Any] = {},
     destination_storage_options: Dict[str, Any] = {},
-    delete_on_transfer=False,
-    replace=True,
-    rclone_sync=True,
+    delete_on_transfer: bool = False,
+    replace: bool =True,
+    rclone_sync: bool =True,
     command: Optional[str] = None
 ):
     """
