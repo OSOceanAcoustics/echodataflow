@@ -65,15 +65,17 @@ def sync_with_rclone(source: Union[str, List[str]], destination: str, command: O
     """
     if not command:
         raise ValueError("No rclone command provided.")
-    
-    source_dirs = source if isinstance(source, list) else [source]
-    for src in source_dirs:
-        src_basename = os.path.basename(src.rstrip('/'))  # Get the base name of the source directory
-        dest_dir = os.path.join(destination, src_basename)
-        print(f"Syncing {src} with {destination} using rclone ...")
+    else:
+        print("Executing Command")
+        print(command.split(' '))
+    # source_dirs = source if isinstance(source, list) else [source]
+    # for src in source_dirs:
+    #     # src_basename = os.path.basename(src.rstrip('/'))  # Get the base name of the source directory
+    #     # dest_dir = os.path.join(destination, src_basename)
+    #     print(f"Syncing {src} with {destination} using rclone ...")
         
-        subprocess.run(command.split(' '), check=True, capture_output=True, text=True)
-        print(f"Sync of {src} complete.")
+    subprocess.run(command.split(' '), check=True, capture_output=True, text=True)
+    print(f"Sync completed.")
         
         
 @flow
