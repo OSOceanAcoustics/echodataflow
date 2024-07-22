@@ -24,6 +24,7 @@ import torch
 import xarray as xr
 import numpy as np
 
+import pandas as pd
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
@@ -67,14 +68,59 @@ def echodataflow_mask_prediction(
 
     futures = defaultdict(list)
 
+    try:
+        log_util.log(
+            msg={"msg": f"Loading model now", "mod_name": __file__, "func_name": "Mask_Prediction"},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+        model_path = f"/home/exouser/hake_data/model/backup_model_weights/binary_hake_model_1.0m_bottom_offset_1.0m_depth_2017_2019_ver_1.ckpt"
+            
+        # Load binary hake models with weights
+        model = BinaryHakeModel("placeholder_experiment_name",
+                                Path("placeholder_score_tensor_dir"),
+                                "placeholder_tensor_log_dir", 0).eval()
+        model.load_state_dict(torch.load(
+            stage.external_params.get('model_path', model_path)
+            )["state_dict"])
+        
+        log_util.log(
+            msg={"msg": f"Model loaded succefully", "mod_name": __file__, "func_name": "Mask_Prediction"},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+    except Exception as e:
+        log_util.log(
+            msg={"msg": "", "mod_name": __file__, "func_name": "Mask_Prediction"},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+            error=e
+        )
+        raise e
+    
     for name, gr in groups.items():
+        if gr.metadata and gr.metadata.is_store_folder and len(gr.data) > 0:
+                edf = gr.data[0]
+                store = xr.open_mfdataset(paths=[ed.out_path for ed in gr.data], engine="zarr",
+                                            combine="by_coords",
+                                            data_vars="minimal",
+                                            coords="minimal",
+                                            compat="override").compute()
+                edf.data = store.sel(ping_time=slice(pd.to_datetime(edf.start_time, unit="ns"), pd.to_datetime(edf.end_time, unit="ns")))
+                if edf.data.notnull().any():
+                    gr.data = [edf]
+                else:
+                    continue
+                del store
+                
         for ed in gr.data:
+            
             gname = ed.out_path.split(".")[0] + ".MaskPrediction"
             new_process = process_mask_prediction.with_options(
                 task_run_name=gname, name=gname, retries=3
                     )
             future = new_process.submit(
-                ed=ed, working_dir=working_dir, config=config, stage=stage
+                ed=ed, working_dir=working_dir, config=config, stage=stage, model=model
                 )
             futures[name].append(future)
 
@@ -83,14 +129,14 @@ def echodataflow_mask_prediction(
             groups[name].data = [f.result() for f in flist]
         except Exception as e:
             groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
-
+    del model
     return groups
 
 
 @task
 @echodataflow()
 def process_mask_prediction(
-    ed: EchodataflowObject, config: Dataset, stage: Stage, working_dir: str
+    ed: EchodataflowObject, config: Dataset, stage: Stage, working_dir: str, model
 ):
     """
     Process and mask prediction from Echodata object into the dataset.
@@ -188,16 +234,6 @@ def process_mask_prediction(
                 channel=ch_wanted
             )
             
-            model_path = f"/home/exouser/hake_data/model/backup_model_weights/binary_hake_model_{bottom_offset}m_bottom_offset_1.0m_depth_2017_2019_ver_1.ckpt"
-            
-            # Load binary hake models with weights
-            model = BinaryHakeModel("placeholder_experiment_name",
-                                    Path("placeholder_score_tensor_dir"),
-                                    "placeholder_tensor_log_dir", 0).eval()
-            model.load_state_dict(torch.load(
-                stage.external_params.get('model_path', model_path),
-                )["state_dict"])
-            
             mvbs_tensor = torch.tensor(mvbs_slice['Sv'].values, dtype=torch.float32).unsqueeze(0)
 
             da_MVBS_tensor = torch.clip(
@@ -206,6 +242,11 @@ def process_mask_prediction(
                 max=-36,
             )
             
+            log_util.log(
+                msg={"msg": f"converted and clipped tensor", "mod_name": __file__, "func_name": file_name},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
             # Replace NaN values with min Sv
             # 07/10/2024 Caesar -> will need to be set to minimum value -70 not -36.
             da_MVBS_tensor[torch.isnan(da_MVBS_tensor)] = -70
@@ -215,6 +256,11 @@ def process_mask_prediction(
             )
             input_tensor = MVBS_tensor_normalized.float()
             
+            log_util.log(
+                msg={"msg": f"Normalized tensor", "mod_name": __file__, "func_name": file_name},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
             score_tensor = model(input_tensor).detach().squeeze(0)
             
             log_util.log(
@@ -237,21 +283,6 @@ def process_mask_prediction(
             da_softmax_hake = assemble_da(softmax_score_tensor.numpy()[1,:,:], dims=dims)
             
             da_mask_hake = assemble_da(da_softmax_hake.where(da_softmax_hake > stage.options.get('th_softmax', 0.9)), dims=dims)
-            
-            # softmax_zarr = get_out_zarr(
-            #     group=True,
-            #     working_dir=working_dir,
-            #     transect="Softmax_Score",
-            #     file_name=ed.filename + "_softmax_score.zarr",
-            #     storage_options=config.output.storage_options_dict,
-            # )
-
-            # da_softmax_hake.to_zarr(
-            #     store=softmax_zarr,
-            #     mode="w",
-            #     consolidated=True,
-            #     storage_options=config.output.storage_options_dict,
-            # )
             
             score_zarr = get_out_zarr(
                 group=True,
@@ -295,6 +326,31 @@ def process_mask_prediction(
         ed.stages["mask"] = out_zarr
         ed.error = ErrorObject(errorFlag=False)
         ed.stages[stage.name] = out_zarr
+        
+        if ed.data:
+            
+            slice_zarr = get_out_zarr(
+            group=stage.options.get("group", True),
+            working_dir=working_dir,
+            transect=ed.group_name,
+            file_name=ed.filename+"_MVBS_Slice.zarr",
+            storage_options=config.output.storage_options_dict,
+            )
+            
+            ed.data.to_zarr(
+                    store=slice_zarr,
+                    mode="w",
+                    consolidated=True,
+                    storage_options=config.output.storage_options_dict,
+            )
+            ed.out_path = slice_zarr
+            
+        ed.data = None
+        del da_mask_hake
+        del da_score_hake
+        del softmax_score_tensor
+        del score_tensor
+        del input_tensor
     except Exception as e:
         log_util.log(
             msg={"msg": "", "mod_name": __file__, "func_name": file_name},
@@ -404,7 +460,7 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
                                     Path("placeholder_score_tensor_dir"),
                                     "placeholder_tensor_log_dir", 0).eval()
             model.load_state_dict(torch.load(
-                stage.external_params.get('model_path', model_path),
+                stage.external_params.get('model_path', model_path)
                 )["state_dict"])
             
 
@@ -512,7 +568,6 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
         del softmax_score_tensor
         del score_tensor
         del input_tensor
-        del model
     except Exception as e:
         log_util.log(
             msg={"msg": "", "mod_name": __file__, "func_name": file_name},
