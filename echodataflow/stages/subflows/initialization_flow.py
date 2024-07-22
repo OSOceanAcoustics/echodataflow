@@ -557,7 +557,15 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
         start_time = end_time - timedelta(hours=config.args.window_hours, minutes=config.args.window_mins)
         start_time = start_time.replace(second=0, microsecond=0)        
         
-        start_index = next((i for i, ts in enumerate(timestamps) if ts >= start_time), 0) - 1 
+        start_index = 0
+        
+        for i, ts in enumerate(timestamps):        
+            if ts >= start_time:
+                start_index += i - 1
+                break
+        else:
+            start_index += i - 1 
+        
         if start_index <= 0:
             if timestamps[0] <= start_time:
                 start_index = max(start_index, 0)
@@ -580,7 +588,7 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
         
         log_util.log(
             msg={
-                "msg": f"Range is {start_time} to {end_time}; Found {len(relevant_files)} -> {win_relevant_files}" ,
+                "msg": f"Range is {start_time} to {end_time}; Found {len(win_relevant_files)} -> {win_relevant_files}" ,
                 "mod_name": __file__,
                 "func_name": "Init Flow",
             },
