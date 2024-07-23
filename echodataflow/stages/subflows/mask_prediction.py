@@ -70,7 +70,7 @@ def echodataflow_mask_prediction(
 
     try:
         log_util.log(
-            msg={"msg": f"Loading model now", "mod_name": __file__, "func_name": "Mask_Prediction"},
+            msg={"msg": f"Loading model now ---->", "mod_name": __file__, "func_name": "Mask_Prediction"},
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
         )
@@ -80,6 +80,19 @@ def echodataflow_mask_prediction(
         model = BinaryHakeModel("placeholder_experiment_name",
                                 Path("placeholder_score_tensor_dir"),
                                 "placeholder_tensor_log_dir", 0).eval()
+        
+        log_util.log(
+            msg={"msg": f"Loading model at", "mod_name": __file__, "func_name": "Mask_Prediction"},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+
+        log_util.log(
+            msg={"msg": f"{stage.external_params.get('model_path', model_path)}", "mod_name": __file__, "func_name": "Mask_Prediction"},
+            use_dask=stage.options["use_dask"],
+            eflogging=config.logging,
+        )
+
         model.load_state_dict(torch.load(
             stage.external_params.get('model_path', model_path)
             )["state_dict"])
@@ -271,10 +284,10 @@ def process_mask_prediction(
 
             # dims = stage.external_params.get('dims', ['ping_time', 'depth'])
             
-            dims = {'species': [ "background", "hake"], 'ping_time': ed_list[0]["ping_time"].values, 'depth': ed_list[0]["depth"].values}
+            dims = {'species': [ "background", "hake"], 'ping_time': mvbs_slice["ping_time"].values, 'depth': mvbs_slice["depth"].values}
 
             da_score_hake = assemble_da(score_tensor.numpy(), dims=dims)            
-            
+
             softmax_score_tensor = torch.nn.functional.softmax(
                 score_tensor / temperature, dim=0
             )
@@ -327,7 +340,7 @@ def process_mask_prediction(
         ed.error = ErrorObject(errorFlag=False)
         ed.stages[stage.name] = out_zarr
         
-        if ed.data:
+        if mvbs_slice:
             
             slice_zarr = get_out_zarr(
             group=stage.options.get("group", True),
@@ -337,7 +350,7 @@ def process_mask_prediction(
             storage_options=config.output.storage_options_dict,
             )
             
-            ed.data.to_zarr(
+            mvbs_slice.to_zarr(
                     store=slice_zarr,
                     mode="w",
                     consolidated=True,
@@ -351,6 +364,9 @@ def process_mask_prediction(
         del softmax_score_tensor
         del score_tensor
         del input_tensor
+        del mvbs_slice
+
+        return ed
     except Exception as e:
         log_util.log(
             msg={"msg": "", "mod_name": __file__, "func_name": file_name},
@@ -358,10 +374,8 @@ def process_mask_prediction(
             eflogging=config.logging,
             error=e
         )
-        ed.error = ErrorObject(errorFlag=True, error_desc=e)
-    finally:
+        ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
         return ed
-
 
 def assemble_da(data_array, dims):
     da = xr.DataArray(
