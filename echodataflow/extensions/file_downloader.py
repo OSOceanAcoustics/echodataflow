@@ -5,8 +5,17 @@ from typing import List, Dict, Any, Optional, Union
 from prefect import flow, task
 from prefect.concurrency.sync import concurrency
 import zarr
+from prefect.blocks.core import Block
+from prefect.client.schemas.filters import (DeploymentFilter,
+                                            DeploymentFilterId, FlowRunFilter,
+                                            FlowRunFilterState,
+                                            FlowRunFilterStateType)
+from prefect import flow, get_client, task
+from prefect.runtime import deployment
+from prefect.client.schemas.objects import FlowRun, StateType
+from prefect.states import Cancelled
 
-from echodataflow.utils.config_utils import get_storage_options, glob_url, handle_storage_options, load_block
+from echodataflow.utils.config_utils import glob_url, handle_storage_options
 from echodataflow.utils.file_utils import extract_fs, make_temp_folder
 
 
@@ -97,6 +106,10 @@ def edf_data_transfer(
         storage_options (Dict[str, Any]): Dictionary containing storage options for source and destination.
         dest_dir (str): Destination directory where the files will be downloaded.
     """
+    
+    if deployment_already_running():
+        return Cancelled()
+    
     if rclone_sync:
         sync_with_rclone.submit(source, destination, command)
         return
@@ -132,6 +145,25 @@ def edf_data_transfer(
 
     return downloaded_files
 
+@task
+async def deployment_already_running() -> bool:
+    deployment_id = deployment.get_id()
+    async with get_client() as client:
+        # find any running flows for this deployment
+        running_flows = await client.read_flow_runs(
+            deployment_filter=DeploymentFilter(
+                id=DeploymentFilterId(any_=[deployment_id])
+            ),
+            flow_run_filter=FlowRunFilter(
+                state=FlowRunFilterState(
+                    type=FlowRunFilterStateType(any_=[StateType.RUNNING])
+                ),
+            ),
+        )
+    if len(running_flows) > 1:
+        return True
+    else:
+        return False
 
 if __name__ == "__main__":
     edf_data_transfer.serve(name="edf-data-transfer")
