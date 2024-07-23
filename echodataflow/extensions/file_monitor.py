@@ -86,7 +86,8 @@ def file_monitor(
     min_time: str = "2024-07-05T15:45:00.000000",
     max_folder_depth: int = 1,
     block_name: str = "edf-fm-last-run",
-    tags: List[str] = ["edfFM"]
+    tags: List[str] = ["edfFM"],
+    max_files: int = -1
 ):
     """
     Monitors a directory for file changes and processes new or modified files.
@@ -218,8 +219,10 @@ def file_monitor(
             edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
 
     else:
+        itr = 0
         for file_path, file_mtime, file in all_files:
-            
+            if itr == max_files:
+                break
             if edfrun.processed_files[file].retry_count < retry_threshold:
                 edfrun.processed_files[file].retry_count += 1
                 
@@ -247,7 +250,8 @@ def file_monitor(
                     exceptionFlag = True
                     value = f"{file_name}_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
                     Variable.set(name="run_name", value=value, overwrite=True)
-    
+            itr += 1
+            
     if last_file:
         _, _, file = last_file
         edfrun.processed_files[file].status = False
