@@ -206,7 +206,7 @@ def process_mask_prediction(
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
         )
-
+        mvbs_slice = None
         if (
             stage.options.get("use_offline") == False
             or isFile(out_zarr, config.output.storage_options_dict) == False
