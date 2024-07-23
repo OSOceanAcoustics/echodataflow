@@ -593,7 +593,7 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
             eflogging=config.logging,
             error=e
         )
-        ed.error = ErrorObject(errorFlag=True, error_desc=e)
+        ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
         ed.data = None
         ed.data_ref = None
     finally:
