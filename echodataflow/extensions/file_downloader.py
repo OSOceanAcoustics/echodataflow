@@ -113,7 +113,7 @@ def edf_data_transfer(
     replace: bool =True,
     rclone_sync: bool =True,
     command: Optional[str] = None,
-    command_timeout: int = 3600
+    timeout: int = 3600
 ):
     """
     Downloads multiple files from a list of URLs to a destination directory.
@@ -128,7 +128,7 @@ def edf_data_transfer(
         return Cancelled()
     
     if rclone_sync:
-        sync_with_rclone.submit(command, command_timeout)
+        sync_with_rclone.submit(command, timeout)
         return
     
     downloaded_files = []
@@ -157,7 +157,7 @@ def edf_data_transfer(
 
     for file_url in files:
         time.sleep(1)
-        local_path = download_temp_file.with_options(task_run_name=os.path.basename(file_url)).submit(file_url, storage_options, destination, delete_on_transfer, replace)
+        local_path = download_temp_file.with_options(task_run_name=os.path.basename(file_url), timeout_seconds=timeout).submit(file_url, storage_options, destination, delete_on_transfer, replace)
         downloaded_files.append(local_path)
 
     return downloaded_files
