@@ -64,7 +64,7 @@ def download_temp_file(file_url: str, storage_options: Dict[str, Any], dest_dir:
     return out_path
 
 @task
-def sync_with_rclone(source: Union[str, List[str]], destination: str, command: Optional[str] = None):
+def sync_with_rclone(command: Optional[str] = None, timeout: Optional[int] = 3600):
     """
     Syncs files using rclone.
 
@@ -77,16 +77,32 @@ def sync_with_rclone(source: Union[str, List[str]], destination: str, command: O
     else:
         print("Executing Command")
         print(command.split(' '))
-    # source_dirs = source if isinstance(source, list) else [source]
-    # for src in source_dirs:
-    #     # src_basename = os.path.basename(src.rstrip('/'))  # Get the base name of the source directory
-    #     # dest_dir = os.path.join(destination, src_basename)
-    #     print(f"Syncing {src} with {destination} using rclone ...")
         
-    subprocess.run(command.split(' '), check=True, capture_output=True, text=True)
+    run_subprocess_with_timeout(command.split(' '), timeout)
+    # subprocess.run(command.split(' '), check=True, capture_output=True, text=True)
     print(f"Sync completed.")
+
+def run_subprocess_with_timeout(command, timeout):
+    try:
+        # Start the subprocess
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        # Wait for the process to complete within the timeout period
+        stdout, stderr = process.communicate(timeout=timeout)
         
-        
+        # Process the output if needed
+        print("Subprocess completed successfully.")
+        print("Output:", stdout.decode())
+        print("Errors:", stderr.decode())
+    except subprocess.TimeoutExpired:
+        # If timeout occurs, terminate the process
+        print(f"Subprocess timed out after {timeout} seconds. Terminating...")
+        if process and process.pid:
+            process.kill()
+            stdout, stderr = process.communicate()
+            # Optionally handle the partial output
+            print("Partial Output:", stdout.decode())
+            print("Partial Errors:", stderr.decode())        
+            
 @flow
 def edf_data_transfer(
     source: Union[List[str], str] = "",
@@ -96,7 +112,8 @@ def edf_data_transfer(
     delete_on_transfer: bool = False,
     replace: bool =True,
     rclone_sync: bool =True,
-    command: Optional[str] = None
+    command: Optional[str] = None,
+    command_timeout: int = 3600
 ):
     """
     Downloads multiple files from a list of URLs to a destination directory.
@@ -111,7 +128,7 @@ def edf_data_transfer(
         return Cancelled()
     
     if rclone_sync:
-        sync_with_rclone.submit(source, destination, command)
+        sync_with_rclone.submit(command, command_timeout)
         return
     
     downloaded_files = []
