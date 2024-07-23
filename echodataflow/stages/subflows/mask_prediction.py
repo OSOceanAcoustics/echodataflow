@@ -287,7 +287,7 @@ def process_mask_prediction(
             dims = {'species': [ "background", "hake"], 'ping_time': mvbs_slice["ping_time"].values, 'depth': mvbs_slice["depth"].values}
 
             da_score_hake = assemble_da(score_tensor.numpy(), dims=dims)            
-
+            
             softmax_score_tensor = torch.nn.functional.softmax(
                 score_tensor / temperature, dim=0
             )
@@ -357,7 +357,9 @@ def process_mask_prediction(
                     storage_options=config.output.storage_options_dict,
             )
             ed.out_path = slice_zarr
-            
+        
+            ed.stages[stage.name] = slice_zarr
+
         ed.data = None
         del da_mask_hake
         del da_score_hake
@@ -576,6 +578,8 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
         )
         ed.out_path = slice_zarr
         ed.data_ref = None
+
+        ed.stages[stage.name] = slice_zarr
 
         del da_mask_hake
         del da_score_hake
