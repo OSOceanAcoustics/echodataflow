@@ -551,7 +551,8 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
         except ValueError:
             continue
     
-    end_time = floor_time(end_time, config.args.window_mins)
+    if config.args.time_rounding_flag:
+        end_time = floor_time(end_time, config.args.window_mins)
     
     for _ in range(config.args.number_of_windows):
         start_time = end_time - timedelta(hours=config.args.window_hours, minutes=config.args.window_mins)

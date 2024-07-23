@@ -123,6 +123,7 @@ class Args(BaseModel):
     time_travel_hours: Optional[int] = 0
     time_travel_mins: Optional[int] = 0
     rolling_size: Optional[int] = 1
+    time_rounding_flag: Optional[bool] = True
     
     window_hours: Optional[int] = 0
     window_mins: Optional[int] = 30
