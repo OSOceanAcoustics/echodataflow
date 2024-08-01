@@ -255,6 +255,7 @@ def file_monitor(
     if last_file:
         _, _, file = last_file
         edfrun.processed_files[file].status = False
+        edfrun.processed_files[file].retry_count -= 1
     
     edfrun.last_run_time = new_run
 
