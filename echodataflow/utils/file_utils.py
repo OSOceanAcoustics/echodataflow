@@ -46,6 +46,7 @@ from echopype import open_converted
 from fastapi.encoders import jsonable_encoder
 from fsspec.implementations.local import LocalFileSystem
 from prefect import task
+import pandas as pd
 
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, Group, Output
@@ -303,6 +304,7 @@ def get_ed_list(
 def get_zarr_list(
     transect_data: Union[EchodataflowObject, List[EchodataflowObject]],
     storage_options: Dict[str, Any] = {},
+    delete_from_edf: bool = True
 ) -> List[xr.Dataset]:
     """
     Get a list of xarray.Dataset objects for zarr data.
@@ -324,7 +326,8 @@ def get_zarr_list(
         for td in transect_data:
             if td.data:
                 zarr = td.data
-                del td.data
+                if delete_from_edf:
+                    del td.data
                 td.data = None
             else:
                 zarr = xr.open_zarr(td.out_path, storage_options=storage_options)
@@ -332,7 +335,8 @@ def get_zarr_list(
     else:
         if transect_data.data:
             zarr = transect_data.data
-            del transect_data.data
+            if delete_from_edf:
+                del transect_data.data
             transect_data.data = None
         else:
             zarr = xr.open_zarr(transect_data.out_path, storage_options=storage_options)
@@ -753,3 +757,26 @@ def get_out_zarr(
             return slash_pattern.join([working_dir, transect, file_name])
         else:
             return slash_pattern.join([working_dir, "zarr_files", file_name])
+
+def fetch_slice_from_store(edf_group: Group, config: Dataset, options: Dict[str, Any] = None, start_time: str = None, end_time: str = None) -> xr.Dataset:
+    default_options = {
+                "engine":"zarr",
+                "combine":"by_coords",
+                "data_vars":"minimal",
+                "coords":"minimal",
+                "compat":"override",
+                "storage_options": config.args.storage_options_dict} if options is None else options
+    if options:
+        default_options.update(options)
+    
+    store = xr.open_mfdataset(paths=[ed.out_path for ed in edf_group.data], **default_options).compute()
+    store_slice = store.sel(ping_time=slice(pd.to_datetime(start_time, unit="ns"), pd.to_datetime(end_time, unit="ns")))
+    
+    if store_slice["ping_time"].size == 0:
+        del store
+        del store_slice
+        raise ValueError(f"No data available between {start_time} and {end_time}")
+    
+    del store
+    
+    return store_slice

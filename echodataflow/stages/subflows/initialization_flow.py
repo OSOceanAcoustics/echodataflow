@@ -40,7 +40,7 @@ from echodataflow.utils.config_utils import (club_raw_files, floor_time,
                                              glob_all_files, glob_url,
                                              parse_raw_paths,
                                              sanitize_external_params)
-from echodataflow.utils.file_utils import (cleanup, extract_fs,
+from echodataflow.utils.file_utils import (cleanup, extract_fs, fetch_slice_from_store,
                                            get_last_run_output, get_out_zarr,
                                            process_output_groups,
                                            store_json_output)
@@ -420,25 +420,15 @@ def get_input_from_store_folder(config: Dataset):
         for name, gr in store_18_output.group.items():
             
             edf_18 = gr.data[0]
-            store_18 = xr.open_mfdataset(paths=[ed.out_path for ed in gr.data], engine="zarr",
-                                        combine="by_coords",
-                                        data_vars="minimal",
-                                        coords="minimal",
-                                        compat="override").compute()
-            store_18 = store_18.sel(ping_time=slice(pd.to_datetime(edf_18.start_time, unit="ns"), pd.to_datetime(edf_18.end_time, unit="ns")))            
+            store_18 = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf_18.start_time, end_time=edf_18.end_time)
             
             if not store_5_output.group.get(name):
                 raise ValueError(f"No window found in MVBS store (5 channels); window missing -> {name}")
             
             edf_5 = store_5_output.group[name].data[0]            
-            store_5 = xr.open_mfdataset(paths=[ed.out_path for ed in store_5_output.group[name].data], engine="zarr",
-                                        combine="by_coords",
-                                        data_vars="minimal",
-                                        coords="minimal",
-                                        compat="override").compute()
-            store_5 = store_5.sel(ping_time=slice(pd.to_datetime(edf_5.start_time, unit="ns"), pd.to_datetime(edf_5.end_time, unit="ns")))
+            store_5 = fetch_slice_from_store(edf_group=store_5_output.group[name], config=config, start_time=edf_5.start_time, end_time=edf_5.end_time)
             
-            edf_5.data, edf_5.data_ref = combine_datasets(store_18, store_5)
+            edf_5.data_ref, edf_5.data = combine_datasets(store_18, store_5)
             
             combo_output.group[name] = gr.model_copy()
             combo_output.group[name].data = [edf_5]
@@ -449,7 +439,7 @@ def get_input_from_store_folder(config: Dataset):
                     eflogging=config.logging,
                 )
 
-            for dim, size in edf_5.data_ref.dims.items():
+            for dim, size in edf_5.data.dims.items():
                 log_util.log(
                     msg={"msg": f"{ dim } : {size}", "mod_name": __file__, "func_name": "Mask"},
                     use_dask=False,
@@ -492,7 +482,7 @@ def combine_datasets(store_18: xr.Dataset, store_5: xr.Dataset) -> Tuple[torch.T
                             ds_18k['latitude'], ds_18k['longitude'],
                             ds_18k["frequency_nominal"], ds_32k_120k["frequency_nominal"]
                             ])
-    combined_ds.attrs = ds_18k.attrs
+    combined_ds.attrs = ds_32k_120k.attrs
 
     depth = combined_ds['depth']
     ping_time = combined_ds['ping_time']
