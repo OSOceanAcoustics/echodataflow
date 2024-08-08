@@ -1,3 +1,5 @@
+
+
 import asyncio
 import logging
 import os
@@ -14,7 +16,7 @@ import json
 
 def log(
     stream_name: str = "echodataflow", msg:Any="", use_dask:bool=False, eflogging: EchodataflowLogs = None,
-    error: Exception = None
+    error: Exception = None, level= logging.DEBUG
 ):
     """
     Logs a message to the specified stream and optionally forwards it to Kafka.
@@ -50,9 +52,9 @@ def log(
             Singleton_Echodataflow.get_instance().log(
                 msg=msg["msg"],
                 extra={"mod_name": msg["mod_name"], "func_name": msg["func_name"]},
-                level=logging.DEBUG,
-            )
-
+                        level=level,
+                    )
+            
     if eflogging:
         if isinstance(eflogging, dict):
             eflogging = EchodataflowLogs(**eflogging)
@@ -71,7 +73,7 @@ def log(
                     if producer:
                         producer.flush()
                         producer.close()
-
+        
     print(f"{msg.get('mod_name')}  {msg.get('func_name')} : {msg.get('msg')}")
 
 # event is a tuple of (timestamp, msg)

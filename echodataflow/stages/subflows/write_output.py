@@ -11,10 +11,6 @@ from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zar
 from numcodecs import Zlib
 import zarr.storage
 
-# TODO
-# Hardcode to use Sequential runner
-# Coerce time if required
-
 @flow(task_runner=SequentialTaskRunner())
 def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
     log_util.log(
@@ -73,19 +69,51 @@ def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_s
                             encoding[k] = {"compressor": Zlib(level=1)}
                     else:
                         encoding = None
-                                        
-                    ed_list.to_zarr(
-                        store=out_zarr,
-                        mode=mode,
-                        consolidated=True,
-                        storage_options=config.output.storage_options_dict,
-                        append_dim=append_dim,
-                        synchronizer=zarr.sync.ThreadSynchronizer(),
-                        encoding=encoding,
-                        safe_chunks=False
-                    )
                     
-                    if "echodataflow_compute_Sv" in edf.stages.keys() and "Sv_store" not in edf.stages.keys():
+                    if stage.options and stage.options.get("compute", False): 
+                        if mode == "a":  
+                            store = xr.open_mfdataset([out_zarr, edf.out_path], storage_options=config.output.storage_options_dict, 
+                                                      engine="zarr",
+                                                      data_vars="minimal",
+                                                      coords="minimal",
+                                                      compat='override').compute()
+                        else:
+                            store = ed_list
+                            
+                        log_util.log(
+                        msg={
+                            "msg": "Computing Store",
+                            "mod_name": __file__,
+                            "func_name": group.group_name,
+                        },
+                        use_dask=stage.options["use_dask"],
+                        eflogging=config.logging,
+                        )
+                        
+                        store.to_zarr(
+                            store=out_zarr,
+                            mode="w",
+                            consolidated=True,
+                            storage_options=config.output.storage_options_dict,
+                            append_dim=None,
+                            synchronizer=zarr.sync.ThreadSynchronizer(),
+                            encoding=encoding,
+                            safe_chunks=False
+                        )
+                    else:
+                        ed_list.to_zarr(
+                            store=out_zarr,
+                            mode=mode,
+                            consolidated=True,
+                            storage_options=config.output.storage_options_dict,
+                            append_dim=append_dim,
+                            synchronizer=zarr.sync.ThreadSynchronizer(),
+                            encoding=encoding,
+                            safe_chunks=False
+                        )
+                        
+                        
+                    if ("echodataflow_compute_Sv" in edf.stages.keys() or "edf_Sv_pipeline" in edf.stages.keys()) and "Sv_store" not in edf.stages.keys():
                         edf.stages["Sv_store"] = out_zarr                    
                     elif "echodataflow_compute_MVBS" in edf.stages.keys() and "MVBS_store" not in edf.stages.keys():
                         edf.stages["MVBS_store"] = out_zarr   

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.example.filedownloader</string>
+    <key>UserName</key>
+    <string>exouser</string>
+    <key>WorkingDirectory</key>
+    <string>/Users/exouser/Desktop/Echodataflow</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/Users/exouser/Desktop/echodataflowv2/bin/python</string>
+      <string>/Users/exouser/Desktop/echodataflowv2/lib/python3.10/site-packages/echodataflow/extensions/file_downloader.py</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/var/log/filedownloader.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/filedownloader.err</string>
+  </dict>
+</plist>

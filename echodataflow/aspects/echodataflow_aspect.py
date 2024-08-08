@@ -46,18 +46,18 @@ def echodataflow(processing_stage: str = "DEFAULT", type: str = "TASK"):
             # Function code here
             pass
     """
-
     def decorator(func=None):
         def before_function_call(
             gea: Singleton_Echodataflow, type: str, processing_stage: str, *args, **kwargs
         ):
+                
             if gea:
                 gea.log(
                     msg=f"Entering with memory at {gea.log_memory_usage()}: ",
                     extra={"mod_name": func.__module__, "func_name": func.__name__},
                     level=logging.DEBUG,
                 )
-
+            
             # Deprecating, since we have check before starting the pipeline
 
             # if type == "FLOW" and processing_stage!= "DEFAULT":

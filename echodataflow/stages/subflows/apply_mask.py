@@ -1,3 +1,4 @@
+
 """
 Echodataflow Apply_mask Task
 
@@ -14,7 +15,6 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-
 from collections import defaultdict
 from typing import Dict, Optional
 
@@ -74,10 +74,10 @@ def echodataflow_apply_mask(
             gname = ed.out_path.split(".")[0] + ".applymask"
             new_process = process_apply_mask.with_options(
                 task_run_name=gname, name=gname, retries=3
-            )
+                    )
             future = new_process.submit(
                 ed=ed, working_dir=working_dir, config=config, stage=stage
-            )
+                    )
             futures[name].append(future)
 
     for name, flist in futures.items():
@@ -173,7 +173,7 @@ def process_apply_mask(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
                 use_dask=stage.options["use_dask"],
                 eflogging=config.logging,
             )
-
+        
             input_feed = defaultdict(str)
             if stage.dependson:
                 for _, v in stage.dependson.items():
@@ -181,6 +181,9 @@ def process_apply_mask(ed: EchodataflowObject, config: Dataset, stage: Stage, wo
 
             mask, file_type = validate_source(input_feed["mask"], config.output.storage_options_dict)
             mask: xr.DataArray = xr.open_dataarray(mask, engine=file_type, chunks={}, **config.output.storage_options_dict)
+            
+            if "depth" in ed_list[0].coords:
+                ed_list[0] = ed_list[0].sel(depth=slice(None, 590))
             
             # temporary fix
             if "range_sample" not in ed_list[0].coords:

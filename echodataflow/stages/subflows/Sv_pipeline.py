@@ -18,11 +18,12 @@ Date: August 22, 2023
 """
 
 from collections import defaultdict
+import logging
 import os
 from typing import Dict, Optional
 
-from echopype import open_raw
 from prefect import flow, task
+import echopype as ep
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
@@ -39,8 +40,8 @@ from echodataflow.utils.file_utils import (
 
 
 @flow
-@echodataflow(processing_stage="Open-Raw", type="FLOW")
-def echodataflow_open_raw(
+@echodataflow(processing_stage="Sv-Pipeline", type="FLOW")
+def edf_Sv_pipeline(
     groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     """
@@ -78,24 +79,32 @@ def echodataflow_open_raw(
 
     for name, gr in groups.items():
         for raw in gr.data:
-            new_processed_raw = process_raw.with_options(
+            new_processed_raw = process_Sv_pipeline.with_options(
             task_run_name=raw.file_path, name=raw.file_path, retries=3
             )
             future = new_processed_raw.submit(raw, gr, working_dir, config, stage)
             futures[name].append(future)
 
+    
     for name, flist in futures.items():
+        results = []
+        res = None
         try:
-            groups[name].data = [f.result() for f in flist]
+            for f in flist:
+                res = f.result()
+                results.append(res)
+                del f
+            groups[name].data = results
         except Exception as e:
             groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
-
+        del res
+        del results
     return groups
 
 
 @task()
 @echodataflow()
-def process_raw(
+def process_Sv_pipeline(
     raw: EchodataflowObject, group: Group, working_dir: str, config: Dataset, stage: Stage
 ):
     """
@@ -140,7 +149,7 @@ def process_raw(
     download_temp_file(raw, working_dir, stage, config)
     local_file = raw.local_path
     raw.filename = os.path.basename(raw.local_path).split(".", maxsplit=1)[0]
-    file_name = raw.filename + ".zarr"
+    file_name = raw.filename + "_Sv.zarr"
     try:
         log_util.log(
             msg={
@@ -184,28 +193,48 @@ def process_raw(
                 eflogging=config.logging,
             )
             
-            external_kwargs = stage.external_params
+            raw_kwargs = stage.external_params.get("open_raw", {})
+            Sv_kwargs = stage.external_params.get("compute_Sv", {})
+            depth_kwargs = stage.external_params.get("add_depth", {})
+            location_kwargs = stage.external_params.get("add_location", {})
             
-            ed = open_raw(
+            ed = ep.open_raw(
                 raw_file=local_file,
-                sonar_model=group.instrument,
                 storage_options=config.output.storage_options_dict,
-                **external_kwargs
+                **raw_kwargs
             )
-
+            
+            xr_d_sv = ep.calibrate.compute_Sv(echodata=ed, **Sv_kwargs)
+            
+            xr_d = ep.consolidate.add_depth(
+                ds=xr_d_sv,
+                **depth_kwargs
+            )
+                        
+            ed["Platform"] = ed["Platform"].drop_duplicates("time1")
+                
+            xr_d = ep.consolidate.add_location(
+                ds=xr_d,
+                echodata=ed,
+                **location_kwargs
+            )
+            
             log_util.log(
                 msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": raw.filename},
                 use_dask=stage.options["use_dask"],
                 eflogging=config.logging,
             )
 
-            ed.to_zarr(
-                save_path=str(out_zarr),
-                overwrite=True,
-                output_storage_options=config.output.storage_options_dict,
-                compute=False,
+            xr_d.to_zarr(
+                store=out_zarr,
+                mode="w",
+                consolidated=True,
+                storage_options=config.output.storage_options_dict,
             )
-            del ed
+            
+            del xr_d_sv
+            del xr_d
+            del ed            
             
             if stage.options.get("save_raw_file") == False:
                 log_util.log(
@@ -219,7 +248,10 @@ def process_raw(
                 )
                 fs = extract_fs(local_file, storage_options=config.output.storage_options_dict)
                 fs.rm(local_file, recursive=True)
+                
+            del local_file
         else:
+
             log_util.log(
                 msg={
                     "msg": f"Skipped processing {raw.filename}. File found in the destination folder. To replace or reprocess set `use_offline` flag to False",
@@ -243,7 +275,8 @@ def process_raw(
             msg={"msg": "", "mod_name": __file__, "func_name": file_name},
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
-            error=e
+            error=e,
+            level=logging.ERROR,
         )
         raw.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:

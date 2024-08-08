@@ -17,11 +17,15 @@ Date: August 22, 2023
 """
 
 from collections import defaultdict
+import logging
 from typing import Dict, Optional
 
+import dask
+from distributed import as_completed
 import echopype as ep
 from prefect import flow, task
 import xarray as xr
+import pandas as pd
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset
@@ -66,6 +70,19 @@ def echodataflow_compute_MVBS(
     futures = defaultdict(list)
 
     for name, gr in groups.items():
+        if gr.metadata and gr.metadata.is_store_folder and len(gr.data) > 0:
+            edf = gr.data[0]
+            store = xr.open_mfdataset(paths=[ed.out_path for ed in gr.data], engine="zarr",
+                                        combine="by_coords",
+                                        data_vars="minimal",
+                                        coords="minimal",
+                                        compat="override").compute()
+            edf.data = store.sel(ping_time=slice(pd.to_datetime(edf.start_time, unit="ns"), pd.to_datetime(edf.end_time, unit="ns")))
+            gr.data = [edf]
+            del store
+            
+        # TODO ed.out_path.split(".")[0] -> change to filename
+        
         for ed in gr.data:
             gname = ed.out_path.split(".")[0] + ".MVBS"
             new_process = process_compute_mvbs.with_options(
@@ -78,9 +95,16 @@ def echodataflow_compute_MVBS(
 
     for name, flist in futures.items():
         try:
-            groups[name].data = [f.result() for f in flist]
+            results = []
+            for f in flist:
+                res = f.result()
+                results.append(res)
+                del f
+            groups[name].data = results
         except Exception as e:
             groups[name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
+        del res
+        del results
 
     return groups
 
@@ -185,7 +209,8 @@ def process_compute_mvbs(ed: EchodataflowObject, config: Dataset, stage: Stage, 
                 consolidated=True,
                 storage_options=config.output.storage_options_dict,
             )
-
+            del xr_d_mvbs
+            del ed_list
         else:
             log_util.log(
                 msg={

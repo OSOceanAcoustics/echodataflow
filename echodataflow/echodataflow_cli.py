@@ -38,7 +38,6 @@ import pkg_resources
 
 from echodataflow.stages.echodataflow import load_credential_configuration
 
-
 def fetch_ruleset():
     """
     Retrieves the path to the Echodataflow rules text file.
@@ -61,9 +60,8 @@ def fetch_ruleset():
     # Create the directory if it doesn't exist
     config_directory = os.path.join(home_directory, ".echodataflow")
     rules_path = os.path.join(config_directory, "echodataflow_rules.txt")
-
+    
     return rules_path
-
 
 def clean_ruleset():
     """
@@ -72,9 +70,9 @@ def clean_ruleset():
     This function first deletes the current 'echodataflow_rules.txt' file located within
     the '.echodataflow' directory in the user's home directory. It then creates a new
     'echodataflow_rules.txt' file and populates it with the rules provided in the input set.
-    The function performs a sanity check on each rule to ensure it follows the expected
+    The function performs a sanity check on each rule to ensure it follows the expected 
     format "parent_flow:child_flow". If any rule does not comply, a ValueError is raised,
-    and the operation is aborted.
+    and the operation is aborted. 
 
     Returns:
         set: The same set of rules provided as input, indicating the rules now
@@ -96,11 +94,11 @@ def clean_ruleset():
           functions handle any required validations and exceptions beyond format checking.
     """
     rules_path = fetch_ruleset()
-
+    
     with open(rules_path, "r") as file:
         backup_rules = file.readlines()
     os.remove(rules_path)
-
+        
     try:
         add_rules_from_set(rule_set=set(backup_rules))
     except Exception as e:
@@ -108,18 +106,17 @@ def clean_ruleset():
             for rule in backup_rules:
                 ruleset.write(rule)
         raise e
-
+    
     return set(backup_rules)
-
 
 def fetch_all_rules():
     """
     Reads and returns all the existing rules from the 'echodataflow_rules.txt' file.
-
+    
     This function locates the '.echodataflow' directory within the user's home directory,
     reads the 'echodataflow_rules.txt' file, and returns a list of all rules defined within
     that file. Each rule is returned as a string in the list, including any newline characters.
-
+    
     Returns:
         list of str: A list containing all the rules defined in 'echodataflow_rules.txt'.
     """
@@ -127,20 +124,19 @@ def fetch_all_rules():
     with open(rules_path, "r") as file:
         rules = file.readlines()
     return rules
-
-
+        
 def add_new_rule(new_rule) -> None:
     """
     Appends a new rule to the 'echodataflow_rules.txt' file within the '.echodataflow' directory.
-
+    
     This function takes a single rule as input and appends it to the end of the
     'echodataflow_rules.txt' file, located in the '.echodataflow' directory within the user's home directory.
     If the directory or the file doesn't exist, they are created. The new rule is added as a new line
     in the file.
-
+    
     Parameters:
         new_rule (str): The rule to be added to the file. Should be in the format 'parent_flow:child_flow'.
-
+        
     Returns:
         None
     """
@@ -152,16 +148,15 @@ def add_new_rule(new_rule) -> None:
     rules_path = fetch_ruleset()
     """Append a new rule to the existing rules file."""
     with open(rules_path, "a") as file:
-        file.write(new_rule + "\n")
+        file.write(new_rule+"\n")
     print("New rule added successfully.")
-
-
+    
 def add_rules_from_set(rule_set: set):
     """
     Writes a set of rules to the Echodataflow rules file, replacing any existing content.
 
     This function takes a set of rules and writes them to the 'echodataflow_rules.txt' file,
-    located within the '.echodataflow' directory in the user's home directory. Each rule is
+    located within the '.echodataflow' directory in the user's home directory. Each rule is 
     written on a new line. Before writing, the function performs a sanity check on each rule
     to ensure it follows the expected format ("parent_flow:child_flow"). If any rule does not
     comply with this format, the function raises a ValueError and aborts the operation.
@@ -176,16 +171,16 @@ def add_rules_from_set(rule_set: set):
 
     Returns:
         None
-
+    
     """
     rules_path = fetch_ruleset()
-
+    
     for rule in rule_set:
         if ":" not in rule:
             print(
                 "Sanity check failed. Please make sure all rules follow the convention : One rule per line. Format -> parent_flow:child_flow"
             )
-            raise ValueError("Error adding rules. Sanity Check failed.")
+            raise ValueError("Error adding rules. Sanity Check failed.") 
         if len(rule.split(":")) != 2:
             print(
                 "Sanity check failed. Please make sure all rules follow the convention : One rule per line. Format -> parent_flow:child_flow"
@@ -194,8 +189,7 @@ def add_rules_from_set(rule_set: set):
     with open(rules_path, "w") as ruleset:
         for rule in rule_set:
             ruleset.write(rule)
-
-
+            
 def add_rules_from_file(file_path) -> None:
     """
     Reads rules from a specified file and adds them to the Echodataflow configuration.
@@ -216,17 +210,16 @@ def add_rules_from_file(file_path) -> None:
         None
     """
     rules_path = fetch_ruleset()
-
+    
     try:
         with open(rules_path, "r") as file:
             new_rules = [line.strip() for line in file if line.strip()]
-
+        
         add_rules_from_set(set(new_rules))
-
+        
         print(f"Added {len(new_rules)} new rule(s) from {rules_path}.")
     except Exception as e:
         print(f"Error reading from file {rules_path}: {e}")
-
 
 def generate_ini_file():
     """
@@ -266,7 +259,7 @@ def generate_ini_file():
 
     # Write the .ini file
     ini_file_path = os.path.join(config_directory, "credentials.ini")
-
+    
     if not os.path.exists(ini_file_path):
         with open(ini_file_path, "w") as config_file:
             config_file.write("# Credential configuration file for Echodataflow\n")
@@ -281,17 +274,16 @@ def generate_ini_file():
     default_rules_path = pkg_resources.resource_filename(
         "echodataflow", "rule_engine/echodataflow_rules.txt"
     )
-
+    
     with open(default_rules_path, "r") as default_rules_file:
         default_rules = default_rules_file.readlines()
     print(default_rules)
-
+    
     with open(rules_path, "w") as rules_file:
         for rule in default_rules:
             rules_file.write(rule)
 
     print("Initilization complete")
-
 
 def generate_stage_file(stage_name: str):
     file_content = (
@@ -423,7 +415,7 @@ def generate_stage_file(stage_name: str):
                 use_dask=stage.options["use_dask"],
                 eflogging=config.logging,
             )
-                
+            
             out_zarr = get_out_zarr(
                 group=stage.options.get("group", True),
                 working_dir=working_dir,
@@ -455,9 +447,9 @@ def generate_stage_file(stage_name: str):
                     use_dask=stage.options["use_dask"],
                     eflogging=config.logging,
                 )
-            
+                
                 ed_list = get_ed_list.fn(config=config, stage=stage, transect_data=ed)
-            
+                
                 log_util.log(
                     msg={"msg": 'Computing """
         + f"""{stage_name}"""
@@ -467,7 +459,7 @@ def generate_stage_file(stage_name: str):
                 )
                 
                 xr_d = # Processing code
-                
+            
                 log_util.log(
                     msg={"msg": f"Converting to Zarr", "mod_name": __file__, "func_name": file_name},
                     use_dask=stage.options["use_dask"],
@@ -506,52 +498,52 @@ def generate_stage_file(stage_name: str):
     )
 
     with open(f"./{stage_name}.py", "w") as file:
-        file.write(textwrap.dedent(file_content))
+            file.write(textwrap.dedent(file_content))
 
 
 def main():
     """
     Main entry point of the Echodataflow CLI script.
-
+    
     This function provides subcommands for generating and managing Echodataflow configurations:
-
+    
     Subcommands:
     - `load-credentials`: Load credentials from a configuration file and create corresponding credential blocks.
       Options:
       --sync: If provided, syncs blocks updated using the Prefect UI.
-
+    
     - `init`: Initializes an empty `.ini` file for Echodataflow configurations.
-
+    
     - `gs`: Helps create boilerplate code for a specific stage.
       Arguments:
         - `stage_name`: Name of the stage for which to generate boilerplate code.
-
+    
     - `rules`: View, add, or import flow rules from a file.
       Options:
         --add: Add a new rule interactively. Requires input in `parent_flow:child_flow` format.
         --add-from-file: Path to a file containing rules to be added. Each rule should be on a new line in `parent_flow:child_flow` format.
-
+    
     Example usage:
     - To load credentials and sync:
       ```
       echodataflow load-credentials --sync
       ```
-
+    
     - To initialize an empty `.ini` file:
       ```
       echodataflow init
       ```
-
+    
     - To create boilerplate code for a specific stage:
       ```
       echodataflow gs <stage_name>
       ```
-
+    
     - To add a new rule interactively:
       ```
       echodataflow rules --add
       ```
-
+    
     - To import rules from a file:
       ```
       echodataflow rules --add-from-file path/to/rules.txt
@@ -579,12 +571,12 @@ def main():
     )
 
     run_parser = subparsers.add_parser("init", help="Initializes an empty .ini file")
-
+    
     gs_parser = subparsers.add_parser("gs", help="Helps create boilerplate code for any stage")
     gs_parser.add_argument(
         "stage_name", help="Name of the stage for which to generate boilerplate code"
     )
-
+    
     rule_parser = subparsers.add_parser("rules", help="View or add flow rules.")
     rule_parser.add_argument(
         "--add", action="store_true", help="Add a new rule. Format -> parent_flow:child_flow"
@@ -597,7 +589,7 @@ def main():
     rule_parser.add_argument(
         "--clean", action="store_true", help="Clean and validate rules in ruleset"
     )
-
+    
     args = parser.parse_args()
     if args.command is None:
         print("No command provided. Use 'load-credentials' or 'init'.")
@@ -617,11 +609,11 @@ def main():
             generate_ini_file()
         elif args.command == "gs":
             stage_name = args.stage_name
-            if stage_name:
+            if stage_name:        
                 print("Creating Stage : ", stage_name)
-
+                
                 generate_stage_file(str(stage_name))
-
+                
                 print(f"Boilerplate code for {stage_name} stage created successfully.")
                 print(
                     f"Modify the generated code to match your specific requirements and add the new stage in the configured rules."
@@ -651,11 +643,10 @@ def main():
             else:
                 rules = fetch_all_rules()
                 print("These are the current rules configured:")
-
+                
                 [print(r, end="") for r in rules]
         else:
             print("Unknown Command")
-
 
 if __name__ == "__main__":
     main()

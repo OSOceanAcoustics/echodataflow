@@ -1,0 +1,15 @@
+[Unit]
+Description=Prefect serve
+After=network.target
+
+[Service]
+User=exouser
+WorkingDirectory=/home/exouser/Desktop/Echodataflow/
+ExecStart=/home/exouser/Desktop/echodataflowv2/bin/python /home/exouser/Desktop/Echodataflow/main.py
+Restart=always
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=echodataflow
+
+[Install]
+WantedBy=multi-user.target

@@ -29,13 +29,13 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
+import datetime
 import itertools as it
 import json
 import os
 import re
 from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
 from zipfile import ZipFile
-from echodataflow.models.echodataflow_config import EchodataflowConfig
 
 import nest_asyncio
 import yaml
@@ -47,7 +47,9 @@ from prefect_azure import AzureCosmosDbCredentials
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset, StorageOptions, StorageType
+from echodataflow.models.echodataflow_config import EchodataflowConfig
 from echodataflow.models.pipeline import Stage
+from echodataflow.models.run import EDFRun
 from echodataflow.utils.file_utils import extract_fs, isFile
 
 nest_asyncio.apply()
@@ -105,7 +107,7 @@ def check_config(dataset_config: Dict[str, Any], pipeline_config: Dict[str, Any]
             raise ValueError("Active recipe name not found in the recipe list!")
 
 
-def glob_url(path: str, storage_options: Dict[str, Any] = {}) -> List[str]:
+def glob_url(path: str, storage_options: Dict[str, Any] = {}, maxdepth: int = 1) -> List[str]:
     """
     Glob files based on the given path string using fsspec.filesystem.glob.
 
@@ -122,7 +124,7 @@ def glob_url(path: str, storage_options: Dict[str, Any] = {}) -> List[str]:
     """
 
     file_system, scheme = extract_fs(path, storage_options, include_scheme=True)
-    all_files = [f if f.startswith(scheme) else f"{scheme}://{f}" for f in file_system.glob(path)]
+    all_files = [f if f.startswith(scheme) else f"{scheme}://{f}" for f in file_system.glob(path, maxdepth=maxdepth)]
     return all_files
 
 
@@ -173,7 +175,7 @@ def _get_group_name(filename: str, group_regex: str, default_transect: str) -> s
     Example:
         group_name = _get_group_name(filename="example_file_01", group_regex=r"example_(?P<transect_num>\d+)", default_transect="default")
     """
-    if group_regex:
+    if group_regex:  
         m = re.match(group_regex, filename)
         transect_num = str(m.groupdict()["transect_num"])
     elif default_transect:
@@ -212,11 +214,11 @@ def _extract_from_zip(
                 transect_num = _get_group_name(
                     filename=zi.filename, group_regex=group_regex, default_transect=default_transect
                 )
-
+                    
                 if zi.is_dir():
                     raise ValueError("Directory found in zip file. This is not allowed!")
-                with zf.open(zi.filename) as txtfile:
-                    for line_bytes in txtfile:
+                with zf.open(zi.filename) as txtfile:                    
+                    for line_bytes in txtfile:                        
                         line = line_bytes.decode("utf-8").strip("\r\n")
                         transect_dict.setdefault(
                             line, {"filename": zi.filename, "num": transect_num}
@@ -246,7 +248,7 @@ def _extract_from_text(
         extracted_data = _extract_from_text(file_system, file_path)
     """
     filename = os.path.basename(file_path)
-
+    
     transect_num = _get_group_name(
         filename=filename, group_regex=group_regex, default_transect=default_transect
     )
@@ -254,7 +256,7 @@ def _extract_from_text(
     transect_dict = {}
 
     with file_system.open(file_path) as txtfile:
-        for line_bytes in txtfile:
+        for line_bytes in txtfile:                        
             line = line_bytes.decode("utf-8").strip("\r\n")
             transect_dict.setdefault(line, {"filename": filename, "num": transect_num})
 
@@ -385,40 +387,41 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
     sonar_model = config.sonar_model
     fname_pattern = config.raw_regex
     transect_dict = {}
-    default_transect = str(config.args.group_name) if config.args.group_name else None
-
+    default_transect = str(config.args.group_name) if config.args.group_name else None    
+    
     if config.args.group and config.args.group.file:
+        
         # When transect info is available, extract it
         file_input = config.args.group.file
-        storage_options = config.args.group.storage_options_dict
+        storage_options = config.args.group.storage_options_dict   
         group_regex = config.args.group.grouping_regex
-
+             
         if isinstance(file_input, str):
             filename = os.path.basename(file_input)
             _, ext = os.path.splitext(filename)
             transect_dict = extract_transect_files(
                 file_format=ext.strip("."),
-                file_path=file_input,
-                storage_options=storage_options,
-                group_regex=group_regex,
+                                                   file_path=file_input, 
+                                                   storage_options=storage_options, 
+                                                   group_regex=group_regex, 
                 default_transect=default_transect,
             )
         else:
             transect_dict = {}
             for f in file_input:
                 filename = os.path.basename(f)
-                _, ext = os.path.splitext(filename)
+                _, ext = os.path.splitext(filename)   
                 result = extract_transect_files(
                     file_format=ext.strip("."),
-                    file_path=f,
-                    storage_options=storage_options,
-                    group_regex=group_regex,
+                                                   file_path=f, 
+                                                   storage_options=storage_options, 
+                                                   group_regex=group_regex, 
                     default_transect=default_transect,
                 )
                 transect_dict.update(result)
     else:
         default_transect = "DefaultGroup"
-
+    
     raw_file_dicts = []
     for raw_file in all_raw_files:
         # get transect info from the transect_dict above
@@ -534,6 +537,19 @@ def get_storage_options(storage_options: Block = None) -> Dict[str, Any]:
     return storage_options_dict
 
 
+def handle_storage_options(storage_options: Optional[Dict] = None) -> Dict:
+    if storage_options:
+        if isinstance(storage_options, Block):
+            return get_storage_options(storage_options=storage_options)
+        elif isinstance(storage_options, dict) and storage_options.get("block_name"):
+            block = load_block(
+                name=storage_options.get("block_name"), type=storage_options.get("type")
+            )
+            return get_storage_options(block)
+        else:
+            return storage_options if storage_options and len(storage_options.keys()) > 0 else {}
+    return {}
+
 def load_block(name: str = None, type: StorageType = None):
     """
     Load a block of a specific type by name.
@@ -560,13 +576,14 @@ def load_block(name: str = None, type: StorageType = None):
         coro = AzureCosmosDbCredentials.load(name=name)
     elif type == StorageType.ECHODATAFLOW or type == StorageType.ECHODATAFLOW.value:
         coro = EchodataflowConfig.load(name=name)
+    elif type == StorageType.EDFRUN or type == StorageType.EDFRUN.value:
+        coro = EDFRun.load(name=name)
 
     if isinstance(coro, Coroutine):
         block = nest_asyncio.asyncio.run(coro)
     else:
         block = coro
     return block
-
 
 def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
     """
@@ -604,8 +621,15 @@ def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
     """
     if external_params:
         for k, v in external_params.items():
-            if "\\" in v or "/" in v:
-                if not isFile(v, config.output.storage_options_dict):
-                    return False
-
+            if not v and isinstance(v, str): 
+                if "\\" in v or "/" in v:
+                    if not isFile(v, config.output.storage_options_dict):
+                        return False
+    
     return True
+
+def floor_time(end_time: datetime, window_minutes: int) -> datetime:
+    total_minutes = end_time.hour * 60 + end_time.minute
+    floored_minutes = (total_minutes // window_minutes) * window_minutes
+    floored_time = end_time.replace(hour=floored_minutes // 60, minute=floored_minutes % 60, second=0, microsecond=0)
+    return floored_time
