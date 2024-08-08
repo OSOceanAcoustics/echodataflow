@@ -141,9 +141,11 @@ def file_monitor(
                 file = os.path.basename(file)
                 date_time_str = file.split('-')[1].split('_')[0][1:] + file.split('-')[2].split('_')[0].split('.', maxsplit=1)[0]
                 file_mtime = datetime.strptime(date_time_str, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
-                
+                print(file, file_mtime)
                 if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
+                    print(file)
                     if file_mtime > min_time:
+                        print(file_mtime)
                         if not edfrun.processed_files.get(file):
                             edfrun.processed_files[os.path.basename(file)] = FileDetails()
                         all_files.append((file, file_mtime, file))
@@ -176,7 +178,7 @@ def file_monitor(
     
     if len(all_files) > 0:
         last_file = all_files[-1]
-    
+    print("last file is : ", last_file)
     print(all_files)
     # Skip the most recently modified file
     if all_files and (datetime.now(tz=timezone.utc) - timedelta(hours=hour_threshold, minutes=minute_threshold)) < all_files[-1][1]:
