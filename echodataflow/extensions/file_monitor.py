@@ -1,7 +1,7 @@
 import asyncio
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Coroutine, Dict, List, Optional, Union
 
@@ -137,8 +137,11 @@ def file_monitor(
                 fext = ""
                 
             if not extension or (extension and extension == fext):
-                file_mtime = datetime.fromtimestamp(os.path.getmtime(file))
+                # file_mtime = datetime.fromtimestamp(os.path.getmtime(file))
                 file = os.path.basename(file)
+                date_time_str = file.split('-')[1].split('_')[0][1:] + file.split('-')[2].split('_')[0]
+                file_mtime = datetime.strptime(date_time_str, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+                
                 if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
                     if file_mtime > min_time:
                         if not edfrun.processed_files.get(file):
