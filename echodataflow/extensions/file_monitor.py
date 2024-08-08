@@ -110,7 +110,7 @@ def file_monitor(
     if deployment_already_running():
         return Cancelled()
     
-    new_run = datetime.now().isoformat()
+    new_run = datetime.now(tz=timezone.utc).isoformat()
     edfrun: EDFRun = None
     try:
         edfrun = load_block(
@@ -121,9 +121,9 @@ def file_monitor(
         print(e)        
         edfrun = EDFRun()
     
-    last_run = datetime.fromisoformat(edfrun.last_run_time)
+    last_run = datetime.fromisoformat(edfrun.last_run_time).replace(tzinfo=timezone.utc)
     exceptionFlag = False
-    min_time = datetime.fromisoformat(min_time)
+    min_time = datetime.fromisoformat(min_time).replace(tzinfo=timezone.utc)
 
     # List all files and their modification times
     all_files = []
@@ -139,7 +139,7 @@ def file_monitor(
             if not extension or (extension and extension == fext):
                 # file_mtime = datetime.fromtimestamp(os.path.getmtime(file))
                 file = os.path.basename(file)
-                date_time_str = file.split('-')[1].split('_')[0][1:] + file.split('-')[2].split('_')[0]
+                date_time_str = file.split('-')[1].split('_')[0][1:] + file.split('-')[2].split('_')[0].split('.', maxsplit=1)[0]
                 file_mtime = datetime.strptime(date_time_str, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
                 
                 if file_mtime > last_run or not edfrun.processed_files.get(file) or not edfrun.processed_files[file].status:
@@ -179,7 +179,7 @@ def file_monitor(
     
     print(all_files)
     # Skip the most recently modified file
-    if all_files and (datetime.now() - timedelta(hours=hour_threshold, minutes=minute_threshold)) < all_files[-1][1]:
+    if all_files and (datetime.now(tz=timezone.utc) - timedelta(hours=hour_threshold, minutes=minute_threshold)) < all_files[-1][1]:
         all_files = all_files[:-1]
 
     futures = []
