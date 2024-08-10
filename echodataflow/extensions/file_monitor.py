@@ -50,7 +50,11 @@ def execute_flow(
         Tuple containing the file path and a boolean indicating success.
     """
     print("Processing : ", file_path)
-    options["file_name"] = os.path.basename(file_path).split(".", maxsplit=1)[0]
+    if isinstance(file_path, str):
+        options["file_name"] = os.path.basename(file_path).split(".", maxsplit=1)[0]
+    elif isinstance(file_path, list):
+        options["file_name"] = [os.path.basename(f).split(".", maxsplit=1)[0] for f in file_path]
+    
     flow_run: FlowRun = run_deployment(
         name=deployment_name,
         parameters={
@@ -87,7 +91,8 @@ def file_monitor(
     max_folder_depth: int = 1,
     block_name: str = "edf-fm-last-run",
     tags: List[str] = ["edfFM"],
-    max_files: int = -1
+    max_files: int = -1,
+    processing_mode: str = "realtime",
 ):
     """
     Monitors a directory for file changes and processes new or modified files.
@@ -164,100 +169,114 @@ def file_monitor(
                         all_files.append((file_path, file_mtime, file))
             break
                             
-
-    # Sort files by modification time
-    all_files.sort(key=lambda x: x[1])
-    print("Files To be processed : ",len(all_files))
-    
-    last_file = None
-    
-    if len(all_files) > 0:
-        last_file = all_files[-1]
-    
-    print(all_files)
-    # Skip the most recently modified file
-    if all_files and (datetime.now() - timedelta(hours=hour_threshold, minutes=minute_threshold)) < all_files[-1][1]:
-        all_files = all_files[:-1]
-
-    futures = []
-    
-    var: Variable = Variable.get(name="run_name", default=None)
-    
-    if not var:
-        value = file_name + f"_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
-        Variable.set(name="run_name", value=value, overwrite=True)
-    else:
-        value = var.value
-        
-    if fail_safe:
-        for file_path, file_mtime, file in all_files:
-            
-            if edfrun.processed_files[file].retry_count < retry_threshold:
-                edfrun.processed_files[file].retry_count += 1
-                try:
-                    futures.append(
-                        execute_flow.with_options(tags=tags, task_run_name=file_path).submit(
-                            dataset_config=dataset_config,
-                            pipeline_config=pipeline_config,
-                            logging_config=logging_config,
-                            storage_options=storage_options,
-                            options=options,
-                            file_path=file_path,
-                            json_data_path=json_data_path,
-                            deployment_name=deployment_name,
-                        )
-                    )
-                except Exception as e:
-                    pass
-
-        tuple_list = [f.result() for f in futures]
-
-        exceptionFlag = True if any(not t for _, t in tuple_list) else False
-
-        for file, status in tuple_list:
-            edfrun.processed_files[file].status = status
-            edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
-
-    else:
-        itr = 0
-        for file_path, file_mtime, file in all_files:
-            if itr == max_files:
-                break
-            if edfrun.processed_files[file].retry_count < retry_threshold:
-                edfrun.processed_files[file].retry_count += 1
-                
-                if edfrun.processed_files[file].retry_count == retry_threshold:
-                    value = f"{file_name}_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
-                    Variable.set(name="run_name", value=value, overwrite=True)
-                    options["run_name"] = value
-                else:
-                    options["run_name"] = value
-                
-                status = execute_flow.with_options(tags=tags, task_run_name=file_path)(
+    if processing_mode == "batch":
+        status = execute_flow.with_options(tags=tags, task_run_name=file_path)(
                     dataset_config=dataset_config,
                     pipeline_config=pipeline_config,
                     logging_config=logging_config,
                     storage_options=storage_options,
                     options=options,
-                    file_path=file_path,
+                    file_path=all_files,
                     json_data_path=json_data_path,
                     deployment_name=deployment_name,
                 )[1]
-                # edfrun.processed_files[file].status = True # hardcoded to true to avoid backlog processing in different schedules
+        for _, _, file in all_files:
+            edfrun.processed_files[file].status = status
+            edfrun.processed_files[file].last_run = datetime.now()
+    else:
+        
+        # Sort files by modification time
+        all_files.sort(key=lambda x: x[1])
+        print("Files To be processed : ",len(all_files))
+        
+        last_file = None
+        
+        if len(all_files) > 0:
+            last_file = all_files[-1]
+        
+        print(all_files)
+        # Skip the most recently modified file
+        if all_files and (datetime.now() - timedelta(hours=hour_threshold, minutes=minute_threshold)) < all_files[-1][1]:
+            all_files = all_files[:-1]
+
+        futures = []
+        
+        var: Variable = Variable.get(name="run_name", default=None)
+        
+        if not var:
+            value = file_name + f"_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
+            Variable.set(name="run_name", value=value, overwrite=True)
+        else:
+            value = var.value
+            
+        if fail_safe:
+            for file_path, file_mtime, file in all_files:
+                
+                if edfrun.processed_files[file].retry_count < retry_threshold:
+                    edfrun.processed_files[file].retry_count += 1
+                    try:
+                        futures.append(
+                            execute_flow.with_options(tags=tags, task_run_name=file_path).submit(
+                                dataset_config=dataset_config,
+                                pipeline_config=pipeline_config,
+                                logging_config=logging_config,
+                                storage_options=storage_options,
+                                options=options,
+                                file_path=file_path,
+                                json_data_path=json_data_path,
+                                deployment_name=deployment_name,
+                            )
+                        )
+                    except Exception as e:
+                        pass
+
+            tuple_list = [f.result() for f in futures]
+
+            exceptionFlag = True if any(not t for _, t in tuple_list) else False
+
+            for file, status in tuple_list:
                 edfrun.processed_files[file].status = status
                 edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
-                if not status:                
-                    exceptionFlag = True
-                    value = f"{file_name}_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
-                    Variable.set(name="run_name", value=value, overwrite=True)
-            itr += 1
-            
-    if last_file:
-        _, _, file = last_file
-        edfrun.processed_files[file].status = False
-        edfrun.processed_files[file].retry_count -= 1
-    
-    edfrun.last_run_time = new_run
+        else:
+            itr = 0
+            for file_path, file_mtime, file in all_files:
+                if itr == max_files:
+                    break
+                if edfrun.processed_files[file].retry_count < retry_threshold:
+                    edfrun.processed_files[file].retry_count += 1
+                    
+                    if edfrun.processed_files[file].retry_count == retry_threshold:
+                        value = f"{file_name}_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
+                        Variable.set(name="run_name", value=value, overwrite=True)
+                        options["run_name"] = value
+                    else:
+                        options["run_name"] = value
+                    
+                    status = execute_flow.with_options(tags=tags, task_run_name=file_path)(
+                        dataset_config=dataset_config,
+                        pipeline_config=pipeline_config,
+                        logging_config=logging_config,
+                        storage_options=storage_options,
+                        options=options,
+                        file_path=file_path,
+                        json_data_path=json_data_path,
+                        deployment_name=deployment_name,
+                    )[1]
+                    # edfrun.processed_files[file].status = True # hardcoded to true to avoid backlog processing in different schedules
+                    edfrun.processed_files[file].status = status
+                    edfrun.processed_files[file].process_timestamp = datetime.now().isoformat()
+                    if not status:                
+                        exceptionFlag = True
+                        value = f"{file_name}_{datetime.now().strftime('D%Y%m%d-T%H%M%S')}"
+                        Variable.set(name="run_name", value=value, overwrite=True)
+                itr += 1
+                
+        if last_file:
+            _, _, file = last_file
+            edfrun.processed_files[file].status = False
+            edfrun.processed_files[file].retry_count -= 1
+        
+        edfrun.last_run_time = new_run
 
     block = edfrun.save(
             block_name, overwrite=True

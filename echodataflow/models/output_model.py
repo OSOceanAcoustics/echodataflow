@@ -52,6 +52,7 @@ class EchodataflowObject(BaseModel):
 
     file_path: str = None
     filename: str = None
+    file_extension: Optional[str] = None
     month: Optional[str] = None
     year: Optional[str] = None
     jday: Optional[str] = None

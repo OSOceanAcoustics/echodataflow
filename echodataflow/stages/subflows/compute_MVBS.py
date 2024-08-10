@@ -32,7 +32,7 @@ from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
-from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zarr_list, isFile
+from echodataflow.utils.file_utils import fetch_slice_from_store, get_out_zarr, get_working_dir, get_zarr_list, isFile
 
 
 @flow
@@ -72,14 +72,9 @@ def echodataflow_compute_MVBS(
     for name, gr in groups.items():
         if gr.metadata and gr.metadata.is_store_folder and len(gr.data) > 0:
             edf = gr.data[0]
-            store = xr.open_mfdataset(paths=[ed.out_path for ed in gr.data], engine="zarr",
-                                        combine="by_coords",
-                                        data_vars="minimal",
-                                        coords="minimal",
-                                        compat="override").compute()
-            edf.data = store.sel(ping_time=slice(pd.to_datetime(edf.start_time, unit="ns"), pd.to_datetime(edf.end_time, unit="ns")))
+            edf.data = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time)
             gr.data = [edf]
-            del store
+            gr.metadata.is_store_folder = False
             
         # TODO ed.out_path.split(".")[0] -> change to filename
         

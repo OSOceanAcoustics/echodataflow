@@ -117,9 +117,9 @@ def echodataflow_mask_prediction(
                 edf.data = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time)
                 if edf.data.notnull().any():
                     gr.data = [edf]
+                    gr.metadata.is_store_folder = False
                 else:
                     continue
-                del store
                 
         for ed in gr.data:
             

@@ -333,6 +333,8 @@ def get_input_from_url(json_data_path, config: Dataset):
             g.group_name = transect_num
             g.instrument = fdict.get("instrument")
 
+            file_info = os.path.basename(fdict.get("file_path")).split(".", maxsplit=1)
+            
             obj = EchodataflowObject(
                 file_path=fdict.get("file_path"),
                 month=str(fdict.get("month")),
@@ -340,7 +342,8 @@ def get_input_from_url(json_data_path, config: Dataset):
                 jday=str(fdict.get("jday")),
                 datetime=fdict.get("datetime"),
                 group_name=transect_num,
-                filename=os.path.basename(fdict.get("file_path")).split(".", maxsplit=1)[0],
+                filename=file_info[0],
+                file_extension= file_info[-1],
             )
             g.data.append(obj)
 
@@ -430,6 +433,10 @@ def get_input_from_store_folder(config: Dataset):
             
             edf_5.data_ref, edf_5.data = combine_datasets(store_18, store_5)
             
+            # Since we have already loaded the datasets into memory we do not need fetching again
+            if gr.metadata and gr.metadata.is_store_folder:
+                gr.metadata.is_store_folder = False
+                
             combo_output.group[name] = gr.model_copy()
             combo_output.group[name].data = [edf_5]
             
