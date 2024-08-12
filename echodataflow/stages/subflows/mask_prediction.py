@@ -243,14 +243,18 @@ def process_mask_prediction(
                 eflogging=config.logging,
             )
             
-            mvbs_slice = ed_list[0].isel(
-                channel=ch_wanted
+            # Ensure dims sequence is (channel, depth, ping_time)
+            # and channel sequence is 120, 38, 18 kHz
+            mvbs_slice = (
+                ed_list[0]
+                .transpose("channel", "depth", "ping_time")
+                .isel(channel=ch_wanted)
             )
             
-            mvbs_tensor = torch.tensor(mvbs_slice['Sv'].values, dtype=torch.float32).unsqueeze(0)
+            mvbs_tensor = torch.tensor(mvbs_slice['Sv'].values, dtype=torch.float32)
 
             da_MVBS_tensor = torch.clip(
-                torch.tensor(mvbs_tensor, dtype=torch.float16),
+                mvbs_tensor.clone().detach().to(torch.float16),
                 min=-70,
                 max=-36,
             )
@@ -261,13 +265,12 @@ def process_mask_prediction(
                 eflogging=config.logging,
             )
             # Replace NaN values with min Sv
-            # 07/10/2024 Caesar -> will need to be set to minimum value -70 not -36.
             da_MVBS_tensor[torch.isnan(da_MVBS_tensor)] = -70
             
             MVBS_tensor_normalized = (
                 (da_MVBS_tensor - (-70.0)) / (-36.0 - (-70.0)) * 255.0
             )
-            input_tensor = MVBS_tensor_normalized.float()
+            input_tensor = MVBS_tensor_normalized.unsqueeze(0).float()
             
             log_util.log(
                 msg={"msg": f"Normalized tensor", "mod_name": __file__, "func_name": file_name},
@@ -284,7 +287,11 @@ def process_mask_prediction(
 
             # dims = stage.external_params.get('dims', ['ping_time', 'depth'])
             
-            dims = {'species': [ "background", "hake"], 'ping_time': mvbs_slice["ping_time"].values, 'depth': mvbs_slice["depth"].values}
+            dims = {
+                'species': [ "background", "hake"],
+                'ping_time': mvbs_slice["ping_time"].values,
+                'depth': mvbs_slice["depth"].values,
+            }
 
             da_score_hake = assemble_da(score_tensor.numpy(), dims=dims)            
             
