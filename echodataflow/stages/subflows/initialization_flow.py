@@ -392,7 +392,8 @@ def get_input_from_store(config: Dataset):
                 group_name="DefaultGroup",
                 filename=f"win_{stime.strftime('D%Y%m%d-T%H%M%S')}_{etime.strftime('D%Y%m%d-T%H%M%S')}",
                 start_time=stime.isoformat(timespec='nanoseconds'),
-                end_time=etime.isoformat(timespec='nanoseconds')
+                end_time=etime.isoformat(timespec='nanoseconds'),
+                file_extension="zarr"
             )
             obj.stages['store'] = store_path
             g.data.append(obj)
@@ -605,7 +606,8 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
                 group_name=gname,
                 filename="Hake-"+str(start_time.strftime('D%Y%m%d-T%H%M%S')),
                 start_time= start_time.replace(tzinfo=None).isoformat(),
-                end_time=end_time.replace(tzinfo=None).isoformat()
+                end_time=end_time.replace(tzinfo=None).isoformat(),
+                file_extension="zarr"
             )
             g.data.append(obj)
 

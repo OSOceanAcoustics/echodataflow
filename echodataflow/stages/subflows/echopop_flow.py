@@ -8,6 +8,7 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: July 30, 2024
 """
+import os
 from typing import Dict, List, Optional
 
 from prefect import flow, task
@@ -27,7 +28,7 @@ def echopop_flow(
 ):
     working_dir = get_working_dir(stage=stage, config=config)
 
-    futures = List[Group]
+    futures = []
     
     for name, gr in groups.items():
         
@@ -44,7 +45,7 @@ def echopop_flow(
         try:            
             res = f.result()            
             del f
-            groups[res.group_name].data = res
+            groups[res.group_name].data = res.data
         except Exception as e:
             groups[res.group_name].data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))
         del res        
@@ -73,7 +74,6 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
             eflogging=config.logging,
         )
         
-           
         external_kwargs = stage.external_params
             
         realtime_survey = LiveSurvey(**external_kwargs)
@@ -85,7 +85,7 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
         )
         
         if config.passing_params and config.passing_params["POP_TYPE"] == "BIO":
-            realtime_survey.load_biology_data(input_filenames=[ed.out_path for ed in gr.data])
+            realtime_survey.load_biology_data(input_filenames=[ed.filename+"."+ed.file_extension for ed in gr.data])
         
             log_util.log(
                 msg={"msg": f"Loaded bio data successfully", "mod_name": __file__, "func_name": file_name},
@@ -93,7 +93,7 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
                 eflogging=config.logging,
             )
         
-            realtime_survey.process_biology_data(input_filenames=[ed.out_path for ed in gr.data])        
+            realtime_survey.process_biology_data()        
         
             log_util.log(
                 msg={"msg": f"Processed bio data successfully", "mod_name": __file__, "func_name": file_name},
@@ -103,8 +103,17 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
 
             realtime_survey.estimate_population(working_dataset="biology")
             
+            processed_files = [str(os.path.basename(b)).split('.', maxsplit=1)[0] for b in realtime_survey.meta["provenance"]["biology_files"]]
+            
+            for ed in gr.data:
+                if ed.filename in processed_files:
+                    ed.error = ErrorObject(errorFlag=False)
+                else:
+                    ed.error = ErrorObject(errorFlag=True, error_desc=f"{ed.filename} was not found in the Live Survey Provenance") 
+                ed.stages[stage.name] = gr.data[0].out_path
+            
         else:
-            realtime_survey.load_acoustic_data(input_filenames=[ed.out_path for ed in gr.data])
+            realtime_survey.load_acoustic_data(input_filenames=[os.path.basename(ed.out_path) for ed in gr.data])
         
             log_util.log(
                 msg={"msg": f"Loaded acoustic data successfully", "mod_name": __file__, "func_name": file_name},
@@ -112,7 +121,7 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
                 eflogging=config.logging,
             )
         
-            realtime_survey.process_acoustic_data(input_filenames=[ed.out_path for ed in gr.data])        
+            realtime_survey.process_acoustic_data()        
         
             log_util.log(
                 msg={"msg": f"Processed acoustic data successfully", "mod_name": __file__, "func_name": file_name},
@@ -121,9 +130,18 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
             )
         
             realtime_survey.estimate_population(working_dataset="acoustic")
-        
+            
+            processed_files = [str(os.path.basename(b)) for b in realtime_survey.meta["provenance"]["acoustic_files"]]
+
+            for ed in gr.data:
+                if os.path.basename(ed.out_path) in processed_files:
+                    ed.error = ErrorObject(errorFlag=False)
+                else:
+                    ed.error = ErrorObject(errorFlag=True, error_desc=f"{ed.filename} was not found in the Live Survey Provenance") 
+                ed.stages[stage.name] = gr.data[0].out_path
+                
         log_util.log(
-            msg={"msg": f"Estimated population", "mod_name": __file__, "func_name": file_name},
+            msg={"msg": f"Estimated population for {processed_files}", "mod_name": __file__, "func_name": file_name},
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
         )
@@ -133,11 +151,7 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
         )
-        
-        gr.data = gr.data[:1]    
-        gr.data[0].error = ErrorObject(errorFlag=False)
-        gr.data[0].stages[stage.name] = gr.data[0].out_path
-        
+           
     except Exception as e:
         log_util.log(
             msg={"msg": "", "mod_name": __file__, "func_name": file_name},
@@ -145,6 +159,7 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
             eflogging=config.logging,
             error=e
         )
-        gr.data[0].error = ErrorObject(errorFlag=True, error_desc=str(e))        
+        for ed in gr.data:
+            ed.error = ErrorObject(errorFlag=True, error_desc=str(e))
     finally:
         return gr

@@ -20,6 +20,7 @@ from prefect.variables import Variable
 from echodataflow.models.datastore import StorageType
 from echodataflow.models.run import EDFRun, FileDetails
 from echodataflow.utils.config_utils import glob_url, load_block
+from echodataflow import echodataflow_start
 from prefect.task_runners import SequentialTaskRunner
 
 @task
@@ -32,6 +33,7 @@ def execute_flow(
     file_path,
     json_data_path,
     deployment_name,
+    as_deployment: bool = True,
 ):
     """
     Executes a Prefect deployment for the given file.
@@ -54,22 +56,26 @@ def execute_flow(
         options["file_name"] = os.path.basename(file_path).split(".", maxsplit=1)[0]
     elif isinstance(file_path, list):
         options["file_name"] = [os.path.basename(f).split(".", maxsplit=1)[0] for f in file_path]
-    
-    flow_run: FlowRun = run_deployment(
-        name=deployment_name,
-        parameters={
-            "dataset_config": dataset_config,
-            "pipeline_config": pipeline_config,
-            "logging_config": logging_config,
-            "storage_options": storage_options,
-            "options": options,
-            "json_data_path": json_data_path,
-        },
-    )
-    if flow_run.state and flow_run.state.type == StateType.FAILED:
-        return (os.path.basename(file_path), False)
-    return (os.path.basename(file_path), True)
-
+    if as_deployment: 
+        flow_run: FlowRun = run_deployment(
+            name=deployment_name,
+            parameters={
+                "dataset_config": dataset_config,
+                "pipeline_config": pipeline_config,
+                "logging_config": logging_config,
+                "storage_options": storage_options,
+                "options": options,
+                "json_data_path": json_data_path,
+            },
+        )    
+        if flow_run.state and flow_run.state.type == StateType.FAILED:
+            return (os.path.basename(file_path), False)
+        return (os.path.basename(file_path), True)
+    else:
+        output = echodataflow_start(dataset_config=dataset_config, pipeline_config=pipeline_config, logging_config=logging_config
+                       , storage_options=storage_options, options=options, json_data_path=json_data_path)
+        
+        return output
 
 @flow
 def file_monitor(
@@ -179,7 +185,8 @@ def file_monitor(
                     file_path=all_files,
                     json_data_path=json_data_path,
                     deployment_name=deployment_name,
-                )[1]
+                    as_deployment=False,
+                )
         for _, _, file in all_files:
             edfrun.processed_files[file].status = status
             edfrun.processed_files[file].last_run = datetime.now()
