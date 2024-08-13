@@ -289,8 +289,8 @@ def process_mask_prediction(
             
             dims = {
                 'species': [ "background", "hake"],
-                'ping_time': mvbs_slice["ping_time"].values,
                 'depth': mvbs_slice["depth"].values,
+                'ping_time': mvbs_slice["ping_time"].values,
             }
 
             da_score_hake = assemble_da(score_tensor.numpy(), dims=dims)            
