@@ -85,7 +85,7 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
         )
         
         if config.passing_params and config.passing_params["POP_TYPE"] == "BIO":
-            realtime_survey.load_biology_data(input_filenames=[ed.filename+"."+ed.file_extension for ed in gr.data])
+            realtime_survey.load_biology_data(input_filenames=[ed.filename+"."+ed.file_extension for ed in gr.data], pandas_kwargs={"storage_options": config.output.storage_options_dict})
         
             log_util.log(
                 msg={"msg": f"Loaded bio data successfully", "mod_name": __file__, "func_name": file_name},
@@ -103,7 +103,7 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
 
             realtime_survey.estimate_population(working_dataset="biology")
             
-            processed_files = [str(os.path.basename(b)).split('.', maxsplit=1)[0] for b in realtime_survey.meta["provenance"]["biology_files"]]
+            processed_files = [str(os.path.basename(b)).split('.', maxsplit=1)[0] for b in realtime_survey.meta["provenance"].get("biology_files", [])]
             
             for ed in gr.data:
                 if ed.filename in processed_files:
@@ -113,7 +113,7 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
                 ed.stages[stage.name] = gr.data[0].out_path
             
         else:
-            realtime_survey.load_acoustic_data(input_filenames=[os.path.basename(ed.out_path) for ed in gr.data])
+            realtime_survey.load_acoustic_data(input_filenames=[os.path.basename(ed.out_path) for ed in gr.data], xarray_kwargs={"storage_options": config.output.storage_options_dict})
         
             log_util.log(
                 msg={"msg": f"Loaded acoustic data successfully", "mod_name": __file__, "func_name": file_name},
@@ -131,7 +131,7 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
         
             realtime_survey.estimate_population(working_dataset="acoustic")
             
-            processed_files = [str(os.path.basename(b)) for b in realtime_survey.meta["provenance"]["acoustic_files"]]
+            processed_files = [str(os.path.basename(b)) for b in realtime_survey.meta["provenance"].get("acoustic_files", [])]
 
             for ed in gr.data:
                 if os.path.basename(ed.out_path) in processed_files:
