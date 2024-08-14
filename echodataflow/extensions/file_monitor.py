@@ -19,7 +19,7 @@ from prefect.variables import Variable
 
 from echodataflow.models.datastore import StorageType
 from echodataflow.models.run import EDFRun, FileDetails
-from echodataflow.utils.config_utils import glob_url, load_block
+from echodataflow.utils.config_utils import get_storage_options, glob_url, handle_storage_options, load_block
 from echodataflow import echodataflow_start
 from echodataflow.models.output_model import Output
 from prefect.task_runners import SequentialTaskRunner
@@ -142,6 +142,9 @@ def file_monitor(
 
     # List all files and their modification times
     all_files = []
+    
+    
+    storage_options = handle_storage_options(storage_options)
     
     if "*" in dir_to_watch:
         files = glob_url(dir_to_watch, storage_options=storage_options if storage_options else {}, maxdepth=max_folder_depth)
