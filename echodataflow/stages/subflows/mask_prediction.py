@@ -302,7 +302,7 @@ def process_mask_prediction(
             dims.pop('species')
             da_softmax_hake = assemble_da(softmax_score_tensor.numpy()[1,:,:], dims=dims)
             
-            da_mask_hake = assemble_da(da_softmax_hake.where(da_softmax_hake > stage.options.get('th_softmax', 0.9)), dims=dims)
+            da_mask_hake = assemble_da(xr.where(da_softmax_hake > stage.options.get('th_softmax', 0.9), 1, 0), dims=dims)
             
             score_zarr = get_out_zarr(
                 group=True,
