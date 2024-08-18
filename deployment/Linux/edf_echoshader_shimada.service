@@ -5,11 +5,11 @@ After=network.target
 [Service]
 User=exouser
 WorkingDirectory=/home/exouser/echodataflow/code/echodataflow
-ExecStart=/home/exouser/echodataflow/env/echodataflow/bin/python /home/exouser/echodataflow/code/echodataflow/deployment/main.py
+ExecStart=/home/exouser/echodataflow/env/echodataflow/bin/python /home/exouser/echodataflow/code/echodataflow/echodataflow/extensions/panel_app_shimada.py
 Restart=always
 StandardOutput=syslog
 StandardError=syslog
-SyslogIdentifier=echodataflow
+SyslogIdentifier=edfshader
 
 [Install]
 WantedBy=multi-user.target

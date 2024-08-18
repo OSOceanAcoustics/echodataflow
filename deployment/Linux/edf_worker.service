@@ -1,11 +1,11 @@
 [Unit]
-Description=Prefect serve
+Description=Prefect-Worker
 After=network.target
 
 [Service]
 User=exouser
 WorkingDirectory=/home/exouser/echodataflow/code/echodataflow
-ExecStart=/home/exouser/echodataflow/env/echodataflow/bin/python /home/exouser/echodataflow/code/echodataflow/deployment/main.py
+ExecStart=/home/exouser/echodataflow/env/echodataflow/bin/prefect worker start --pool "EDF-Shader-Pool"
 Restart=always
 StandardOutput=syslog
 StandardError=syslog

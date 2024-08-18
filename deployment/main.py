@@ -21,7 +21,7 @@ def echodataflow(dataset_config: Union[Dict[str, Any], str, Path],
 if __name__ == "__main__":
     logging.debug("Starting the Echodataflow service")
     try:
-        echodataflow.serve(name="Echodataflow")
+        echodataflow.serve(name="EDF-Echoshader")
         logging.debug("Echodataflow service started successfully")
     except Exception as e:
         logging.error(f"Error starting the Echodataflow service: {e}")
