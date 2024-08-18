@@ -403,7 +403,10 @@ def get_input_from_store(config: Dataset):
     else:
         raise ValueError("Not enough frames to process, try reducing the window size")
         
+
 def get_input_from_store_folder(config: Dataset):
+
+
     curr_time = datetime.now(timezone.utc)
 
     end_time = curr_time - timedelta(hours=config.args.time_travel_hours, minutes=config.args.time_travel_mins)
@@ -452,23 +455,21 @@ def get_input_from_store_folder(config: Dataset):
             
         return combo_output
     
+    
 
 def get_input_from_store_folder_mvbs_score(config: Dataset):  
 
 
     # This function allows to pass two inputs through the datastore configuration.
     # The need is driven by the case when we want to read MVBS data together with score/mask products
-    # 
-
-
-
+    
 
     curr_time = datetime.now(timezone.utc)
 
     end_time = curr_time - timedelta(hours=config.args.time_travel_hours, minutes=config.args.time_travel_mins)
     end_time = end_time.replace(second=0, microsecond=0)
 
-    
+
     
     if isinstance(config.args.store_folder, str):
         store = config.args.store_folder
