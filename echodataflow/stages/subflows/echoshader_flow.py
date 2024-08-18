@@ -133,7 +133,13 @@ def eshader_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, sta
         
 
 
-        ds_MVBS_combined_resampled.to_zarr(
+        ds_MVBS_combined_resampled.chunk(
+            {
+                "channel": -1,
+                "echo_range": -1,
+                "ping_time": -1,
+            }
+        ).to_zarr(
             working_dir + "/" + "eshader.zarr", 
             mode="w", 
             consolidated=True,
