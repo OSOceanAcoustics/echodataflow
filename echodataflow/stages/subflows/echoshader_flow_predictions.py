@@ -39,7 +39,7 @@ import holoviews as hv
 
 @flow
 @echodataflow(processing_stage="echoshader", type="FLOW")
-def echoshader_flow(
+def echoshader_flow_predictions(
         groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     working_dir = get_working_dir(stage=stage, config=config)
