@@ -34,24 +34,19 @@ from holoviews import opts
 import echoshader
 import diskcache as dc
 import echopype.colormap
+import holoviews as hv
 
-import scipy
 
 @flow
 @echodataflow(processing_stage="echoshader", type="FLOW")
-def echoshader_flow_predictions(
+def echoshader_flow(
         groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     working_dir = get_working_dir(stage=stage, config=config)
 
     futures = defaultdict(list)
 
-    print(len(groups.items()))
-    
-
     for name, gr in groups.items():
-        print(name)
-        print(gr)
         if gr.metadata and gr.metadata.is_store_folder and len(gr.data) > 0:
             edf = gr.data[0]
             if edf.data is None:
@@ -60,7 +55,7 @@ def echoshader_flow_predictions(
 
         for ed in gr.data:
             gname = ed.out_path.split(".")[0] + ".Visualize"
-            processed_data = eshader_score_preprocess.with_options(
+            processed_data = eshader_preprocess.with_options(
                 task_run_name=gname, name=gname, retries=3
             ).submit(
                 ed=ed, working_dir=working_dir, config=config, stage=stage
@@ -89,13 +84,11 @@ def echoshader_flow_predictions(
         del res
         del results
            
-    
     return groups
 
 @task
-def eshader_score_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, stage: Stage):
+def eshader_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, stage: Stage):
     
-    # change to score
     file_name = ed.filename + "_MVBS.zarr"
     try:
         log_util.log(
@@ -104,20 +97,9 @@ def eshader_score_preprocess(ed: EchodataflowObject, working_dir, config: Datase
             eflogging=config.logging,
         )
 
-
-
-        score_combined = get_zarr_list.fn(
+        ds_MVBS_combined = get_zarr_list.fn(
             transect_data=ed, storage_options=config.output.storage_options_dict
         )[0]
-        
-        score_combined.to_zarr(
-            working_dir + "/" + "eshader.zarr", 
-            mode="w", 
-            consolidated=True,
-            storage_options=config.output.storage_options_dict,
-        )
-
-        print(score_combined.shape)
 
         log_util.log(
             msg={"msg": f"Processing data for visualization", "mod_name": __file__, "func_name": file_name},
@@ -125,27 +107,56 @@ def eshader_score_preprocess(ed: EchodataflowObject, working_dir, config: Datase
             eflogging=config.logging,
         )
 
-        external_kwargs = stage.external_params    
+        external_kwargs = stage.external_params                
+        
+        Sv_attr = ds_MVBS_combined["Sv"].attrs
+        ds_MVBS_combined["sv"] = 10**(ds_MVBS_combined["Sv"]/10)
+        ds_MVBS_combined = ds_MVBS_combined.drop_vars("Sv")
+        ds_MVBS_combined_resampled = ds_MVBS_combined.resample(ping_time="30s").mean()
+        ds_MVBS_combined_resampled["Sv"] = 10*np.log10(ds_MVBS_combined_resampled["sv"])
+        ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.drop_vars("sv")
+        ds_MVBS_combined_resampled["Sv"] = ds_MVBS_combined_resampled["Sv"].assign_attrs(Sv_attr)
+        
+        partial_channel_name = ["ES38", "ES120", "ES18"]
+        ds_MVBS_combined_resampled = extract_channels(ds_MVBS_combined_resampled, partial_channel_name)
+        
+        if "depth" in ds_MVBS_combined_resampled.coords:
+            ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.rename({"depth": "echo_range"})
 
-        softmax_combined = xr.apply_ufunc(scipy.special.softmax, 
-                                 score_combined, 
-                                 kwargs = {'axis': 0}, 
-                                 dask="allowed"
-                                 )
-        softmax_combined_resampled = softmax_combined.resample(ping_time="30s").mean()
+        ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.sel(echo_range=slice(None, 591))
 
-               
-        # change to softmax
+        ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.chunk({"ping_time": -1,
+                                                                        "echo_range": -1, 
+                                                                        "channel":-1})
+            
+        ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.compute()
+        
 
-        # change path to not be hard-coded
-        cache = dc.Cache(stage.options.get('cache_location','/Users/valentina/projects/uw-echospace/echoshader_flow/eshader_cache_shimada'))
+
+        ds_MVBS_combined_resampled.to_zarr(
+            working_dir + "/" + "eshader.zarr", 
+            mode="w", 
+            consolidated=True,
+            storage_options=config.output.storage_options_dict,
+        )
+        
+        if ds_MVBS_combined_resampled:
+            del ds_MVBS_combined_resampled
+        
+        ds_MVBS_combined_resampled = xr.open_zarr(working_dir + "/" + "eshader.zarr", storage_options=config.output.storage_options_dict)
+        print(ds_MVBS_combined_resampled["softmax"])
+
+        
+        # hv_ds = hv.Dataset(ds_MVBS_combined_resampled["softmax"])
+        # contours = hv.operation.contours(hv_ds.to(hv.Image, kdims=["ping_time", "echo_range"]), levels=[0.7, 0.8, 0.9])
+        
+        cache = dc.Cache(stage.options.get('cache_location','/Users/valentina/uw-echospace/echoshader_flow/eshader_cache'))
         cache.clear()
         cache.set('zarr_path', working_dir + "/" + "eshader.zarr")
-        # cache.set('channel_multi_freq', [ch for ch in ds_MVBS_combined_resampled.channel.values if "ES38" in str(ch)])
-        # cache.set('channel_tricolor', [ch for ch in ds_MVBS_combined_resampled.channel.values])
-        # cache.set('tile_select', ds_MVBS_combined_resampled.eshader.tile_select)
-
-
+        cache.set('channel_multi_freq', [ch for ch in ds_MVBS_combined_resampled.channel.values if "ES38" in str(ch)])
+        cache.set('channel_tricolor', [ch for ch in ds_MVBS_combined_resampled.channel.values])
+        cache.set('tile_select', ds_MVBS_combined_resampled.eshader.tile_select)
+        
 
         log_util.log(
             msg={"msg": f" ---- Exiting ----", "mod_name": __file__, "func_name": file_name},
@@ -153,15 +164,13 @@ def eshader_score_preprocess(ed: EchodataflowObject, working_dir, config: Datase
             eflogging=config.logging,
         )
         
-        if softmax_combined_resampled:
-            del softmax_combined_resampled
+        if ds_MVBS_combined_resampled:
+            del ds_MVBS_combined_resampled
         if ed.data_ref is not None:
             del ed.data_ref
             
             
     except Exception as e:
-
-        print("An error occurred")
         log_util.log(
             msg={"msg": "", "mod_name": __file__, "func_name": file_name},
             use_dask=stage.options["use_dask"],

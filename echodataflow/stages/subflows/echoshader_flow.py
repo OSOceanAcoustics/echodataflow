@@ -124,9 +124,15 @@ def eshader_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, sta
             ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.rename({"depth": "echo_range"})
 
         ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.sel(echo_range=slice(None, 591))
+
+        ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.chunk({"ping_time": -1,
+                                                                        "echo_range": -1, 
+                                                                        "channel":-1})
             
         ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.compute()
         
+
+
         ds_MVBS_combined_resampled.to_zarr(
             working_dir + "/" + "eshader.zarr", 
             mode="w", 
@@ -137,9 +143,7 @@ def eshader_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, sta
         if ds_MVBS_combined_resampled:
             del ds_MVBS_combined_resampled
         
-        ds_MVBS_combined_resampled = xr.open_zarr(
-            working_dir + "/" + "eshader.zarr", storage_options=config.output.storage_options_dict
-        )
+        ds_MVBS_combined_resampled = xr.open_zarr(working_dir + "/" + "eshader.zarr", storage_options=config.output.storage_options_dict)
         print(ds_MVBS_combined_resampled["softmax"])
 
         
