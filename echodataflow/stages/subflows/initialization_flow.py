@@ -82,16 +82,6 @@ def init_flow(pipeline: Recipe, config: Dataset, json_data_path: Optional[str] =
 
     store_json_output(output.model_copy(deep=True), config=config, name=config.name)
 
-    if output and isinstance(output, Output):      
-        for _, gr in output.group.items():
-            for edf in gr.data:
-                status = "No" if edf.data is not None else "Yes"
-                log_util.log(
-                    msg={"msg": f"is tensor data None ? {status}", "mod_name": __file__, "func_name": "File Utils"},
-                    use_dask=False,
-                    eflogging=config.logging,
-                )                
-
     process_list = pipeline.pipeline
 
     process = None
