@@ -130,7 +130,7 @@ def multi_app():
     
     if ds_MVBS is not None and channel_multi_freq is not None:
         egram = ds_MVBS.eshader.echogram(
-               # channel=[channel_multi_freq[2],channel_multi_freq[0], channel_multi_freq[1]],
+                channel=ds_MVBS.channel.values[[2,0,1]],
                 vmin=-70,
                 vmax=-36,
                 cmap = "ep.ek500", 
