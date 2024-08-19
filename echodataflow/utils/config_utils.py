@@ -537,7 +537,7 @@ def get_storage_options(storage_options: Block = None) -> Dict[str, Any]:
     return storage_options_dict
 
 
-def handle_storage_options(storage_options: Optional[Dict] = None) -> Dict:
+def handle_storage_options(storage_options: Union[Dict[str, Any], Block] = None) -> Dict:
     if storage_options:
         if isinstance(storage_options, Block):
             return get_storage_options(storage_options=storage_options)
