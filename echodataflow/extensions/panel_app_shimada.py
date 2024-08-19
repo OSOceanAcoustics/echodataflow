@@ -127,10 +127,10 @@ def multi_app():
     if ds_MVBS is not None and 'softmax' in list(ds_MVBS.keys()):
         hv_ds = hv.Dataset(ds_MVBS["softmax"])
         contours = hv.operation.contours(hv_ds.to(hv.Image, kdims=["ping_time", "echo_range"]), levels=[0.7, 0.8, 0.9])
-    
+   
     if ds_MVBS is not None and channel_multi_freq is not None:
         egram = ds_MVBS.eshader.echogram(
-                channel=ds_MVBS.channel.values[[2,0,1]],
+                channel=list(ds_MVBS.channel.values[[2,0,1]]),
                 vmin=-70,
                 vmax=-36,
                 cmap = "ep.ek500", 
