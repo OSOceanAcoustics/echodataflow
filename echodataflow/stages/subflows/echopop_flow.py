@@ -20,6 +20,7 @@ from echodataflow.utils import log_util
 from echodataflow.utils.file_utils import get_working_dir
 
 from echopop.live.live_survey import LiveSurvey
+from echopop.live.sql_methods import SQL
 
 @flow
 @echodataflow(processing_stage="echopop", type="FLOW")
@@ -76,19 +77,51 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
         
         external_kwargs = stage.external_params
             
-        realtime_survey = LiveSurvey(**external_kwargs)
+        realtime_survey = LiveSurvey(cloud_storage_options=config.args.storage_options_dict, **external_kwargs)
         
         log_util.log(
             msg={"msg": f"Created live survey object successfully", "mod_name": __file__, "func_name": file_name},
             use_dask=stage.options["use_dask"],
             eflogging=config.logging,
         )
+        if config.passing_params and config.passing_params["POP_TYPE"] == "BIO":
+            pop_type = "biology"
+        else:
+            pop_type = "acoustic"
         
         if config.passing_params and config.passing_params["POP_TYPE"] == "BIO":
-            realtime_survey.load_biology_data(input_filenames=[ed.filename+"."+ed.file_extension for ed in gr.data], pandas_kwargs={"storage_options": config.output.storage_options_dict})
+            realtime_survey.load_biology_data(input_filenames=[ed.filename+"."+ed.file_extension for ed in gr.data], pandas_kwargs=config.args.storage_options_dict)
         
             log_util.log(
-                msg={"msg": f"Loaded bio data successfully", "mod_name": __file__, "func_name": file_name},
+                msg={"msg": f"Loaded bio data successfully {realtime_survey.meta['provenance'].get('biology_files_read', [])}", "mod_name": __file__, "func_name": file_name},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+            temp = {key: df.shape for key, df in realtime_survey.input['biology'].items()}
+            
+            log_util.log(
+                msg={"msg": f"{temp}", "mod_name": __file__, "func_name": file_name},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+            
+            log_util.log(
+                msg={"msg": f"{realtime_survey.meta['provenance'].get('biology_files_checkpoint1', 'Checkpoint1')}", 
+                                "mod_name": __file__, "func_name": file_name},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+                        
+            log_util.log(
+                msg={"msg": f"{realtime_survey.meta['provenance'].get('biology_files_checkpoint2', 'Checkpoint2')}", 
+                                "mod_name": __file__, "func_name": file_name},
+                use_dask=stage.options["use_dask"],
+                eflogging=config.logging,
+            )
+                        
+            log_util.log(
+                msg={"msg": f"{realtime_survey.meta['provenance'].get('biology_files_checkpoint3', 'checkpoint3')}", 
+                                "mod_name": __file__, "func_name": file_name},
                 use_dask=stage.options["use_dask"],
                 eflogging=config.logging,
             )
@@ -101,9 +134,6 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
                 eflogging=config.logging,
             )
 
-            realtime_survey.estimate_population(working_dataset="biology")
-            
-            processed_files = [str(os.path.basename(b)).split('.', maxsplit=1)[0] for b in realtime_survey.meta["provenance"].get("biology_files", [])]
         else:
         
             realtime_survey.load_acoustic_data(input_filenames=[ed.filename+"."+ed.file_extension for ed in gr.data], xarray_kwargs={"storage_options": config.args.storage_options_dict})
@@ -122,9 +152,10 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
                 eflogging=config.logging,
             )
         
-            realtime_survey.estimate_population(working_dataset="acoustic")
+        realtime_survey.estimate_population(working_dataset=pop_type)
             
-            processed_files = [str(os.path.basename(b)).split('.', maxsplit=1)[0] for b in realtime_survey.meta["provenance"].get("acoustic_files", [])]
+        processed_files_history = SQL(realtime_survey.config["database"][pop_type], "select", table_name="files_processed") if realtime_survey.config["database"].get(pop_type) else realtime_survey.meta["provenance"].get(pop_type+"_files_processed", [])
+        processed_files = [str(os.path.basename(b)).split('.', maxsplit=1)[0] for b in processed_files_history]
 
         for ed in gr.data:
             if ed.filename in processed_files:
