@@ -511,7 +511,7 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
                 eflogging=config.logging,
             )
             
-            dims = {'species': [ "background", "hake"], 'ping_time': ed.data_ref["ping_time"].values, 'depth': ed.data_ref["depth"].values}
+            dims = {'species': [ "background", "hake"], 'depth': ed.data_ref["depth"].values, 'ping_time': ed.data_ref["ping_time"].values}
 
             da_score_hake = assemble_da(score_tensor.numpy(), dims=dims)            
             
