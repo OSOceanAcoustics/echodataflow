@@ -494,6 +494,12 @@ def combine_datasets(store_18: xr.Dataset, store_5: xr.Dataset) -> Tuple[torch.T
                             ])
     combined_ds.attrs = ds_18k.attrs
 
+    combined_ds = (
+        combined_ds
+        .transpose("channel", "depth", "ping_time")
+        .sel(depth=slice(None, 590))
+    )
+
     depth = combined_ds['depth']
     ping_time = combined_ds['ping_time']
 
@@ -506,7 +512,7 @@ def combine_datasets(store_18: xr.Dataset, store_5: xr.Dataset) -> Tuple[torch.T
     tensor['channel'] = ['R', 'G', 'B']
     tensor = tensor.assign_coords({'depth': depth, 'ping_time': ping_time})
 
-    mvbs_tensor = torch.tensor(tensor['Sv'].values, dtype=torch.float32).unsqueeze(0)
+    mvbs_tensor = torch.tensor(tensor['Sv'].values, dtype=torch.float32)
     
     return (mvbs_tensor, combined_ds)
 
