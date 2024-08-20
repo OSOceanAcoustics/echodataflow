@@ -125,11 +125,11 @@ def eshader_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, sta
 
         ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.sel(echo_range=slice(None, 591))
 
-        ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.chunk({"ping_time": -1,
-                                                                        "echo_range": -1, 
-                                                                        "channel":-1})
+        # ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.chunk({"ping_time": -1,
+        #                                                                "echo_range": -1, 
+        #                                                                "channel":-1})
             
-        ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.compute()
+        # ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.compute()
         
 
 
