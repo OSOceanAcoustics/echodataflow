@@ -122,7 +122,7 @@ view_tricolor = pn.Column(update_button,
 print("Multi")
 def multi_app():
     print("Multi")
-    ds_MVBS = xr.open_zarr(zarr_path)
+    ds_MVBS = xr.open_zarr(zarr_path).compute()
 
     if ds_MVBS is not None and 'softmax' in list(ds_MVBS.keys()):
         hv_ds = hv.Dataset(ds_MVBS["softmax"])
