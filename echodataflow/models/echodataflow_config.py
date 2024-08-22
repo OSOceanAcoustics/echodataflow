@@ -40,14 +40,14 @@ class EchodataflowPrefectConfig(Block):
     Methods:
         get_api_url(self): Get the API URL based on configuration.
     """
+
     class Config:
         arbitrary_types_allowed = True
-    
+
     prefect_account_id: str = None
     prefect_api_key: str = None
     prefect_workspace_id: str = None
     profile_name: str = None
-
 
     def get_api_url(self):
         """
@@ -57,9 +57,10 @@ class EchodataflowPrefectConfig(Block):
             str: The API URL.
         """
         if self.prefect_api_key is not None:
-            return f"https://api.prefect.cloud/api/accounts/{ self.prefect_account_id }/workspaces/{ self.prefect_workspace_id }" 
+            return f"https://api.prefect.cloud/api/accounts/{ self.prefect_account_id }/workspaces/{ self.prefect_workspace_id }"
         elif self.profile_name == "echodataflow_prefect_local":
             return "127.0.0.1:4200"
+
 
 class BaseConfig(Block):
     """
@@ -74,10 +75,12 @@ class BaseConfig(Block):
     Methods:
         No methods are defined in this class.
     """
+
     name: str
     type: StorageType
     active: Optional[bool] = False
     options: Optional[Dict[str, Any]] = {}
+
 
 class EchodataflowConfig(Block):
     """
@@ -91,6 +94,7 @@ class EchodataflowConfig(Block):
     Methods:
         No methods are defined in this class.
     """
+
     active: Optional[str] = None
-    prefect_configs : Optional[List[str]]
+    prefect_configs: Optional[List[str]]
     blocks: Optional[List[BaseConfig]] = []

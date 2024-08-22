@@ -2,11 +2,18 @@ from pathlib import Path
 from echodataflow.stages.echodataflow import echodataflow_start
 import pytest
 
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
 @pytest.fixture
 def dataset_config():
-    return Path("datastore.yaml").resolve()
+    return ROOT_DIR / "flow_tests/datastore.yaml"
 
-@pytest.fixture(params=[Path("./MVBS_pipeline.yaml").resolve(), Path("./mask_pipeline.yaml").resolve(), Path("./TS_pipeline.yaml").resolve()])
+@pytest.fixture(params=[
+    ROOT_DIR / "flow_tests/MVBS_pipeline.yaml",
+    ROOT_DIR / "flow_tests/mask_pipeline.yaml",
+    ROOT_DIR / "flow_tests/TS_pipeline.yaml"
+    ])
 def pipeline_config(request):
     return request.param
 
