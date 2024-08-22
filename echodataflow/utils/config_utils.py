@@ -572,11 +572,9 @@ def parse_yaml_config(config: Union[dict, str, Path], storage_options: Dict[str,
     if isinstance(config, str):
         if not config.endswith((".yaml", ".yml")):
             raise ValueError("Configuration file must be a YAML!")
-        config_dict = extract_config(config, storage_options)
-    elif isinstance(config, dict):
-        return config
+        config = extract_config(config, storage_options)
 
-    return config_dict
+    return config
 
 def parse_dynamic_parameters(dataset: Dataset, options: Dict[str, Any]) -> Dataset:
     if dataset.args.parameters and dataset.args.parameters.file_name and dataset.args.parameters.file_name == "VAR_RUN_NAME":
