@@ -91,7 +91,6 @@ def echodataflow_trigger(
                 name=storage_options.get("block_name"), type=storage_options.get("type")
             )
             storage_options = get_storage_options(block)
-
     else:
         storage_options = {}
 
@@ -216,7 +215,7 @@ def echodataflow_trigger(
     print("\nInitiliazing Singleton Object")
     Singleton_Echodataflow(log_file=logging_config_dict, pipeline=pipeline, dataset=dataset)
 
-    if dataset.args.parameters.file_name == "VAR_RUN_NAME":
+    if dataset.args.parameters and dataset.args.parameters.file_name and dataset.args.parameters.file_name == "VAR_RUN_NAME":
         var: Variable = Variable.get("run_name", default=None)
         if not var:
             raise ValueError("No variable found for name `run_name`")
@@ -232,6 +231,3 @@ def echodataflow_trigger(
     
     print("\nReading Configurations")
     return init_flow(config=dataset, pipeline=pipeline, json_data_path=json_data_path)
-
-if __name__ == "__main__":
-    echodataflow_trigger.serve(name="Echodataflow")

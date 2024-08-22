@@ -19,7 +19,7 @@ Date: August 22, 2023
 
 from enum import Enum
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import jinja2
 from pydantic import BaseModel, field_validator, validator
@@ -39,7 +39,7 @@ class StorageType(Enum):
     AZCosmos = "AZCosmos"
     GCP = "GCP"
     ECHODATAFLOW = "ECHODATAFLOW"
-
+    EDFRUN = "EDFRUN"
 
 class StorageOptions(BaseModel):
     """
@@ -108,7 +108,9 @@ class Args(BaseModel):
 
     storepath: Optional[str] = None
     urlpath: Optional[str] = None
-    parameters: Parameters
+    storefolder: Optional[Union[List[str], str]] = None
+    
+    parameters: Optional[Parameters] = None
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}
     group: Optional[Transect] = None
@@ -121,6 +123,11 @@ class Args(BaseModel):
     time_travel_hours: Optional[int] = 0
     time_travel_mins: Optional[int] = 0
     rolling_size: Optional[int] = 1
+    time_rounding_flag: Optional[bool] = True
+    
+    window_hours: Optional[int] = 0
+    window_mins: Optional[int] = 30
+    number_of_windows: Optional[int] = 1
 
     @property
     def rendered_path(self):
@@ -150,6 +157,19 @@ class Args(BaseModel):
             return template.render(self.parameters)
         return self.storepath
 
+    @property
+    def store_folder(self):
+        """
+        Rendered URL path from input parameters.
+
+        Returns:
+            str: Rendered URL path.
+        """
+        if self.parameters is not None:
+            env = jinja2.Environment()
+            template = env.from_string(self.storefolder)
+            return template.render(self.parameters)
+        return self.storefolder
     
     @field_validator("group_name", mode="before", check_fields=True)
     def disallow_regex_chars(cls, v):

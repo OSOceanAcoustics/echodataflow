@@ -45,6 +45,8 @@ from echodataflow.models.echodataflow_config import (
     EchodataflowConfig,
     EchodataflowPrefectConfig,
 )
+
+import echopype as ep
 from echodataflow.utils.config_utils import load_block
 
 from echodataflow.stages.echodataflow_trigger import echodataflow_trigger
@@ -231,10 +233,11 @@ def echodataflow_start(
     """
 
     print("\nChecking Configuration")
+
     # Try loading the Prefect config block
     try:
-        echodataflow_config = load_block(name="echodataflow-config", type=StorageType.ECHODATAFLOW)
-    except ValueError as e:
+        load_block(name="echodataflow-config", type=StorageType.ECHODATAFLOW)
+    except ValueError:
         print(
             "\nNo Prefect Cloud Configuration found. Creating Prefect Local named 'echodataflow-local'. Please add your prefect cloud "
         )
@@ -256,8 +259,17 @@ def echodataflow_start(
             )
 
     print("\nStarting the Pipeline")
+
+    # Set the echopype logging level to verbose, since currently echopype is turning all handler levels to ERROR (including prefect and echodataflow) 
+    try:
+        ep.utils.log.verbose(override=False)
+    except:
+        pass
+    flow_timeout = None
+    if options:
+        flow_timeout = options.get('flow_timeout_seconds', None)
     # Call the actual pipeline
-    return echodataflow_trigger(
+    return echodataflow_trigger.with_options(timeout_seconds=flow_timeout)(
         dataset_config=dataset_config,
         pipeline_config=pipeline_config,
         logging_config=logging_config,

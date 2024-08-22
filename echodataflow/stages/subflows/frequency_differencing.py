@@ -1,3 +1,4 @@
+
 """
 Echodataflow Frequency_differencing Task
 
@@ -73,10 +74,10 @@ def echodataflow_frequency_differencing(
             gname = ed.out_path.split(".")[0] + ".freqdiff"
             new_process = process_frequency_differencing.with_options(
                 task_run_name=gname, name=gname, retries=3
-            )
+                    )
             future = new_process.submit(
                 ed=ed, working_dir=working_dir, config=config, stage=stage
-            )
+                    )
             futures[name].append(future)
 
     for name, flist in futures.items():
