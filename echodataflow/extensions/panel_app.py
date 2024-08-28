@@ -40,10 +40,11 @@ def update_panel_from_cache():
         zarr_path = cache.get('zarr_path')
         channel_multi_freq = cache.get('channel_multi_freq')
         channel_tricolor = cache.get('channel_tricolor')
+        print(channel_tricolor)
         tile_select = cache.get('tile_select')
         print(f'Loading data from {zarr_path}')
         if zarr_path is not None:
-            ds_MVBS = xr.open_zarr(zarr_path)
+            ds_MVBS = xr.open_zarr(zarr_path).compute()
 
         if ds_MVBS is not None and channel_multi_freq is not None:
             egram_all = ds_MVBS.sel(echo_range=slice(None, 400)).eshader.echogram(
