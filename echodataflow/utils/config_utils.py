@@ -33,6 +33,7 @@ import datetime
 import itertools as it
 import json
 import os
+from pathlib import Path
 import re
 from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
 from zipfile import ZipFile
@@ -44,6 +45,7 @@ from prefect import task
 from prefect.filesystems import Block
 from prefect_aws import AwsCredentials
 from prefect_azure import AzureCosmosDbCredentials
+from prefect.variables import Variable
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
 from echodataflow.models.datastore import Dataset, StorageOptions, StorageType
@@ -538,17 +540,59 @@ def get_storage_options(storage_options: Block = None) -> Dict[str, Any]:
 
 
 def handle_storage_options(storage_options: Optional[Dict] = None) -> Dict:
+    storage_options_dict: Dict[str, Any] = {}
+    
     if storage_options:
         if isinstance(storage_options, Block):
-            return get_storage_options(storage_options=storage_options)
+            storage_options_dict = get_storage_options(storage_options=storage_options)
         elif isinstance(storage_options, dict) and storage_options.get("block_name"):
             block = load_block(
                 name=storage_options.get("block_name"), type=storage_options.get("type")
             )
-            return get_storage_options(block)
+            storage_options_dict = get_storage_options(block)
+        elif isinstance(storage_options, StorageOptions):
+            if not storage_options.anon:
+                block = load_block(
+                    name=storage_options.block_name,
+                    type=storage_options.type,
+                )
+                storage_options_dict = get_storage_options(block)
+            else:
+                storage_options_dict = {"anon": storage_options.anon}
         else:
-            return storage_options if storage_options and len(storage_options.keys()) > 0 else {}
-    return {}
+            storage_options_dict = storage_options if storage_options and len(storage_options.keys()) > 0 else {}
+        
+    return storage_options_dict
+
+def parse_yaml_config(config: Union[dict, str, Path], storage_options: Dict[str, Any]) -> Dict:
+    
+    if isinstance(config, Path):
+        config = str(config)
+        
+    if isinstance(config, str):
+        if not config.endswith((".yaml", ".yml")):
+            raise ValueError("Configuration file must be a YAML!")
+        config = extract_config(config, storage_options)
+
+    return config
+
+def parse_dynamic_parameters(dataset: Dataset, options: Dict[str, Any]) -> Dataset:
+    if dataset.args.parameters and dataset.args.parameters.file_name and dataset.args.parameters.file_name == "VAR_RUN_NAME":
+        var: Variable = Variable.get("run_name", default=None)
+        if not var:
+            raise ValueError("No variable found for name `run_name`")
+        else:
+            dataset.args.parameters.file_name = var.value
+
+    # Change made to enable dynamic execution using an extension
+    if options:
+        if options.get("file_name"):
+            dataset.args.parameters.file_name = options.get("file_name")
+    
+        if options.get("run_name"):
+            dataset.name = options.get("run_name")
+            
+    return dataset
 
 def load_block(name: str = None, type: StorageType = None):
     """
