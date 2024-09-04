@@ -1,5 +1,5 @@
 requests
-prefect>=2
+prefect<3
 echopype>=0.6.3
 jinja2
 prefect-dask
