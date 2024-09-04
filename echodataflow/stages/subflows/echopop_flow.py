@@ -104,7 +104,7 @@ def live_survey_process(gr: Group, working_dir, config: Dataset, stage: Stage):
                 eflogging=config.logging,
             )
             try:
-            temp = {key: df.shape for key, df in realtime_survey.input['biology'].items()}
+                temp = {key: df.shape for key, df in realtime_survey.input['biology'].items()}
             except Exception as e:
                 print(e)
                 temp = "Failed to load"
