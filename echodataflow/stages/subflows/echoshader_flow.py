@@ -17,7 +17,7 @@ Date: August 22, 2023
 """
 from collections import defaultdict
 import io
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 import matplotlib
 import numpy as np
@@ -117,6 +117,9 @@ def eshader_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, sta
         ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.drop_vars("sv")
         ds_MVBS_combined_resampled["Sv"] = ds_MVBS_combined_resampled["Sv"].assign_attrs(Sv_attr)
         
+        partial_channel_name = ["ES38", "ES120", "ES18"]
+        ds_MVBS_combined_resampled = extract_channels(ds_MVBS_combined_resampled, partial_channel_name)
+        
         if "depth" in ds_MVBS_combined_resampled.coords:
             ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.rename({"depth": "echo_range"})
             
@@ -136,8 +139,8 @@ def eshader_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, sta
             working_dir + "/" + "eshader.zarr", storage_options=config.output.storage_options_dict
         )
         
-        cache = dc.Cache('~/eshader_cache')
-        
+        cache = dc.Cache(stage.options.get('cache_location','~/eshader_cache'))
+        cache.clear()
         cache.set('zarr_path', working_dir + "/" + "eshader.zarr")
         cache.set('channel_multi_freq', [ch for ch in ds_MVBS_combined_resampled.channel.values if "ES38" in str(ch)])
         cache.set('channel_tricolor', [ch for ch in ds_MVBS_combined_resampled.channel.values])
@@ -275,3 +278,23 @@ def eshader_visualize(ed: EchodataflowObject, config: Dataset, stage: Stage):
     if ed.data_ref:
         del ed.data_ref
     return ed
+
+def extract_channels(dataset: xr.Dataset, partial_names: List[str]) -> xr.Dataset:
+    """
+    Extracts multiple channels data from the given xarray dataset using partial channel names.
+
+    Args:
+        dataset (xr.Dataset): The input xarray dataset containing multiple channels.
+        partial_names (List[str]): The list of partial names of the channels to extract.
+
+    Returns:
+        xr.Dataset: The dataset containing only the specified channels data.
+    """
+    matching_channels = []
+    for partial_name in partial_names:
+        matching_channels.extend([channel for channel in dataset.channel.values if partial_name in str(channel)])
+    
+    if len(matching_channels) == 0:
+        raise ValueError(f"No channels found matching any of '{partial_names}'")
+    
+    return dataset.sel(channel=matching_channels)
