@@ -17,6 +17,7 @@ from prefect.states import Cancelled
 
 from echodataflow.utils.config_utils import glob_url, handle_storage_options
 from echodataflow.utils.file_utils import extract_fs, make_temp_folder
+import shlex
 
 
 @task
@@ -76,9 +77,9 @@ def sync_with_rclone(command: Optional[str] = None, timeout: Optional[int] = 360
         raise ValueError("No rclone command provided.")
     else:
         print("Executing Command")
-        print(command.split(' '))
+        print(shlex.split(command))
         
-    run_subprocess_with_timeout(command.split(' '), timeout)
+    run_subprocess_with_timeout(shlex.split(command), timeout)
     # subprocess.run(command.split(' '), check=True, capture_output=True, text=True)
     print(f"Sync completed.")
 
