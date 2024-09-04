@@ -228,6 +228,9 @@ def echodataflow_trigger(
 
     if options and options.get("run_name"):
         dataset.name = options.get("run_name")
+        
+    if options and options.get("passing_params"):
+        dataset.passing_params = options.get("passing_params")
     
     print("\nReading Configurations")
     return init_flow(config=dataset, pipeline=pipeline, json_data_path=json_data_path)

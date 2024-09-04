@@ -46,6 +46,7 @@ from echopype import open_converted
 from fastapi.encoders import jsonable_encoder
 from fsspec.implementations.local import LocalFileSystem
 from prefect import task
+import pandas as pd
 
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, Group, Output
@@ -303,6 +304,7 @@ def get_ed_list(
 def get_zarr_list(
     transect_data: Union[EchodataflowObject, List[EchodataflowObject]],
     storage_options: Dict[str, Any] = {},
+    delete_from_edf: bool = True
 ) -> List[xr.Dataset]:
     """
     Get a list of xarray.Dataset objects for zarr data.
@@ -324,7 +326,8 @@ def get_zarr_list(
         for td in transect_data:
             if td.data:
                 zarr = td.data
-                del td.data
+                if delete_from_edf:
+                    del td.data
                 td.data = None
             else:
                 zarr = xr.open_zarr(td.out_path, storage_options=storage_options)
@@ -332,7 +335,8 @@ def get_zarr_list(
     else:
         if transect_data.data:
             zarr = transect_data.data
-            del transect_data.data
+            if delete_from_edf:
+                del transect_data.data
             transect_data.data = None
         else:
             zarr = xr.open_zarr(transect_data.out_path, storage_options=storage_options)
@@ -429,7 +433,7 @@ def process_output_groups(
                 )
                 error_groups[ed.group_name] = gr
 
-    if error_flag:
+    if error_flag and error_type and error_type != "INTERNAL":
         for name, _ in error_groups.items():
             print("Deleting ", groups[name])
             del groups[name]
@@ -524,12 +528,6 @@ def store_json_output(data, config: Dataset, name: str):
     if data and isinstance(data, Output):      
         for name, gr in data.group.items():
             for edf in gr.data:
-                status = "No" if edf.data is not None else "Yes"
-                log_util.log(
-                    msg={"msg": f"is tensor data None ? {status}", "mod_name": __file__, "func_name": "File Utils"},
-                    use_dask=False,
-                    eflogging=config.logging,
-                )
                 edf.data = None
                 edf.data_ref = None
 
@@ -550,16 +548,6 @@ def store_json_output(data, config: Dataset, name: str):
         fs = extract_fs(out_path, config.output.storage_options_dict)
         with fs.open(out_path, mode="w") as f:
             f.write(json_data)    
-    
-    if data and isinstance(data, Output):        
-        for name, gr in data.group.items():
-            for edf in gr.data:
-                status = "No" if edf.data is not None else "Yes"
-                log_util.log(
-                    msg={"msg": f"is tensor data None ? {status}", "mod_name": __file__, "func_name": "File Utils"},
-                    use_dask=False,
-                    eflogging=config.logging,
-                )
    
 def get_output(type : str = "Output"):
     """
@@ -753,3 +741,26 @@ def get_out_zarr(
             return slash_pattern.join([working_dir, transect, file_name])
         else:
             return slash_pattern.join([working_dir, "zarr_files", file_name])
+
+def fetch_slice_from_store(edf_group: Group, config: Dataset, options: Dict[str, Any] = None, start_time: str = None, end_time: str = None) -> xr.Dataset:
+    default_options = {
+                "engine":"zarr",
+                "combine":"by_coords",
+                "data_vars":"minimal",
+                "coords":"minimal",
+                "compat":"override",
+                "storage_options": config.args.storage_options_dict} if options is None else options
+    if options:
+        default_options.update(options)
+    
+    store = xr.open_mfdataset(paths=[ed.out_path for ed in edf_group.data], **default_options).compute()
+    store_slice = store.sel(ping_time=slice(pd.to_datetime(start_time, unit="ns"), pd.to_datetime(end_time, unit="ns")))
+    
+    if store_slice["ping_time"].size == 0:
+        del store
+        del store_slice
+        raise ValueError(f"No data available between {start_time} and {end_time}")
+    
+    del store
+    
+    return store_slice

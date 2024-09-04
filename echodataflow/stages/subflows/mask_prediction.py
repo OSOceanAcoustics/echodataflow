@@ -30,7 +30,7 @@ from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
-from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zarr_list, isFile
+from echodataflow.utils.file_utils import fetch_slice_from_store, get_out_zarr, get_working_dir, get_zarr_list, isFile
 from src.model.BinaryHakeModel import BinaryHakeModel
 
 
@@ -114,17 +114,12 @@ def echodataflow_mask_prediction(
     for name, gr in groups.items():
         if gr.metadata and gr.metadata.is_store_folder and len(gr.data) > 0:
                 edf = gr.data[0]
-                store = xr.open_mfdataset(paths=[ed.out_path for ed in gr.data], engine="zarr",
-                                            combine="by_coords",
-                                            data_vars="minimal",
-                                            coords="minimal",
-                                            compat="override").compute()
-                edf.data = store.sel(ping_time=slice(pd.to_datetime(edf.start_time, unit="ns"), pd.to_datetime(edf.end_time, unit="ns")))
+                edf.data = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time)
                 if edf.data.notnull().any():
                     gr.data = [edf]
+                    gr.metadata.is_store_folder = False
                 else:
                     continue
-                del store
                 
         for ed in gr.data:
             
@@ -487,7 +482,7 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
                 )["state_dict"])
             
 
-            mvbs_tensor = ed.data # tensor
+            mvbs_tensor = ed.data_ref # tensor
 
             da_MVBS_tensor = torch.clip(
                 mvbs_tensor.clone().detach().to(torch.float16),
@@ -511,7 +506,7 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
                 eflogging=config.logging,
             )
             
-            dims = {'species': [ "background", "hake"], 'depth': ed.data_ref["depth"].values, 'ping_time': ed.data_ref["ping_time"].values}
+            dims = {'species': [ "background", "hake"], 'ping_time': ed.data["ping_time"].values, 'depth': ed.data["depth"].values}
 
             da_score_hake = assemble_da(score_tensor.numpy(), dims=dims)            
             
@@ -566,7 +561,7 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
         ed.stages["mask"] = out_zarr
         ed.error = ErrorObject(errorFlag=False)
         ed.stages[stage.name] = out_zarr
-        ed.data = None
+        ed.data_ref = None
         
         slice_zarr = get_out_zarr(
             group=stage.options.get("group", True),
@@ -576,14 +571,14 @@ def process_mask_prediction_util(ed: EchodataflowObject, config: Dataset, stage:
             storage_options=config.output.storage_options_dict,
         )
 
-        ed.data_ref.to_zarr(
+        ed.data.to_zarr(
                 store=slice_zarr,
                 mode="w",
                 consolidated=True,
                 storage_options=config.output.storage_options_dict,
         )
         ed.out_path = slice_zarr
-        ed.data_ref = None
+        ed.data = None
 
         ed.stages[stage.name] = slice_zarr
 

@@ -70,7 +70,7 @@ class Parameters(BaseModel):
     ship_name: Optional[str] = None
     survey_name: Optional[str] = None
     sonar_model: Optional[str] = None
-    file_name: Optional[str] = None
+    file_name: Optional[Union[List[str], str]] = None
 
 
 class Transect(BaseModel):
@@ -110,7 +110,7 @@ class Args(BaseModel):
     urlpath: Optional[str] = None
     storefolder: Optional[Union[List[str], str]] = None
     
-    parameters: Optional[Parameters] = None
+    parameters: Optional[Parameters] = Parameters()
     storage_options: Optional[StorageOptions] = None
     storage_options_dict: Optional[Dict[str, Any]] = {}
     group: Optional[Transect] = None
@@ -140,8 +140,16 @@ class Args(BaseModel):
         if self.parameters is not None:
             env = jinja2.Environment()
             template = env.from_string(self.urlpath)
-            return template.render(self.parameters)
-        return self.urlpath
+            file_name = self.parameters.file_name
+            if isinstance(file_name, list):
+                urls = []
+                for f in file_name:
+                    self.parameters.file_name = f
+                    urls.append(template.render(self.parameters))
+                return urls
+            else:
+                return [template.render(self.parameters)]
+        return [self.urlpath]
 
     @property
     def store_path(self):
