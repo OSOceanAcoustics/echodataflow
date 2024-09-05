@@ -1,13 +1,11 @@
 import asyncio
 import os
 import re
-import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Coroutine, Dict, List, Optional, Union
 
 from prefect import flow, get_client, get_run_logger, task
-from prefect.blocks.core import Block
 from prefect.client.schemas.filters import (DeploymentFilter,
                                             DeploymentFilterId, FlowRunFilter,
                                             FlowRunFilterState,
@@ -18,13 +16,14 @@ from prefect.runtime import deployment
 from prefect.states import Cancelled
 from prefect.variables import Variable
 
-from echodataflow.models.datastore import StorageType
-from echodataflow.models.run import EDFRun, FileDetails
-from echodataflow.utils.config_utils import get_storage_options, glob_url, handle_storage_options, load_block
 from echodataflow import echodataflow_start
+from echodataflow.models.datastore import StorageType
 from echodataflow.models.output_model import Output
-from prefect.task_runners import SequentialTaskRunner
+from echodataflow.models.run import EDFRun, FileDetails
+from echodataflow.utils.config_utils import (glob_url, handle_storage_options,
+                                             load_block)
 from echodataflow.utils.file_utils import extract_fs
+
 
 @task
 def execute_flow(
@@ -197,8 +196,13 @@ def file_monitor(
                 if not extension or (extension and extension == fext):
                     
                     if sort_key == "FILENAME":
-                        date_time_str = file.split('-')[1].split('_')[0][1:] + file.split('-')[2].split('_')[0].split('.', maxsplit=1)[0]
-                        file_mtime = datetime.strptime(date_time_str, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc).replace(tzinfo=timezone.utc)
+                        match = re.search(r'D(\d{8})-T(\d{6})', file)
+                        if match:
+                            date_str = match.group(1)
+                            time_str = match.group(2)
+                            file_mtime = datetime.strptime(date_str + time_str, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+                        else:
+                            raise ValueError(f"Filename '{file}' does not match the expected format")
                     else:
                         file_mtime = datetime.fromtimestamp(fs.info(file_path)['LastModified'].timestamp()).replace(tzinfo=timezone.utc)
                     
