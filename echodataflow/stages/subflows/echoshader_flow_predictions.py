@@ -39,7 +39,7 @@ import holoviews as hv
 
 @flow
 @echodataflow(processing_stage="echoshader", type="FLOW")
-def echoshader_flow(
+def echoshader_flow_predictions(
         groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]
 ):
     working_dir = get_working_dir(stage=stage, config=config)
@@ -51,7 +51,6 @@ def echoshader_flow(
             edf = gr.data[0]
             if edf.data is None:
                 edf.data = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time)
-                gr.metadata.is_store_folder = False
                 gr.data = [edf]
 
         for ed in gr.data:
@@ -126,11 +125,11 @@ def eshader_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, sta
 
         ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.sel(echo_range=slice(None, 591))
 
-        ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.chunk({"ping_time": -1,
-                                                                        "echo_range": -1, 
-                                                                        "channel":-1})
+        # ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.chunk({"ping_time": -1,
+        #                                                                "echo_range": -1, 
+        #                                                                "channel":-1})
             
-        ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.compute()
+        # ds_MVBS_combined_resampled = ds_MVBS_combined_resampled.compute()
         
 
 
