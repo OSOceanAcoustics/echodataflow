@@ -52,6 +52,7 @@ class EchodataflowObject(BaseModel):
 
     file_path: str = None
     filename: str = None
+    file_extension: Optional[str] = None
     month: Optional[str] = None
     year: Optional[str] = None
     jday: Optional[str] = None
@@ -63,7 +64,13 @@ class EchodataflowObject(BaseModel):
     local_path: str = None
     start_time: Optional[str] = None
     end_time: Optional[str] = None
+    data: Optional[Any] = None
+    data_ref: Optional[Any] = None
 
+class Metadata(BaseModel):
+    group_name: str = "DefaultGroup"
+    instrument: str = None
+    is_store_folder: bool = False
 
 class Group(BaseModel):
     """
@@ -74,9 +81,12 @@ class Group(BaseModel):
         instrument (Optional[str]): The instrument associated with the group.
         data (List[EchodataflowObject]): List of echodataflow objects in the group.
     """
-
+    # TODO
+    #### Shift to new Metadata class
     group_name: str = "DefaultGroup"
     instrument: str = None
+    ####
+    metadata: Optional[Metadata] = None
     data: List[EchodataflowObject] = []
 
 
@@ -88,6 +98,6 @@ class Output(BaseModel):
         group (Dict[str, Group]): Dictionary of groups.
         passing_params (Dict[str, Any]): A dictionary of passing parameters. Default is an empty dictionary.
     """
-
+    
     group: Dict[str, Group] = {}
     passing_params: Dict[str, Any] = {}

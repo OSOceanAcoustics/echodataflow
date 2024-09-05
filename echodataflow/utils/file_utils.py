@@ -46,6 +46,7 @@ from echopype import open_converted
 from fastapi.encoders import jsonable_encoder
 from fsspec.implementations.local import LocalFileSystem
 from prefect import task
+import pandas as pd
 
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, Group, Output
@@ -76,14 +77,14 @@ def download_temp_file(raw: EchodataflowObject, working_dir: str, stage: Stage, 
 
     urlpath = raw.file_path
     fname = os.path.basename(urlpath)
-
+    
     if stage.options["group"] == False:
-        out_path = format_windows_path(working_dir + "/raw_files/" + fname, slash=True)
+        out_path = format_windows_path(working_dir+"/raw_files/"+fname, slash=True)
         make_temp_folder(
             format_windows_path(working_dir + "/raw_files/", slash=True),
             config.output.storage_options_dict,
         )
-    else:
+    else: 
         out_path = format_windows_path(
             working_dir + "/" + str(raw.group_name) + "_raw_files/" + fname, slash=True
         )
@@ -93,7 +94,7 @@ def download_temp_file(raw: EchodataflowObject, working_dir: str, stage: Stage, 
             ),
             config.output.storage_options_dict,
         )
-
+    
     print(out_path)
     working_dir_fs = extract_fs(out_path, storage_options=config.output.storage_options_dict)
 
@@ -119,8 +120,7 @@ def format_windows_path(path: str, slash: bool = False):
             return "file:///" + path.replace("/", "\\")
     else:
         return path
-
-
+    
 def extract_fs(
     url: str,
     storage_options: Dict[Any, Any] = {},
@@ -146,7 +146,6 @@ def extract_fs(
         return file_system, parsed_path.scheme
     return file_system
 
-
 def make_temp_folder(folder_name: str, storage_options: Dict[str, Any]) -> str:
     """
     Creates a temporary folder locally or remotely using fsspec.
@@ -160,14 +159,13 @@ def make_temp_folder(folder_name: str, storage_options: Dict[str, Any]) -> str:
 
     Example:
         temp_folder = make_temp_folder('temp_folder', storage_options={'anon': True})
-    """
+    """    
     fsmap = fsspec.get_mapper(folder_name, **storage_options)
     if fsmap.fs.isdir(fsmap.root) == False:
         fsmap.fs.mkdir(fsmap.root, exists_ok=True, create_parents=True)
     if isinstance(fsmap.fs, LocalFileSystem):
         return str(Path(folder_name).resolve())
     return folder_name
-
 
 @task
 def get_output_file_path(raw_dicts, config: Dataset):
@@ -204,7 +202,6 @@ def get_output_file_path(raw_dicts, config: Dataset):
         out_fname = f"x{transect_num:04}-{date_name}.zarr"
     return format_windows_path("/".join([config.output.urlpath, out_fname]))
 
-
 def isFile(file_path: str, storage_options: Dict[str, Any] = {}):
     """
     Check if a file exists at the specified path using the fsspec file system.
@@ -223,7 +220,6 @@ def isFile(file_path: str, storage_options: Dict[str, Any] = {}):
     if file_path.endswith(".zarr"):
         return fs.isdir(file_path)
     return fs.isfile(file_path)
-
 
 def get_working_dir(stage: Stage, config: Dataset):
     """
@@ -256,7 +252,6 @@ def get_working_dir(stage: Stage, config: Dataset):
 
     return working_dir
 
-
 @task
 def get_ed_list(
     config: Dataset,
@@ -283,24 +278,33 @@ def get_ed_list(
     ed_list = []
     if type(transect_data) == list:
         for zarr_path_data in transect_data:
+            if zarr_path_data.data:
+                ed = zarr_path_data.data
+                del zarr_path_data.data
+                zarr_path_data.data = None
             ed = open_converted(
                 converted_raw_path=str(zarr_path_data.out_path),
-                storage_options=dict(config.output.storage_options_dict),
-            )
-        ed_list.append(ed)
-    else:
-        ed = open_converted(
-            converted_raw_path=str(transect_data.out_path),
             storage_options=dict(config.output.storage_options_dict),
         )
         ed_list.append(ed)
+    else:
+        if transect_data.data:
+            ed = transect_data.data
+            del transect_data.data
+            transect_data.data = None
+        else:
+            ed = open_converted(
+                converted_raw_path=str(transect_data.out_path),
+                storage_options=dict(config.output.storage_options_dict),
+            )
+        ed_list.append(ed)
     return ed_list
-
 
 @task
 def get_zarr_list(
     transect_data: Union[EchodataflowObject, List[EchodataflowObject]],
     storage_options: Dict[str, Any] = {},
+    delete_from_edf: bool = True
 ) -> List[xr.Dataset]:
     """
     Get a list of xarray.Dataset objects for zarr data.
@@ -320,10 +324,22 @@ def get_zarr_list(
     zarr_list = []
     if type(transect_data) == list:
         for td in transect_data:
-            zarr = xr.open_zarr(td.out_path, storage_options=storage_options)
+            if td.data:
+                zarr = td.data
+                if delete_from_edf:
+                    del td.data
+                td.data = None
+            else:
+                zarr = xr.open_zarr(td.out_path, storage_options=storage_options)
         zarr_list.append(zarr)
     else:
-        zarr = xr.open_zarr(transect_data.out_path, storage_options=storage_options)
+        if transect_data.data:
+            zarr = transect_data.data
+            if delete_from_edf:
+                del transect_data.data
+            transect_data.data = None
+        else:
+            zarr = xr.open_zarr(transect_data.out_path, storage_options=storage_options)
         zarr_list.append(zarr)
 
     return zarr_list
@@ -417,7 +433,7 @@ def process_output_groups(
                 )
                 error_groups[ed.group_name] = gr
 
-    if error_flag:
+    if error_flag and error_type and error_type != "INTERNAL":
         for name, _ in error_groups.items():
             print("Deleting ", groups[name])
             del groups[name]
@@ -508,6 +524,12 @@ def store_json_output(data, config: Dataset, name: str):
     json_data_path = os.path.expanduser(
         os.path.join("~", ".echodataflow", "echodataflow_working_data.json")
     )
+    
+    if data and isinstance(data, Output):      
+        for name, gr in data.group.items():
+            for edf in gr.data:
+                edf.data = None
+                edf.data_ref = None
 
     serialized_data_list = jsonable_encoder(data)
 
@@ -522,13 +544,12 @@ def store_json_output(data, config: Dataset, name: str):
             config.output.urlpath + "/json_metadata", config.output.storage_options_dict
         )
         out_path = out_path + "/" + name + ".json"
-        print("Output metdata will be loaded to ", out_path)
+        print("Output metdata will be loaded to ",out_path)
         fs = extract_fs(out_path, config.output.storage_options_dict)
         with fs.open(out_path, mode="w") as f:
-            f.write(json_data)
-
-
-def get_output(type: str = "Output"):
+            f.write(json_data)    
+   
+def get_output(type : str = "Output"):
     """
     Retrieve stored output data from the Echodataflow working directory.
 
@@ -551,7 +572,7 @@ def get_output(type: str = "Output"):
         {"key": "value", ...}
 
     """
-    data = None
+    data = None    
     json_data_path = os.path.expanduser(
         os.path.join("~", ".echodataflow", "echodataflow_working_data.json")
     )
@@ -559,7 +580,7 @@ def get_output(type: str = "Output"):
         data = json.load(outfile)
 
     if type != "Output":
-        return data
+        return data  
     output_list = []
     for item in data:
         output_item = Output(**item)
@@ -637,8 +658,7 @@ def cleanup(output:Output, config: Dataset, pipeline: Pipeline):
                             error=e
                         )
 
-
-def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any] = {}):
+def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, Any]={}):
     """
     Retrieve Zarr arrays from the last run's output data.
 
@@ -655,7 +675,7 @@ def get_last_run_output(data: List[Output] = None, storage_options: Dict[str, An
         >>> output_data = [Output(data=[...]), Output(data=[...])]
         >>> zarr_arrays = get_last_run_output(output_data, storage_options={"key": "value"})
     """
-    outputs: List[List] = []
+    outputs : List[List]= []
     if data is None:
         data = get_output()
     if isinstance(data, list) and isinstance(data[0], Output):
@@ -687,7 +707,7 @@ def get_out_zarr(
     Constructs the output path for a Zarr file based on the provided parameters and storage options.
 
     Depending on the file system (local or remote) determined by `storage_options` and the presence
-    of a group structure (`group` parameter), this function constructs and returns the appropriate
+    of a group structure (`group` parameter), this function constructs and returns the appropriate 
     file path for storing Zarr datasets.
 
     Parameters:
@@ -707,11 +727,11 @@ def get_out_zarr(
         and the provided `storage_options`.
     """
     fsmap = fsspec.get_mapper(working_dir, **storage_options)
-
+    
     print("File System is : ", fsmap.fs)
-
+    
     if isinstance(fsmap.fs, LocalFileSystem):
-        if group:
+        if group:        
             return os.path.join(working_dir, transect, file_name)
         else:
             return os.path.join(working_dir, "zarr_files", file_name)
@@ -721,3 +741,26 @@ def get_out_zarr(
             return slash_pattern.join([working_dir, transect, file_name])
         else:
             return slash_pattern.join([working_dir, "zarr_files", file_name])
+
+def fetch_slice_from_store(edf_group: Group, config: Dataset, options: Dict[str, Any] = None, start_time: str = None, end_time: str = None) -> xr.Dataset:
+    default_options = {
+                "engine":"zarr",
+                "combine":"by_coords",
+                "data_vars":"minimal",
+                "coords":"minimal",
+                "compat":"override",
+                "storage_options": config.args.storage_options_dict} if options is None else options
+    if options:
+        default_options.update(options)
+    
+    store = xr.open_mfdataset(paths=[ed.out_path for ed in edf_group.data], **default_options).compute()
+    store_slice = store.sel(ping_time=slice(pd.to_datetime(start_time, unit="ns"), pd.to_datetime(end_time, unit="ns")))
+    
+    if store_slice["ping_time"].size == 0:
+        del store
+        del store_slice
+        raise ValueError(f"No data available between {start_time} and {end_time}")
+    
+    del store
+    
+    return store_slice

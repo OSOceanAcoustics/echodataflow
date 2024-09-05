@@ -12,41 +12,42 @@ Email: sbutala@uw.edu
 Date: August 22, 2023
 """
 
-from collections import defaultdict
 import json
 import os
-from typing import Dict, Optional
-import xarray as xr
-import pandas as pd
-from datetime import datetime, timedelta
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Optional, Tuple
 
+import numpy as np
+import pandas as pd
+import scipy
+import torch
+import xarray as xr
 from distributed import Client, LocalCluster
-from echodataflow.aspects.singleton_echodataflow import Singleton_Echodataflow
-from echodataflow.models.output_model import EchodataflowObject, Group, Output
 from fastapi.encoders import jsonable_encoder
 from prefect import flow
 from prefect.task_runners import SequentialTaskRunner
 from prefect_dask import DaskTaskRunner
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
+from echodataflow.aspects.singleton_echodataflow import Singleton_Echodataflow
 from echodataflow.models.datastore import Dataset
+from echodataflow.models.output_model import (EchodataflowObject, Group,
+                                              Metadata, Output)
 from echodataflow.models.pipeline import Pipeline, ProcessingType, Recipe
 from echodataflow.utils import log_util
-from echodataflow.utils.config_utils import (
-    club_raw_files,
-    get_prefect_config_dict,
-    glob_all_files,
-    parse_raw_paths,
-    sanitize_external_params,
-)
-from echodataflow.utils.file_utils import (
-    cleanup,
-    extract_fs,
-    get_last_run_output,
-    process_output_groups,
-    store_json_output,
-)
+from echodataflow.utils.config_utils import (club_raw_files, floor_time,
+                                             get_prefect_config_dict,
+                                             glob_all_files, glob_url,
+                                             parse_raw_paths,
+                                             sanitize_external_params)
+from echodataflow.utils.file_utils import (cleanup, extract_fs, fetch_slice_from_store,
+                                           get_last_run_output, get_out_zarr,
+                                           process_output_groups,
+                                           store_json_output)
 from echodataflow.utils.function_utils import dynamic_function_call
+
+
 
 
 @flow(name="Initialization", task_runner=SequentialTaskRunner())
@@ -77,10 +78,13 @@ def init_flow(pipeline: Recipe, config: Dataset, json_data_path: Optional[str] =
     output: Output = Output()
     if config.args.urlpath:
         output = get_input_from_url(json_data_path=json_data_path, config=config)
-    else:
+    elif config.args.storepath:
         output = get_input_from_store(config=config)
+    elif config.args.storefolder:
+        output = get_input_from_store_folder_mvbs_score(config=config)
 
-    store_json_output(output, config=config, name=config.name)
+    # store the json only of the first element
+    # copy(deep=True), config=config, name=config.name)
 
     process_list = pipeline.pipeline
 
@@ -127,7 +131,6 @@ def process_stages_disk(
         function = dynamic_function_call(stage.module, stage.name)
         prefect_config_dict = get_prefect_config_dict(stage)
         stage.options["use_dask"] = False
-
         if pipeline.scheduler_address is not None and pipeline.use_local_dask == False:
             if client is None:
                 client = Client(pipeline.scheduler_address)
@@ -154,6 +157,7 @@ def process_stages_disk(
                 msg={"msg": f"{client}", "mod_name": __file__, "func_name": "Init Flow"},
                 eflogging=config.logging,
             )
+
             log_util.log(
                 msg={
                     "msg": f"Scheduler at : {client.scheduler.address}",
@@ -199,6 +203,13 @@ def process_stages_disk(
 
         prefect_config_dict["name"] = stage.name
         prefect_config_dict["flow_run_name"] = stage.name
+
+        if stage.name == "process_mask_prediction_tensor":
+            if "flow_run_name" in prefect_config_dict.keys():
+                prefect_config_dict.pop("flow_run_name")
+            if "task_runner" in prefect_config_dict.keys():
+                prefect_config_dict.pop("task_runner")
+            
         function = function.with_options(**prefect_config_dict)
 
         # Dict of Group
@@ -222,7 +233,7 @@ def process_stages_disk(
         )
         output.group = groups
         
-        store_json_output(data=output, name=stage.name + "_output", config=config)
+        store_json_output(data=output.model_copy(deep=True), name=stage.name + "_output", config=config)
 
         store_json_output(data=error_groups, name=stage.name + "_ErroredGroups", config=config)
 
@@ -316,6 +327,8 @@ def get_input_from_url(json_data_path, config: Dataset):
             g.group_name = transect_num
             g.instrument = fdict.get("instrument")
 
+            file_info = os.path.basename(fdict.get("file_path")).split(".", maxsplit=1)
+            
             obj = EchodataflowObject(
                 file_path=fdict.get("file_path"),
                 month=str(fdict.get("month")),
@@ -323,7 +336,8 @@ def get_input_from_url(json_data_path, config: Dataset):
                 jday=str(fdict.get("jday")),
                 datetime=fdict.get("datetime"),
                 group_name=transect_num,
-                filename=os.path.basename(fdict.get("file_path")).split(".", maxsplit=1)[0],
+                filename=file_info[0],
+                file_extension= file_info[-1],
             )
             g.data.append(obj)
 
@@ -370,9 +384,10 @@ def get_input_from_store(config: Dataset):
             obj = EchodataflowObject(
                 file_path=" ",   
                 group_name="DefaultGroup",
-                filename=f"win_{int(stime.timestamp())}_{int(etime.timestamp())}",
+                filename=f"win_{stime.strftime('D%Y%m%d-T%H%M%S')}_{etime.strftime('D%Y%m%d-T%H%M%S')}",
                 start_time=stime.isoformat(timespec='nanoseconds'),
-                end_time=etime.isoformat(timespec='nanoseconds')
+                end_time=etime.isoformat(timespec='nanoseconds'),
+                file_extension="zarr"
             )
             obj.stages['store'] = store_path
             g.data.append(obj)
@@ -382,3 +397,426 @@ def get_input_from_store(config: Dataset):
     else:
         raise ValueError("Not enough frames to process, try reducing the window size")
         
+
+def get_input_from_store_folder(config: Dataset):
+
+
+    curr_time = datetime.now(timezone.utc)
+
+    end_time = curr_time - timedelta(hours=config.args.time_travel_hours, minutes=config.args.time_travel_mins)
+    end_time = end_time.replace(second=0, microsecond=0)
+    
+    if isinstance(config.args.store_folder, str):
+        store = config.args.store_folder
+        return process_store_folder(config, store, end_time)
+    else:
+        combo_output = Output()
+        
+        store_18 = config.args.storefolder[0]
+        store_5 = config.args.storefolder[1]
+        
+        store_18_output = process_store_folder(config, store_18, end_time)
+        store_5_output = process_store_folder_every_n(config, store_5, end_time, factor=4)
+        
+        for name, gr in store_18_output.group.items():
+            
+            edf_18 = gr.data[0]
+            store_18 = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf_18.start_time, end_time=edf_18.end_time)
+            
+            if not store_5_output.group.get(name):
+                raise ValueError(f"No window found in MVBS store (5 channels); window missing -> {name}")
+            
+            edf_5 = store_5_output.group[name].data[0]          
+            store_5 = fetch_slice_from_store(edf_group=store_5_output.group[name], config=config, start_time=edf_5.start_time, end_time=edf_5.end_time)
+            
+            edf_5.data_ref, edf_5.data = combine_datasets(store_18, store_5)
+            
+            # Since we have already loaded the datasets into memory we do not need fetching again
+            if gr.metadata and gr.metadata.is_store_folder:
+                gr.metadata.is_store_folder = False
+                
+            combo_output.group[name] = gr.model_copy()
+            combo_output.group[name].data = [edf_5]
+            
+            log_util.log(
+                    msg={"msg": f"{ name }", "mod_name": __file__, "func_name": "Mask"},
+                    use_dask=False,
+                    eflogging=config.logging,
+                )
+
+            for dim, size in edf_5.data.dims.items():
+                log_util.log(
+                    msg={"msg": f"{ dim } : {size}", "mod_name": __file__, "func_name": "Mask"},
+                    use_dask=False,
+                    eflogging=config.logging,
+                )
+            
+        return combo_output
+    
+    
+
+def get_input_from_store_folder_mvbs_score(config: Dataset):  
+
+
+    # This function allows to pass two inputs through the datastore configuration.
+    # The need is driven by the case when we want to read MVBS data together with score/mask products
+    
+
+    curr_time = datetime.now(timezone.utc)
+
+    end_time = curr_time - timedelta(hours=config.args.time_travel_hours, minutes=config.args.time_travel_mins)
+    end_time = end_time.replace(second=0, microsecond=0)
+
+
+    
+    if isinstance(config.args.store_folder, str):
+        store = config.args.store_folder
+        return process_store_folder(config, store, end_time)
+    else:
+        combo_output = Output()
+        
+        store_1 = config.args.storefolder[0]
+        store_2 = config.args.storefolder[1]
+        
+        store_1_output = process_store_folder(config, store_1, end_time)
+        store_2_output = process_store_folder_every_n(config, store_2, end_time, factor=4)
+
+
+
+        
+        for name, gr in store_1_output.group.items():
+
+            print(name)
+            
+            edf_1 = gr.data[0]
+            store_1 = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf_1.start_time, end_time=edf_1.end_time)
+            
+            if not store_2_output.group.get(name):
+                raise ValueError(f"No window found in second store (5 channels); window missing -> {name}")
+            
+            edf_2 = store_2_output.group[name].data[0]          
+            store_2 = fetch_slice_from_store(edf_group=store_2_output.group[name], config=config, start_time=edf_2.start_time, end_time=edf_2.end_time)
+            
+            log_util.log(
+                    msg={"msg": f"{ name }", "mod_name": __file__, "func_name": "Mask"},
+                    use_dask=False,
+                    eflogging=config.logging,
+                )
+
+            #for dim, size in edf_2.data.dims.items():
+            #    log_util.log(
+            #        msg={"msg": f"{ dim } : {size}", "mod_name": __file__, "func_name": "Mask"},
+            #        use_dask=False,
+            #        eflogging=config.logging,
+            #    )
+
+            
+            print(store_1.dims)
+            print(store_2.dims)
+
+            print(type(store_1))
+
+     
+
+            print(store_1.ping_time.min().values)
+            print(store_1.ping_time.max().values)
+
+            print(store_2.ping_time.min().values)
+            print(store_2.ping_time.max().values)
+
+
+            # Aligning and combining in the same dataset to pass to the next stage
+
+            # common min_time
+            min_time = max(store_1.ping_time.min(), store_2.ping_time.min())
+            # common max_time
+            max_time = min(store_1.ping_time.max(), store_2.ping_time.max())
+
+
+
+            # align ping_times
+            store_1 = store_1.sel(ping_time=slice(min_time, max_time))
+            store_2 = store_2.sel(ping_time=slice(min_time, max_time))
+
+            # add score to the mvbs dataset
+
+            print(store_2)
+
+            softmax = xr.apply_ufunc(scipy.special.softmax, store_2, kwargs = {'axis': 0}, dask="allowed")
+            
+            
+            # resampling
+            store_1 = store_1.resample(ping_time="30s").mean()
+            softmax = softmax.resample(ping_time="30s").mean()
+     
+            store_1 = store_1.assign(softmax = softmax.sel(species="hake")["__xarray_dataarray_variable__"]) 
+            
+            print(store_1)
+
+            edf_1.data = store_1
+            
+            combo_output.group[name] = gr.model_copy()
+         
+
+            combo_output.group[name].data = [edf_1]
+
+
+        return(combo_output)
+
+        
+
+        # return {'store_1':store_1, 'store_2': store_2}
+
+def process_xrd(ds: xr.Dataset, freq_wanted = [120000, 38000, 18000]) -> xr.Dataset:
+    ds = ds.sel(depth=slice(None, 590))        
+        
+    ch_wanted = [int((np.abs(ds["frequency_nominal"]-freq)).argmin()) for freq in freq_wanted]
+    ds = ds.isel(
+                channel=ch_wanted
+            )
+    return ds
+
+def combine_datasets(store_18: xr.Dataset, store_5: xr.Dataset) -> Tuple[torch.Tensor, xr.Dataset]:
+    ds_32k_120k = None
+    ds_18k = None
+    combined_ds = None
+    try:
+        partial_channel_name = ["ES18"]
+        ds_18k = extract_channels(store_18, partial_channel_name)        
+        partial_channel_name = ["ES38", "ES120"]
+        ds_32k_120k = extract_channels(store_5, partial_channel_name)
+    except Exception as e:
+        partial_channel_name = ["ES18"]
+        ds_18k = extract_channels(store_5, partial_channel_name)
+        partial_channel_name = ["ES38", "ES120"]
+        ds_32k_120k = extract_channels(store_18, partial_channel_name)
+        
+    if not ds_18k or not ds_32k_120k:
+        raise ValueError("Could not find the required channels in the datasets")
+    
+    ds_18k = process_xrd(ds_18k, freq_wanted=[18000])
+    ds_32k_120k = process_xrd(ds_32k_120k, freq_wanted=[120000, 38000])
+    
+    combined_ds = xr.merge([ds_18k["Sv"], ds_32k_120k["Sv"], 
+                            ds_18k['latitude'], ds_18k['longitude'],
+                            ds_18k["frequency_nominal"], ds_32k_120k["frequency_nominal"]
+                            ])
+    combined_ds.attrs = ds_32k_120k.attrs
+
+    combined_ds = (
+        combined_ds
+        .transpose("channel", "depth", "ping_time")
+        .sel(depth=slice(None, 590))
+    )
+
+    depth = combined_ds['depth']
+    ping_time = combined_ds['ping_time']
+
+    # Create a tensor with R=120 kHz, G=38 kHz, B=18 kHz mapping
+    red_channel = extract_channels(combined_ds, ["ES120"])
+    green_channel = extract_channels(combined_ds, ["ES38"])
+    blue_channel = extract_channels(combined_ds, ["ES18"])
+
+    tensor = xr.concat([red_channel, green_channel, blue_channel], dim='channel')
+    tensor['channel'] = ['R', 'G', 'B']
+    tensor = tensor.assign_coords({'depth': depth, 'ping_time': ping_time})
+
+    mvbs_tensor = torch.tensor(tensor['Sv'].values, dtype=torch.float32)
+    
+    return (mvbs_tensor, combined_ds)
+
+def extract_channels(dataset: xr.Dataset, partial_names: List[str]) -> xr.Dataset:
+    """
+    Extracts multiple channels data from the given xarray dataset using partial channel names.
+
+    Args:
+        dataset (xr.Dataset): The input xarray dataset containing multiple channels.
+        partial_names (List[str]): The list of partial names of the channels to extract.
+
+    Returns:
+        xr.Dataset: The dataset containing only the specified channels data.
+    """
+    matching_channels = []
+    for partial_name in partial_names:
+        matching_channels.extend([channel for channel in dataset.channel.values if partial_name in str(channel)])
+    
+    if len(matching_channels) == 0:
+        raise ValueError(f"No channels found matching any of '{partial_names}'")
+    
+    return dataset.sel(channel=matching_channels)
+
+def process_store_folder(config: Dataset, store: str, end_time: datetime):
+    output: Output = Output()
+    
+    files = sorted(glob_url(path=store, storage_options=config.args.storage_options_dict))
+    
+    relevant_files = {}
+    timestamps = []
+    
+    if len(files) == 0:
+        raise ValueError("No files found in the store folder")
+    
+    for file in files:
+        try:
+            basename = os.path.basename(file)
+            date_time_str = basename.split('-')[1].split('_')[0][1:] + basename.split('-')[2].split('_')[0]
+            file_time = datetime.strptime(date_time_str, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+            relevant_files[file_time] = file
+            timestamps.append(file_time)
+        except ValueError:
+            continue
+    
+    if config.args.time_rounding_flag:
+        end_time = floor_time(end_time, config.args.window_mins)
+    
+    for _ in range(config.args.number_of_windows):
+        start_time = end_time - timedelta(hours=config.args.window_hours, minutes=config.args.window_mins)
+        start_time = start_time.replace(second=0, microsecond=0)        
+        
+        start_index = 0
+        
+        for i, ts in enumerate(timestamps):        
+            if ts >= start_time:
+                start_index += i - 1
+                break
+        else:
+            start_index += i - 1 
+        
+        if start_index <= 0:
+            if timestamps[0] <= start_time:
+                start_index = max(start_index, 0)
+            else:
+                end_time = start_time
+                continue
+        
+        end_index = len(timestamps)
+
+        for i, ts in enumerate(reversed(timestamps)):
+            if ts <= end_time:
+                end_index -= i + 1
+                break
+        
+        relevant_timestamps = timestamps[start_index:end_index+1]
+    
+        win_relevant_files = [relevant_files.get(key) for key in list(relevant_files.keys()) if key in relevant_timestamps]
+        
+        gname = f"win_{start_time.strftime('D%Y%m%d-T%H%M%S')}_{end_time.strftime('D%Y%m%d-T%H%M%S')}"
+        
+        log_util.log(
+            msg={
+                "msg": f"Range is {start_time} to {end_time}; Found {len(win_relevant_files)} -> {win_relevant_files}" ,
+                "mod_name": __file__,
+                "func_name": "Init Flow",
+            },
+            eflogging=config.logging,
+        )
+
+        for fpath in win_relevant_files:    
+            g = output.group.get(gname, Group())
+            g.group_name = gname
+            g.instrument = config.sonar_model
+            
+            g.metadata = Metadata(instrument=config.sonar_model, group_name=gname, is_store_folder=True)
+            
+            obj = EchodataflowObject(
+                out_path=fpath,
+                group_name=gname,
+                filename="Hake-"+str(start_time.strftime('D%Y%m%d-T%H%M%S')),
+                start_time= start_time.replace(tzinfo=None).isoformat(),
+                end_time=end_time.replace(tzinfo=None).isoformat(),
+                file_extension="zarr"
+            )
+            g.data.append(obj)
+
+            output.group[gname] = g
+        end_time = start_time
+        
+    return output
+
+
+def process_store_folder_every_n(config: Dataset, store: str, end_time: datetime, factor = 1):
+    output: Output = Output()
+    
+    files = sorted(glob_url(path=store, storage_options=config.args.storage_options_dict))[::factor]
+    
+    relevant_files = {}
+    timestamps = []
+    
+    if len(files) == 0:
+        raise ValueError("No files found in the store folder")
+    
+    for file in files:
+        try:
+            basename = os.path.basename(file)
+            date_time_str = basename.split('-')[1].split('_')[0][1:] + basename.split('-')[2].split('_')[0]
+            file_time = datetime.strptime(date_time_str, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+            relevant_files[file_time] = file
+            timestamps.append(file_time)
+        except ValueError:
+            continue
+    
+    if config.args.time_rounding_flag:
+        end_time = floor_time(end_time, config.args.window_mins)
+    
+    for _ in range(config.args.number_of_windows):
+        start_time = end_time - timedelta(hours=config.args.window_hours, minutes=config.args.window_mins)
+        start_time = start_time.replace(second=0, microsecond=0)        
+        
+        start_index = 0
+        
+        for i, ts in enumerate(timestamps):        
+            if ts >= start_time:
+                start_index += i - 1
+                break
+        else:
+            start_index += i - 1 
+        
+        if start_index <= 0:
+            if timestamps[0] <= start_time:
+                start_index = max(start_index, 0)
+            else:
+                end_time = start_time
+                continue
+        
+        end_index = len(timestamps)
+
+        for i, ts in enumerate(reversed(timestamps)):
+            if ts <= end_time:
+                end_index -= i + 1
+                break
+        
+        relevant_timestamps = timestamps[start_index:end_index+1]
+    
+        win_relevant_files = [relevant_files.get(key) for key in list(relevant_files.keys()) if key in relevant_timestamps]
+        
+        gname = f"win_{start_time.strftime('D%Y%m%d-T%H%M%S')}_{end_time.strftime('D%Y%m%d-T%H%M%S')}"
+        
+        log_util.log(
+            msg={
+                "msg": f"Range is {start_time} to {end_time}; Found {len(win_relevant_files)} -> {win_relevant_files}" ,
+                "mod_name": __file__,
+                "func_name": "Init Flow",
+            },
+            eflogging=config.logging,
+        )
+
+        for fpath in win_relevant_files:    
+            g = output.group.get(gname, Group())
+            g.group_name = gname
+            g.instrument = config.sonar_model
+            
+            g.metadata = Metadata(instrument=config.sonar_model, group_name=gname, is_store_folder=True)
+            
+            obj = EchodataflowObject(
+                out_path=fpath,
+                group_name=gname,
+                filename="Hake-"+str(start_time.strftime('D%Y%m%d-T%H%M%S')),
+                start_time= start_time.replace(tzinfo=None).isoformat(),
+                end_time=end_time.replace(tzinfo=None).isoformat()
+            )
+            g.data.append(obj)
+
+            output.group[gname] = g
+        end_time = start_time
+        
+    return output

@@ -30,7 +30,6 @@ class Process(BaseModel):
         status (bool): The status of the process. Default is False.
         error (Optional[str]): The error message associated with the process, if any.
     """
-
     name: str
     start_time: str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
     end_time: Optional[str]
@@ -46,7 +45,6 @@ class Log_Data(BaseModel):
         name (str): The name of the log data.
         process_stack (Optional[List[Process]]): A list of associated processes.
     """
-
     name: str
     process_stack: Optional[List[Process]] = []
 
@@ -63,7 +61,6 @@ class DB_Log(BaseModel):
         status (str): The status of the log. Default is True.
         error (Optional[str]): The error message associated with the log, if any.
     """
-
     run_id: Optional[int]
     start_time: Optional[str] = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
     end_time: Optional[str]

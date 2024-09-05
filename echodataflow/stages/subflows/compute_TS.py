@@ -74,10 +74,10 @@ def echodataflow_compute_TS(
             gname = ed.out_path.split(".")[0] + ".TS"
             new_process = process_compute_ts.with_options(
                 task_run_name=gname, name=gname, retries=3
-            )
+                    )
             future = new_process.submit(
                 ed=ed, working_dir=working_dir, config=config, stage=stage
-            )
+                )
             futures[name].append(future)
 
     for name, flist in futures.items():
