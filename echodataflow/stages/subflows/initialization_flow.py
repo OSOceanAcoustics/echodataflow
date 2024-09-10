@@ -81,7 +81,7 @@ def init_flow(pipeline: Recipe, config: Dataset, json_data_path: Optional[str] =
     elif config.args.storepath:
         output = get_input_from_store(config=config)
     elif config.args.storefolder:
-        output = get_input_from_store_folder_mvbs_score(config=config)
+        output = get_input_from_store_folder(config=config)
 
     # store the json only of the first element
     # copy(deep=True), config=config, name=config.name)
@@ -409,7 +409,7 @@ def get_input_from_store_folder(config: Dataset):
     """
     Handles cases:
     1(a). When MVBS needs to point to a single Sv store
-    1(b). When prediction needs to point to a single Sv store
+    1(b). When prediction needs to point to a single MVBS store
     2. When prediction needs to point to 2 MVBS stores and combine them
     3. When passing one or two stores with score/mask integration
     """
