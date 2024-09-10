@@ -749,7 +749,7 @@ def fetch_slice_from_store(edf_group: Group, config: Dataset, options: Dict[str,
                 "data_vars":"minimal",
                 "coords":"minimal",
                 "compat":"override",
-                "storage_options": config.args.storage_options_dict} if options is None else options
+                "storage_options": config.args.storage_options_dict}
     if options:
         default_options.update(options)
     
@@ -760,6 +760,11 @@ def fetch_slice_from_store(edf_group: Group, config: Dataset, options: Dict[str,
         del store
         del store_slice
         raise ValueError(f"No data available between {start_time} and {end_time}")
+    
+    store_slice = store_slice.sortby('ping_time')
+
+    # Group by ping_time and take the mean to handle overlaps
+    store_slice = store_slice.groupby('ping_time').mean()
     
     del store
     
