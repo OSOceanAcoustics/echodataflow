@@ -20,7 +20,6 @@ from prefect.variables import Variable
 from echodataflow.models.datastore import StorageType
 from echodataflow.models.run import EDFRun, FileDetails
 from echodataflow.utils.config_utils import glob_url, load_block
-from prefect.task_runners import SequentialTaskRunner
 
 @task
 def execute_flow(
