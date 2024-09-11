@@ -23,6 +23,7 @@ import pandas as pd
 import scipy
 import torch
 import xarray as xr
+import re
 from distributed import Client, LocalCluster
 from fastapi.encoders import jsonable_encoder
 from prefect import flow
@@ -604,13 +605,20 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
     for file in files:
         try:
             basename = os.path.basename(file)
-            date_time_str = basename.split('-')[1].split('_')[0][1:] + basename.split('-')[2].split('_')[0]
-            file_time = datetime.strptime(date_time_str, "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
-            relevant_files[file_time] = file
-            timestamps.append(file_time)
+            match = re.search(r'D(\d{8})-T(\d{6})', basename)
+            if match:
+                date_str = match.group(1)
+                time_str = match.group(2)
+                file_time = datetime.strptime(date_str + time_str, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+                relevant_files[file_time] = file
+                timestamps.append(file_time)
+            
         except ValueError:
             continue
     
+    if len(timestamps) == 0:
+        raise ValueError('No files detected at source')
+
     if config.args.time_rounding_flag:
         end_time = floor_time(end_time, config.args.window_mins)
     
@@ -619,7 +627,7 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
         start_time = start_time.replace(second=0, microsecond=0)        
         
         start_index = 0
-        
+        i = 1
         for i, ts in enumerate(timestamps):        
             if ts >= start_time:
                 start_index += i - 1

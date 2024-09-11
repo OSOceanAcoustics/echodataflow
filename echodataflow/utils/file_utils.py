@@ -763,8 +763,11 @@ def fetch_slice_from_store(edf_group: Group, config: Dataset, options: Dict[str,
     
     store_slice = store_slice.sortby('ping_time')
 
-    # Group by ping_time and take the mean to handle overlaps
-    store_slice = store_slice.groupby('ping_time').mean()
+    try:
+        # Group by ping_time and take the mean to handle overlaps
+        store_slice = store_slice.groupby('ping_time').mean()
+    except Exception as e:
+        print('Failed to group the data')
     
     del store
     
