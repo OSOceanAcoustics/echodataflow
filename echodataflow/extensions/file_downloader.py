@@ -15,9 +15,11 @@ from prefect.runtime import deployment
 from prefect.client.schemas.objects import FlowRun, StateType
 from prefect.states import Cancelled
 
-from echodataflow.utils.config_utils import glob_url, handle_storage_options
+from echodataflow.utils.config_utils import glob_url
 from echodataflow.utils.file_utils import extract_fs, make_temp_folder
 import shlex
+
+from echodataflow.utils.filesystem_utils import handle_storage_options
 
 
 @task

@@ -35,26 +35,18 @@ import json
 import os
 from pathlib import Path
 import re
-from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 from zipfile import ZipFile
 
-import nest_asyncio
 import yaml
 from dateutil import parser
 from prefect import task
-from prefect.filesystems import Block
-from prefect_aws import AwsCredentials
-from prefect_azure import AzureCosmosDbCredentials
 from prefect.variables import Variable
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
-from echodataflow.models.datastore import Dataset, StorageOptions, StorageType
-from echodataflow.models.echodataflow_config import EchodataflowConfig
+from echodataflow.models.datastore import Dataset, StorageOptions
 from echodataflow.models.pipeline import Stage
-from echodataflow.models.run import EDFRun
 from echodataflow.utils.file_utils import extract_fs, isFile
-
-nest_asyncio.apply()
 
 
 @task
@@ -511,123 +503,39 @@ def club_raw_files(
             all_files.append(files)
     return all_files
 
-
-def get_storage_options(storage_options: Block = None) -> Dict[str, Any]:
-    """
-    Get storage options from a Block.
-
-    Parameters:
-        storage_options (Block, optional): A block containing storage options.
-
-    Returns:
-        Dict[str, Any]: Dictionary containing storage options.
-
-    Example:
-        aws_credentials = AwsCredentials(...)
-        storage_opts = get_storage_options(aws_credentials)
-    """
-    storage_options_dict: Dict[str, Any] = {}
-    if storage_options is not None:
-        if isinstance(storage_options, AwsCredentials):
-            storage_options_dict["key"] = storage_options.aws_access_key_id
-            storage_options_dict[
-                "secret"
-            ] = storage_options.aws_secret_access_key.get_secret_value()
-            if storage_options.aws_session_token:
-                storage_options_dict["token"] = storage_options.aws_session_token
-
-    return storage_options_dict
-
-
-def handle_storage_options(storage_options: Optional[Dict] = None) -> Dict:
-    storage_options_dict: Dict[str, Any] = {}
-    
-    if storage_options:
-        if isinstance(storage_options, Block):
-            storage_options_dict = get_storage_options(storage_options=storage_options)
-        elif isinstance(storage_options, dict) and storage_options.get("block_name"):
-            block = load_block(
-                name=storage_options.get("block_name"), type=storage_options.get("type")
-            )
-            storage_options_dict = get_storage_options(block)
-        elif isinstance(storage_options, StorageOptions):
-            if not storage_options.anon:
-                block = load_block(
-                    name=storage_options.block_name,
-                    type=storage_options.type,
-                )
-                storage_options_dict = get_storage_options(block)
-            else:
-                storage_options_dict = {"anon": storage_options.anon}
-        else:
-            storage_options_dict = storage_options if storage_options and len(storage_options.keys()) > 0 else {}
-        
-    return storage_options_dict
-
 def parse_yaml_config(config: Union[dict, str, Path], storage_options: Dict[str, Any]) -> Dict:
-    
-    if isinstance(config, Path):
-        config = str(config)
-        
-    if isinstance(config, str):
-        if not config.endswith((".yaml", ".yml")):
-            raise ValueError("Configuration file must be a YAML!")
-        config = extract_config(config, storage_options)
-
+    if isinstance(config, Path) or isinstance(config, str):
+        config = convert_path_to_str(config)
+        validate_yaml_file(config)
+        return extract_config(config, storage_options)
     return config
 
-def parse_dynamic_parameters(dataset: Dataset, options: Dict[str, Any]) -> Dataset:
-    if dataset.args.parameters and dataset.args.parameters.file_name and dataset.args.parameters.file_name == "VAR_RUN_NAME":
-        var: Variable = Variable.get("run_name", default=None)
-        if not var:
-            raise ValueError("No variable found for name `run_name`")
-        else:
-            dataset.args.parameters.file_name = var.value
+def convert_path_to_str(config: Union[str, Path]) -> str:
+    return str(config) if isinstance(config, Path) else config
 
-    # Change made to enable dynamic execution using an extension
-    if options:
-        if options.get("file_name"):
-            dataset.args.parameters.file_name = options.get("file_name")
-    
-        if options.get("run_name"):
-            dataset.name = options.get("run_name")
-            
+def validate_yaml_file(config_str) -> None:
+    if not config_str.endswith((".yaml", ".yml")):
+        raise ValueError("Configuration file must be a YAML!")
+
+def parse_dynamic_parameters(dataset: Dataset, options: Dict[str, Any]) -> Dataset:
+    update_file_name_from_variable(dataset)
+    apply_options_to_dataset(dataset, options)
     return dataset
 
-def load_block(name: str = None, type: StorageType = None):
-    """
-    Load a block of a specific type by name.
+def update_file_name_from_variable(dataset: Dataset) -> None:
+    parameters = dataset.args.parameters
+    if parameters.file_name == "VAR_RUN_NAME":
+        run_name_var = Variable.get("run_name", default=None)
+        if not run_name_var:
+            raise ValueError("No variable found for name `run_name`")
+        parameters.file_name = run_name_var.value
 
-    Parameters:
-        name (str, optional): The name of the block to load.
-        type (StorageType, optional): The type of the block to load.
-
-    Returns:
-        block: The loaded block.
-
-    Raises:
-        ValueError: If name or type is not provided.
-
-    Example:
-        loaded_aws_credentials = load_block(name="my-aws-creds", type=StorageType.AWS)
-    """
-    if name is None or type is None:
-        raise ValueError("Cannot load block without name")
-
-    if type == StorageType.AWS or type == StorageType.AWS.value:
-        coro = AwsCredentials.load(name=name)
-    elif type == StorageType.AZCosmos or type == StorageType.AZCosmos.value:
-        coro = AzureCosmosDbCredentials.load(name=name)
-    elif type == StorageType.ECHODATAFLOW or type == StorageType.ECHODATAFLOW.value:
-        coro = EchodataflowConfig.load(name=name)
-    elif type == StorageType.EDFRUN or type == StorageType.EDFRUN.value:
-        coro = EDFRun.load(name=name)
-
-    if isinstance(coro, Coroutine):
-        block = nest_asyncio.asyncio.run(coro)
-    else:
-        block = coro
-    return block
+def apply_options_to_dataset(dataset: Dataset, options: Dict[str, Any]) -> None:
+    if "file_name" in options:
+        dataset.args.parameters.file_name = options["file_name"]
+    if "run_name" in options:
+        dataset.name = options["run_name"]
+        
 
 def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
     """

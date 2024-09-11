@@ -17,7 +17,7 @@ write_to = "echodataflow/version.py"
 line-length = 100
 
 [tool.pytest.ini_options]
-testpaths = ["echodataflow/tests/flow_tests"]
+testpaths = ["echodataflow/tests/flow_tests", "echodataflow/tests/unit"]
 addopts = "--cov=./ --cov-report=term --cov-report=xml"
 filterwarnings = [
     "ignore::DeprecationWarning"

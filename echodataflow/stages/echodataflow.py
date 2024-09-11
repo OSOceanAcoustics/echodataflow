@@ -50,6 +50,7 @@ import echopype as ep
 from echodataflow.utils.config_utils import load_block
 
 from echodataflow.stages.echodataflow_trigger import echodataflow_trigger
+from echodataflow.utils.filesystem_utils import handle_storage_options
 
 
 def check_internet_connection(host="8.8.8.8", port=53, timeout=5):
@@ -236,7 +237,7 @@ def echodataflow_start(
 
     # Try loading the Prefect config block
     try:
-        load_block(name="echodataflow-config", type=StorageType.ECHODATAFLOW)
+        handle_storage_options({'block_name':"echodataflow-config", 'type':StorageType.ECHODATAFLOW})        
     except ValueError:
         print(
             "\nNo Prefect Cloud Configuration found. Creating Prefect Local named 'echodataflow-local'. Please add your prefect cloud "
@@ -546,8 +547,7 @@ def load_credential_configuration(sync: bool = False):
                 current_config = asyncio.run(current_config)
             if current_config is not None:
                 for base in current_config.blocks:
-                    block = load_block(base.name, base.type)
-                    block_dict = dict(block)
+                    block_dict = handle_storage_options(base)  
                     block_dict["name"] = base.name
                     block_dict["active"] = base.active
                     block_dict["options"] = json.dumps(base.options)

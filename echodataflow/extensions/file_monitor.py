@@ -19,7 +19,8 @@ from prefect.variables import Variable
 
 from echodataflow.models.datastore import StorageType
 from echodataflow.models.run import EDFRun, FileDetails
-from echodataflow.utils.config_utils import glob_url, load_block
+from echodataflow.utils.config_utils import glob_url
+from echodataflow.utils.filesystem_utils import load_block
 
 @task
 def execute_flow(
@@ -111,7 +112,7 @@ def file_monitor(
     
     new_run = datetime.now(tz=timezone.utc).isoformat()
     edfrun: EDFRun = None
-    try:
+    try:        
         edfrun = load_block(
                     name=block_name,
                     type=StorageType.EDFRUN,
