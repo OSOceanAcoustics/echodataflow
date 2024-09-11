@@ -115,7 +115,7 @@ def file_monitor(
     try:        
         edfrun = load_block(
                     name=block_name,
-                    type=StorageType.EDFRUN,
+                    stype=StorageType.EDFRUN,
                 )
     except Exception as e:
         print(e)        

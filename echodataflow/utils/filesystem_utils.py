@@ -28,18 +28,18 @@ def _handle_block(block: Block) -> Dict:
 
 def _handle_dict_options(options: Dict[str, Any]) -> Dict:
     if "block_name" in options:
-        block = load_block(name=options["block_name"], type=options.get("type", None))
+        block = load_block(name=options["block_name"], stype=options.get("type", None))
         return get_storage_options(block)
     return options if options else {}
 
 def _handle_storage_options_class(options: StorageOptions) -> Dict:
     if not options.anon:
-        block = load_block(name=options.block_name, type=options.type)
+        block = load_block(name=options.block_name, stype=options.type)
         return get_storage_options(block)
     return {"anon": options.anon}
 
 def _handle_baseconfig_options_class(options: BaseConfig) -> Dict:    
-    block = load_block(name=options.name, type=options.type)
+    block = load_block(name=options.name, stype=options.type)
     return dict(block)
 
 def _handle_default(options: Dict[str, Any]):
@@ -78,7 +78,7 @@ def load_block(name: str, stype: StorageType):
 
     Parameters:
         name (str, optional): The name of the block to load.
-        type (StorageType, optional): The type of the block to load.
+        stype (StorageType, optional): The type of the block to load.
 
     Returns:
         block: The loaded block.
@@ -87,7 +87,7 @@ def load_block(name: str, stype: StorageType):
         ValueError: If name or type is not provided.
 
     Example:
-        loaded_aws_credentials = load_block(name="my-aws-creds", type=StorageType.AWS)
+        loaded_aws_credentials = load_block(name="my-aws-creds", stype=StorageType.AWS)
     """
     if name is None or stype is None:
         raise ValueError("Cannot load block without name or type")
