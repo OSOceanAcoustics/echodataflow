@@ -22,8 +22,6 @@ Functions:
         raw_url_file: Optional[str] = None,
         json_storage_options: StorageOptions = None
     ) -> List[List[Dict[str, Any]]]
-    get_storage_options(storage_options: Block = None) -> Dict[str, Any]
-    load_block(name: str = None, type: StorageType =  None)
 
 Author: Soham Butala
 Email: sbutala@uw.edu
