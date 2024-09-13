@@ -1,6 +1,4 @@
 active_recipe: MVBS_pipeline
-use_local_dask: true
-n_workers: 2
 pipeline:
 - recipe_name: MVBS_pipeline
   stages:
