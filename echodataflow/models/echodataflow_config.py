@@ -18,11 +18,9 @@ Author: Soham Butala
 Email: sbutala@uw.edu
 Date: August 22, 2023
 """
-import json
 from typing import Any, Dict, List, Optional
 
 from prefect.blocks.core import Block
-from pydantic import SecretStr
 
 from .datastore import StorageType
 
@@ -43,9 +41,9 @@ class EchodataflowPrefectConfig(Block):
     class Config:
         arbitrary_types_allowed = True
     
-    prefect_account_id: str = None
-    prefect_api_key: str = None
-    prefect_workspace_id: str = None
+    prefect_account_id: Optional[str] = None
+    prefect_api_key: Optional[str] = None
+    prefect_workspace_id: Optional[str] = None
     profile_name: str = None
 
 
