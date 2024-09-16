@@ -42,11 +42,12 @@ from echodataflow.utils.config_utils import (club_raw_files, floor_time,
                                              glob_all_files, glob_url,
                                              parse_raw_paths,
                                              sanitize_external_params)
-from echodataflow.utils.file_utils import (cleanup, extract_fs, fetch_slice_from_store,
+from echodataflow.utils.file_utils import (cleanup, extract_fs,
                                            get_last_run_output, get_out_zarr,
                                            process_output_groups,
                                            store_json_output)
 from echodataflow.utils.function_utils import dynamic_function_call
+from echodataflow.utils.xr_utils import combine_datasets, fetch_slice_from_store
 
 
 
@@ -489,10 +490,10 @@ def apply_scores_if_needed(config: Dataset, store_output: Output, end_time: date
             edf = gr.data[0]
             
             if edf.data is None:
-                edf.data = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time)
+                edf.data = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time, group=True)
             
             score_edf = score_output.group[name].data[0]
-            score_ds = fetch_slice_from_store(edf_group=score_edf.group[name], config=config, start_time=score_edf.start_time, end_time=score_edf.end_time)
+            score_ds = fetch_slice_from_store(edf_group=score_edf.group[name], config=config, start_time=score_edf.start_time, end_time=score_edf.end_time, group=True)
             
             # Align time between store and score
             min_time = max(edf.data.ping_time.min(), score_ds.ping_time.min())
@@ -511,85 +512,6 @@ def apply_scores_if_needed(config: Dataset, store_output: Output, end_time: date
             edf.data = edf.data.assign(softmax=softmax.sel(species="hake")["__xarray_dataarray_variable__"])           
 
     return store_output
-
-
-def process_xrd(ds: xr.Dataset, freq_wanted = [120000, 38000, 18000]) -> xr.Dataset:
-    ds = ds.sel(depth=slice(None, 590))        
-        
-    ch_wanted = [int((np.abs(ds["frequency_nominal"]-freq)).argmin()) for freq in freq_wanted]
-    ds = ds.isel(
-                channel=ch_wanted
-            )
-    return ds
-
-def combine_datasets(store_18: xr.Dataset, store_5: xr.Dataset) -> Tuple[torch.Tensor, xr.Dataset]:
-    ds_32k_120k = None
-    ds_18k = None
-    combined_ds = None
-    try:
-        partial_channel_name = ["ES18"]
-        ds_18k = extract_channels(store_18, partial_channel_name)        
-        partial_channel_name = ["ES38", "ES120"]
-        ds_32k_120k = extract_channels(store_5, partial_channel_name)
-    except Exception as e:
-        partial_channel_name = ["ES18"]
-        ds_18k = extract_channels(store_5, partial_channel_name)
-        partial_channel_name = ["ES38", "ES120"]
-        ds_32k_120k = extract_channels(store_18, partial_channel_name)
-        
-    if not ds_18k or not ds_32k_120k:
-        raise ValueError("Could not find the required channels in the datasets")
-    
-    ds_18k = process_xrd(ds_18k, freq_wanted=[18000])
-    ds_32k_120k = process_xrd(ds_32k_120k, freq_wanted=[120000, 38000])
-    
-    combined_ds = xr.merge([ds_18k["Sv"], ds_32k_120k["Sv"], 
-                            ds_18k['latitude'], ds_18k['longitude'],
-                            ds_18k["frequency_nominal"], ds_32k_120k["frequency_nominal"]
-                            ])
-    combined_ds.attrs = ds_32k_120k.attrs
-
-    combined_ds = (
-        combined_ds
-        .transpose("channel", "depth", "ping_time")
-        .sel(depth=slice(None, 590))
-    )
-
-    depth = combined_ds['depth']
-    ping_time = combined_ds['ping_time']
-
-    # Create a tensor with R=120 kHz, G=38 kHz, B=18 kHz mapping
-    red_channel = extract_channels(combined_ds, ["ES120"])
-    green_channel = extract_channels(combined_ds, ["ES38"])
-    blue_channel = extract_channels(combined_ds, ["ES18"])
-
-    tensor = xr.concat([red_channel, green_channel, blue_channel], dim='channel')
-    tensor['channel'] = ['R', 'G', 'B']
-    tensor = tensor.assign_coords({'depth': depth, 'ping_time': ping_time})
-
-    mvbs_tensor = torch.tensor(tensor['Sv'].values, dtype=torch.float32)
-    
-    return (mvbs_tensor, combined_ds)
-
-def extract_channels(dataset: xr.Dataset, partial_names: List[str]) -> xr.Dataset:
-    """
-    Extracts multiple channels data from the given xarray dataset using partial channel names.
-
-    Args:
-        dataset (xr.Dataset): The input xarray dataset containing multiple channels.
-        partial_names (List[str]): The list of partial names of the channels to extract.
-
-    Returns:
-        xr.Dataset: The dataset containing only the specified channels data.
-    """
-    matching_channels = []
-    for partial_name in partial_names:
-        matching_channels.extend([channel for channel in dataset.channel.values if partial_name in str(channel)])
-    
-    if len(matching_channels) == 0:
-        raise ValueError(f"No channels found matching any of '{partial_names}'")
-    
-    return dataset.sel(channel=matching_channels)
 
 def process_store_folder(config: Dataset, store: str, end_time: datetime):
     output: Output = Output()
