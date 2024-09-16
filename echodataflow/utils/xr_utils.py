@@ -111,21 +111,22 @@ def convert_to_tensor(combined_ds: xr.Dataset, config: Dataset, freq_wanted: Lis
         eflogging=config.logging,
     )
 
-    depth = combined_ds['depth']
-    ping_time = combined_ds['ping_time']
+    # depth = combined_ds['depth']
+    # ping_time = combined_ds['ping_time']
 
-    # Create a tensor with R=120 kHz, G=38 kHz, B=18 kHz mapping
-    red_channel = extract_channels(combined_ds, ["ES120"])
-    green_channel = extract_channels(combined_ds, ["ES38"])
-    blue_channel = extract_channels(combined_ds, ["ES18"])
+    # # Create a tensor with R=120 kHz, G=38 kHz, B=18 kHz mapping
+    # red_channel = extract_channels(combined_ds, ["ES120"])
+    # green_channel = extract_channels(combined_ds, ["ES38"])
+    # blue_channel = extract_channels(combined_ds, ["ES18"])
 
-    ds = xr.concat([red_channel, green_channel, blue_channel], dim='channel')
-    ds['channel'] = ['R', 'G', 'B']
-    ds = ds.assign_coords({'depth': depth, 'ping_time': ping_time})
+    # ds = xr.concat([red_channel, green_channel, blue_channel], dim='channel')
+    # ds['channel'] = ['R', 'G', 'B']
+    # ds = ds.assign_coords({'depth': depth, 'ping_time': ping_time})
 
     ds = (
-        ds
+        combined_ds
         .transpose("channel", "depth", "ping_time")
+        .isel(channel=ch_wanted)
     )
     
     ds = ds.sel(depth=slice(None, 590))
