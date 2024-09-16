@@ -30,5 +30,7 @@ include_namespace_packages = true
 omit = [
     "*/tests/*",
     "*/__init__.py",
-    "*/docs/*"
+    "*/docs/*",
+    "*/deployment/*",
+    "*/setup.py",
 ]
