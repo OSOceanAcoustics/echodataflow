@@ -126,7 +126,6 @@ def convert_to_tensor(combined_ds: xr.Dataset, config: Dataset, freq_wanted: Lis
     ds = (
         ds
         .transpose("channel", "depth", "ping_time")
-        .isel(channel=ch_wanted)
     )
     
     ds = ds.sel(depth=slice(None, 590))

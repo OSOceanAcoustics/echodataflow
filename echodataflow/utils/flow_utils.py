@@ -48,7 +48,8 @@ def load_data_in_memory(config: Dataset, groups: Dict[str, Group]):
     for _, gr in groups.items():
         # From a store (list of file paths) fetch the slice of data and keep it in memory
         if gr.metadata and gr.metadata.is_store_folder and len(gr.data) > 0:
-                edf = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time)
+                edf = gr.data[0]
+                edf.data = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time)
                 if edf.data.notnull().any():
                     gr.data = [edf]
                     gr.metadata.is_store_folder = False
