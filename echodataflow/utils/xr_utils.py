@@ -27,25 +27,25 @@ def fetch_slice_from_store(edf_group: Group, config: Dataset, options: Dict[str,
         if ed.data is not None:
             store = ed.data
         else:
-            store = xr.open_mfdataset(paths=[ed.out_path for ed in edf_group.data], **default_options).compute()
-            
-    store_slice = store.sel(ping_time=slice(pd.to_datetime(start_time, unit="ns"), pd.to_datetime(end_time, unit="ns")))
+            store = xr.open_mfdataset(paths=[ed.out_path for ed in edf_group.data], **default_options)
+    
+    if group:
+        
+        store_slice_grouped = store.groupby('ping_time').mean()
+
+        # for var in store.data_vars:
+        #     if 'ping_time' in store[var].dims:
+        #         store_slice_grouped[var] = store[var].groupby('ping_time').mean()
+                
+        store = store_slice_grouped
+        del store_slice_grouped
+    
+    store_slice = store.sel(ping_time=slice(pd.to_datetime(start_time, unit="ns"), pd.to_datetime(end_time, unit="ns"))).compute()
     
     if store_slice["ping_time"].size == 0:
         del store
         del store_slice
         raise ValueError(f"No data available between {start_time} and {end_time}")
-    
-    if group:
-        
-        store_slice_grouped = store_slice.sortby('ping_time')
-
-        for var in store_slice.data_vars:
-            if 'ping_time' in store_slice[var].dims:
-                store_slice_grouped[var] = store_slice[var].groupby('ping_time').mean()
-                
-        store_slice = store_slice_grouped
-        del store_slice_grouped
     
     del store
     
