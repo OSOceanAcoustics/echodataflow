@@ -418,20 +418,62 @@ def get_input_from_store_folder(config: Dataset):
     
     if isinstance(config.args.store_folder, str):
         # Case 1: Single store folder (1(a) and 1(b))
+        log_util.log(
+            msg={
+                "msg": f"Processing case 1" ,
+                "mod_name": __file__,
+                "func_name": "Init Flow",
+            },
+            eflogging=config.logging,
+        )
         store = config.args.store_folder
         return process_store_folder(config, store, end_time)
     
     else:
-        # Multiple store folders (Cases 2 and 3)
+        # Multiple store folders (Cases 2 and 3)        
         stores = config.args.store_folder['datastore']
         num_stores = len(stores)
 
         if num_stores == 1:
+            log_util.log(
+                msg={
+                    "msg": f"Processing case 2" ,
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
+            log_util.log(
+                msg={
+                    "msg": f"Processing {stores}" ,
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
             # Case 1: Single store with optional score
             store_output = process_store_folder(config, stores[0], end_time)
+            
             combo_output = apply_scores_if_needed(config, store_output, end_time)
             
+            log_util.log(
+                msg={
+                    "msg": f"Processing EDF {combo_output}" ,
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
+            
         elif num_stores == 2:
+            log_util.log(
+                msg={
+                    "msg": f"Processing case 3" ,
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
             # Case 2: Combine two stores and possibly apply score        
             combo_output = Output()
             
@@ -493,7 +535,7 @@ def apply_scores_if_needed(config: Dataset, store_output: Output, end_time: date
                 edf.data = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time, group=True)
             
             score_edf = score_output.group[name].data[0]
-            score_ds = fetch_slice_from_store(edf_group=score_edf.group[name], config=config, start_time=score_edf.start_time, end_time=score_edf.end_time, group=True)
+            score_ds = fetch_slice_from_store(edf_group=score_output.group[name], config=config, start_time=score_edf.start_time, end_time=score_edf.end_time, group=True)
             
             # Align time between store and score
             min_time = max(edf.data.ping_time.min(), score_ds.ping_time.min())
@@ -510,6 +552,20 @@ def apply_scores_if_needed(config: Dataset, store_output: Output, end_time: date
             softmax = softmax.resample(ping_time="30s").mean()
             
             edf.data = edf.data.assign(softmax=softmax.sel(species="hake")["__xarray_dataarray_variable__"])           
+
+            edf.data.to_zarr(
+                os.path.join(os.path.expanduser("~"), ".echodataflow", "eshader.zarr"), 
+                mode="w", 
+                consolidated=True
+            )
+            
+            edf.data = None
+            edf.out_path = os.path.join(os.path.expanduser("~"), ".echodataflow", "eshader.zarr")
+            
+            if gr.metadata and gr.metadata.is_store_folder:
+                gr.metadata.is_store_folder = False
+            
+            gr.data = [edf]
 
     return store_output
 
@@ -541,6 +597,14 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
     if len(timestamps) == 0:
         raise ValueError('No files detected at source')
 
+    log_util.log(
+        msg={
+            "msg": f"Found {len(timestamps)}" ,
+            "mod_name": __file__,
+            "func_name": "Init Flow",
+        },
+        eflogging=config.logging,
+    )
     if config.args.time_rounding_flag:
         end_time = floor_time(end_time, config.args.window_mins)
     
@@ -604,5 +668,13 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
 
             output.group[gname] = g
         end_time = start_time
-        
+    
+    log_util.log(
+        msg={
+            "msg": f"Returning output {output}" ,
+            "mod_name": __file__,
+            "func_name": "Init Flow",
+        },
+        eflogging=config.logging,
+    )
     return output
