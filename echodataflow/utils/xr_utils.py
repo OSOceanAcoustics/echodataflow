@@ -68,7 +68,7 @@ def process_xrd(ds: xr.Dataset, freq_wanted = [120000, 38000, 18000]) -> xr.Data
             )
     return ds
 
-def combine_datasets(store_18: xr.Dataset, store_5: xr.Dataset) -> Tuple[torch.Tensor, xr.Dataset]:
+def combine_datasets(store_18: xr.Dataset, store_5: xr.Dataset) -> Tuple[xr.Dataset, torch.Tensor]:
     ds_32k_120k = None
     ds_18k = None
     combined_ds = None
@@ -102,13 +102,13 @@ def convert_to_tensor(combined_ds: xr.Dataset, config: Dataset, freq_wanted: Lis
     """
     Convert dataset to a tensor and return the tensor and the dataset.
     """
-    
+    logging = config.logging if config is not None else None
     ch_wanted = [int((np.abs(combined_ds["frequency_nominal"]-freq)).argmin()) for freq in freq_wanted]
     
     log_util.log(
         msg={"msg": f"Channel order {ch_wanted}", "mod_name": __file__, "func_name": "xr_utils.convert_to_tensor"},
         use_dask=False,
-        eflogging=config.logging,
+        eflogging=logging,
     )
 
     # depth = combined_ds['depth']
@@ -141,7 +141,7 @@ def convert_to_tensor(combined_ds: xr.Dataset, config: Dataset, freq_wanted: Lis
     log_util.log(
         msg={"msg": f"converted and clipped tensor", "mod_name": __file__, "func_name": "xr_utils.convert_to_tensor"},
         use_dask=False,
-        eflogging=config.logging,
+        eflogging=logging,
     )
     
     # Replace NaN values with min Sv
@@ -154,7 +154,7 @@ def convert_to_tensor(combined_ds: xr.Dataset, config: Dataset, freq_wanted: Lis
     log_util.log(
         msg={"msg": f"Normalized tensor", "mod_name": __file__, "func_name": "xr_utils.convert_to_tensor"},
         use_dask=False,
-        eflogging=config.logging,
+        eflogging=logging,
     )
         
     return (ds, input_tensor)

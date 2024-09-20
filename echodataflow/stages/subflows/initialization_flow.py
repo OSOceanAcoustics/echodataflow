@@ -494,7 +494,7 @@ def get_input_from_store_folder(config: Dataset):
                 edf_5 = store_5_output.group[name].data[0]          
                 store_5 = fetch_slice_from_store(edf_group=store_5_output.group[name], config=config, start_time=edf_5.start_time, end_time=edf_5.end_time)
                 
-                edf_5.data_ref, edf_5.data = combine_datasets(store_18, store_5)
+                edf_5.data, edf_5.data_ref = combine_datasets(store_18, store_5)
                 
                 # Since we have already loaded the datasets into memory we do not need fetching again
                 if gr.metadata and gr.metadata.is_store_folder:
