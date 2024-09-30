@@ -152,7 +152,7 @@ def eshader_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, sta
             del ds_MVBS_combined_resampled
         
         ds_MVBS_combined_resampled = xr.open_zarr(working_dir + "/" + "eshader.zarr", storage_options=config.output.storage_options_dict)
-        print(ds_MVBS_combined_resampled["softmax"])
+        # print(ds_MVBS_combined_resampled["softmax"])
 
         
         # hv_ds = hv.Dataset(ds_MVBS_combined_resampled["softmax"])

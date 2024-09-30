@@ -543,15 +543,47 @@ def apply_scores_if_needed(config: Dataset, store_output: Output, end_time: date
 
             edf.data = edf.data.sel(ping_time=slice(min_time, max_time))
             score_ds = score_ds.sel(ping_time=slice(min_time, max_time))            
-            
-            # Apply softmax or other score-based logic
-            softmax = xr.apply_ufunc(scipy.special.softmax, score_ds, kwargs={'axis': 0}, dask="allowed")
-            
             # resampling
             edf.data = edf.data.resample(ping_time="30s").mean()
-            softmax = softmax.resample(ping_time="30s").mean()
+            score_ds = score_ds.resample(ping_time="30s").mean()
             
-            edf.data = edf.data.assign(softmax=softmax.sel(species="hake")["__xarray_dataarray_variable__"])           
+            score_ds = score_ds.transpose("ping_time", "depth", "species")
+            tensor_scores = torch.tensor(score_ds['__xarray_dataarray_variable__'].compute().values)
+            temperature = 0.5
+            softmax_scores = torch.nn.functional.softmax(tensor_scores / temperature, dim=2)
+            score_ds = score_ds.assign(softmax=(('ping_time', 'depth', 'species'), softmax_scores.numpy()))
+            
+            try:
+                score_ds.to_zarr(
+                    os.path.join(os.path.expanduser("~"), ".echodataflow", "score.zarr"), 
+                    mode="w", 
+                    consolidated=True
+                )
+                log_util.log(
+                    msg={
+                        "msg": f"min {min_time} Max {max_time}" ,
+                        "mod_name": __file__,
+                        "func_name": "Init Flow",
+                    },
+                    eflogging=config.logging,
+                )
+            except:
+                pass
+            
+            
+            log_util.log(
+                msg={
+                    "msg": f"min {score_ds['softmax'].min().values} Max {score_ds['softmax'].max().values}" ,
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
+            
+            # # Apply softmax or other score-based logic
+            # softmax = xr.apply_ufunc(scipy.special.softmax, score_ds, kwargs={'axis': 0}, dask="allowed")
+            
+            edf.data = edf.data.assign(softmax=score_ds.sel(species="hake")["softmax"])
 
             edf.data.to_zarr(
                 os.path.join(os.path.expanduser("~"), ".echodataflow", "eshader.zarr"), 
