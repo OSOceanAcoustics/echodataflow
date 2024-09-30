@@ -173,10 +173,30 @@ class Args(BaseModel):
         Returns:
             str: Rendered URL path.
         """
-        if self.parameters is not None:
-            env = jinja2.Environment()
+        env = jinja2.Environment()
+        
+        # Check if storefolder is a string
+        if isinstance(self.storefolder, str):
             template = env.from_string(self.storefolder)
-            return template.render(self.parameters)
+            if self.parameters:
+                return template.render(self.parameters)
+            return self.storefolder
+
+        # Check if storefolder is a dict
+        elif isinstance(self.storefolder, dict):
+            rendered_dict = {}
+            for key, value in self.storefolder.items():
+                # Assume value is a list of strings that need rendering
+                rendered_list = []
+                for v in value:
+                    template = env.from_string(v)
+                    if self.parameters:
+                        rendered_list.append(template.render(self.parameters))
+                    else:
+                        rendered_list.append(v)
+                rendered_dict[key] = rendered_list
+            return rendered_dict
+
         return self.storefolder
     
     @field_validator("group_name", mode="before", check_fields=True)

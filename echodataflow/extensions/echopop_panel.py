@@ -26,13 +26,14 @@ class EchopopPanel(param.Parameterized):
 
 panel_object = EchopopPanel()
 
-def update_panel_from_db():
+def update_data_tables_from_db():
     print("Updating Visualizations")
     
-    live_init_config_path = "/home/exouser/test/Pop/live_initialization_config.yml"
-    live_file_config_path = "/home/exouser/test/Pop/live_survey_year_2019_config.yml"
+    live_init_config_path = "/home/exouser/config/live_initialization_config.yml"
+    live_file_config_path = "/home/exouser/config/live_survey_year_2019_config.yml"
 
-    realtime_survey = LiveSurvey(live_file_config_path, live_init_config_path, verbose=True)
+    realtime_survey = LiveSurvey(live_init_config_path=live_init_config_path,
+                                live_file_config_path=live_file_config_path, verbose=True)
 
     grid_db = Path(realtime_survey.config["database"]["grid"])
     survey_data_db = Path('/home/exouser/database/acoustics.db')
@@ -47,18 +48,71 @@ def update_panel_from_db():
     length_table = SQL(realtime_survey.config["database"]["biology"], "select", 
                     table_name="length_df")
     
-    fig = elv.plot_livesurvey_grid(grid_db, projection, coast_db)
-    fig1 = elv.plot_livesurvey_track(survey_data_db, projection, coast_db)
-    fig2 = elv.plot_livesurvey_distributions(weight_table, stratum_table, specimen_table, length_table)
+    return(grid_db, survey_data_db, coast_db, projection, weight_table, stratum_table, specimen_table, length_table)
     
-    panel_object.panel0[:] = [pn.panel(fig)]
-    panel_object.panel1[:] = [pn.panel(fig1)]
-    panel_object.panel2[:] = [pn.panel(fig2)]
+
+# updating all tables
+grid_db, survey_data_db, coast_db, projection, weight_table, stratum_table, specimen_table, length_table = update_data_tables_from_db()
+
+
+    # fig = elv.plot_livesurvey_grid(grid_db, projection, coast_db)
+    # fig1 = elv.plot_livesurvey_track(survey_data_db, projection, coast_db)
+    # fig2 = elv.plot_livesurvey_distributions(weight_table, stratum_table, specimen_table, length_table)
+
+# wrapping plotting functions
+def plot_livesurvey_grid():
+    grid_db, survey_data_db, coast_db, projection, weight_table, stratum_table, specimen_table, length_table = update_data_tables_from_db()
+    return(elv.plot_livesurvey_grid(grid_db, projection, coast_db))
+
+def plot_livesurvey_track():
+    grid_db, survey_data_db, coast_db, projection, weight_table, stratum_table, specimen_table, length_table = update_data_tables_from_db()
+    return(elv.plot_livesurvey_track(survey_data_db, projection, coast_db))
+
+def plot_livesurvey_distributions():
+    grid_db, survey_data_db, coast_db, projection, weight_table, stratum_table, specimen_table, length_table = update_data_tables_from_db()
+    return(elv.plot_livesurvey_distributions(weight_table, stratum_table, specimen_table, length_table))
+
+#    panel_object.panel0[:] = [pn.panel(fig)]
+#    panel_object.panel1[:] = [pn.panel(fig1)]
+#    panel_object.panel2[:] = [pn.panel(fig2)]
+
+update_button = pn.widgets.Button(name='Refresh data')
+
+def update_plot(event=None):   
+    return(plot_livesurvey_grid())
+
+fig = pn.Column(update_button,
+    pn.panel(pn.bind(update_plot, update_button), loading_indicator=True),
+    )
+
+
+update_button = pn.widgets.Button(name='Refresh data')
+
+def update_plot(event=None):   
+    return(plot_livesurvey_track())
+
+fig1 = pn.Column(update_button,
+    pn.panel(pn.bind(update_plot, update_button), loading_indicator=True),
+    )
+
+update_button = pn.widgets.Button(name='Refresh data')
+
+def update_plot(event=None):   
+    return(plot_livesurvey_distributions())
+
+fig2 = pn.Column(update_button,
+    pn.panel(pn.bind(update_plot, update_button), loading_indicator=True),
+    )
+
+
+panel_object.panel0[:] = [fig]
+panel_object.panel1[:] = [fig1]
+panel_object.panel2[:] = [(fig2)]
 
 # Periodically update the panel
-pn.state.add_periodic_callback(update_panel_from_db, 600000)
+# pn.state.add_periodic_callback(update_panel_from_db, 600000)
 
-update_panel_from_db()
+# update_panel_from_db()
 
 # Serve the Panel app
-pn.serve(panel_object.view(), port=1800, websocket_origin="*", admin=True, show=False)
+pn.serve(panel_object.view(), port=1802, websocket_origin="*", admin=True, show=False)

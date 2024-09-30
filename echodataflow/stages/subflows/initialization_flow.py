@@ -42,11 +42,12 @@ from echodataflow.utils.config_utils import (club_raw_files, floor_time,
                                              glob_all_files, glob_url,
                                              parse_raw_paths,
                                              sanitize_external_params)
-from echodataflow.utils.file_utils import (cleanup, extract_fs, fetch_slice_from_store,
+from echodataflow.utils.file_utils import (cleanup, extract_fs,
                                            get_last_run_output, get_out_zarr,
                                            process_output_groups,
                                            store_json_output)
 from echodataflow.utils.function_utils import dynamic_function_call
+from echodataflow.utils.xr_utils import combine_datasets, fetch_slice_from_store
 
 
 
@@ -417,20 +418,62 @@ def get_input_from_store_folder(config: Dataset):
     
     if isinstance(config.args.store_folder, str):
         # Case 1: Single store folder (1(a) and 1(b))
+        log_util.log(
+            msg={
+                "msg": f"Processing case 1" ,
+                "mod_name": __file__,
+                "func_name": "Init Flow",
+            },
+            eflogging=config.logging,
+        )
         store = config.args.store_folder
         return process_store_folder(config, store, end_time)
     
     else:
-        # Multiple store folders (Cases 2 and 3)
+        # Multiple store folders (Cases 2 and 3)        
         stores = config.args.store_folder['datastore']
         num_stores = len(stores)
 
         if num_stores == 1:
+            log_util.log(
+                msg={
+                    "msg": f"Processing case 2" ,
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
+            log_util.log(
+                msg={
+                    "msg": f"Processing {stores}" ,
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
             # Case 1: Single store with optional score
             store_output = process_store_folder(config, stores[0], end_time)
+            
             combo_output = apply_scores_if_needed(config, store_output, end_time)
             
+            log_util.log(
+                msg={
+                    "msg": f"Processing EDF {combo_output}" ,
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
+            
         elif num_stores == 2:
+            log_util.log(
+                msg={
+                    "msg": f"Processing case 3" ,
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
             # Case 2: Combine two stores and possibly apply score        
             combo_output = Output()
             
@@ -451,7 +494,7 @@ def get_input_from_store_folder(config: Dataset):
                 edf_5 = store_5_output.group[name].data[0]          
                 store_5 = fetch_slice_from_store(edf_group=store_5_output.group[name], config=config, start_time=edf_5.start_time, end_time=edf_5.end_time)
                 
-                edf_5.data_ref, edf_5.data = combine_datasets(store_18, store_5)
+                edf_5.data, edf_5.data_ref = combine_datasets(store_18, store_5)
                 
                 # Since we have already loaded the datasets into memory we do not need fetching again
                 if gr.metadata and gr.metadata.is_store_folder:
@@ -489,10 +532,10 @@ def apply_scores_if_needed(config: Dataset, store_output: Output, end_time: date
             edf = gr.data[0]
             
             if edf.data is None:
-                edf.data = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time)
+                edf.data = fetch_slice_from_store(edf_group=gr, config=config, start_time=edf.start_time, end_time=edf.end_time, group=True)
             
             score_edf = score_output.group[name].data[0]
-            score_ds = fetch_slice_from_store(edf_group=score_edf.group[name], config=config, start_time=score_edf.start_time, end_time=score_edf.end_time)
+            score_ds = fetch_slice_from_store(edf_group=score_output.group[name], config=config, start_time=score_edf.start_time, end_time=score_edf.end_time, group=True)
             
             # Align time between store and score
             min_time = max(edf.data.ping_time.min(), score_ds.ping_time.min())
@@ -500,96 +543,63 @@ def apply_scores_if_needed(config: Dataset, store_output: Output, end_time: date
 
             edf.data = edf.data.sel(ping_time=slice(min_time, max_time))
             score_ds = score_ds.sel(ping_time=slice(min_time, max_time))            
-            
-            # Apply softmax or other score-based logic
-            softmax = xr.apply_ufunc(scipy.special.softmax, score_ds, kwargs={'axis': 0}, dask="allowed")
-            
             # resampling
             edf.data = edf.data.resample(ping_time="30s").mean()
-            softmax = softmax.resample(ping_time="30s").mean()
+            score_ds = score_ds.resample(ping_time="30s").mean()
             
-            edf.data = edf.data.assign(softmax=softmax.sel(species="hake")["__xarray_dataarray_variable__"])           
+            score_ds = score_ds.transpose("ping_time", "depth", "species")
+            tensor_scores = torch.tensor(score_ds['__xarray_dataarray_variable__'].compute().values)
+            temperature = 0.5
+            softmax_scores = torch.nn.functional.softmax(tensor_scores / temperature, dim=2)
+            score_ds = score_ds.assign(softmax=(('ping_time', 'depth', 'species'), softmax_scores.numpy()))
+            
+            try:
+                score_ds.to_zarr(
+                    os.path.join(os.path.expanduser("~"), ".echodataflow", "score.zarr"), 
+                    mode="w", 
+                    consolidated=True
+                )
+                log_util.log(
+                    msg={
+                        "msg": f"min {min_time} Max {max_time}" ,
+                        "mod_name": __file__,
+                        "func_name": "Init Flow",
+                    },
+                    eflogging=config.logging,
+                )
+            except:
+                pass
+            
+            
+            log_util.log(
+                msg={
+                    "msg": f"min {score_ds['softmax'].min().values} Max {score_ds['softmax'].max().values}" ,
+                    "mod_name": __file__,
+                    "func_name": "Init Flow",
+                },
+                eflogging=config.logging,
+            )
+            
+            # # Apply softmax or other score-based logic
+            # softmax = xr.apply_ufunc(scipy.special.softmax, score_ds, kwargs={'axis': 0}, dask="allowed")
+            
+            edf.data = edf.data.assign(softmax=score_ds.sel(species="hake")["softmax"])
+
+            edf.data.to_zarr(
+                os.path.join(os.path.expanduser("~"), ".echodataflow", "eshader.zarr"), 
+                mode="w", 
+                consolidated=True
+            )
+            
+            edf.data = None
+            edf.out_path = os.path.join(os.path.expanduser("~"), ".echodataflow", "eshader.zarr")
+            
+            if gr.metadata and gr.metadata.is_store_folder:
+                gr.metadata.is_store_folder = False
+            
+            gr.data = [edf]
 
     return store_output
-
-
-def process_xrd(ds: xr.Dataset, freq_wanted = [120000, 38000, 18000]) -> xr.Dataset:
-    ds = ds.sel(depth=slice(None, 590))        
-        
-    ch_wanted = [int((np.abs(ds["frequency_nominal"]-freq)).argmin()) for freq in freq_wanted]
-    ds = ds.isel(
-                channel=ch_wanted
-            )
-    return ds
-
-def combine_datasets(store_18: xr.Dataset, store_5: xr.Dataset) -> Tuple[torch.Tensor, xr.Dataset]:
-    ds_32k_120k = None
-    ds_18k = None
-    combined_ds = None
-    try:
-        partial_channel_name = ["ES18"]
-        ds_18k = extract_channels(store_18, partial_channel_name)        
-        partial_channel_name = ["ES38", "ES120"]
-        ds_32k_120k = extract_channels(store_5, partial_channel_name)
-    except Exception as e:
-        partial_channel_name = ["ES18"]
-        ds_18k = extract_channels(store_5, partial_channel_name)
-        partial_channel_name = ["ES38", "ES120"]
-        ds_32k_120k = extract_channels(store_18, partial_channel_name)
-        
-    if not ds_18k or not ds_32k_120k:
-        raise ValueError("Could not find the required channels in the datasets")
-    
-    ds_18k = process_xrd(ds_18k, freq_wanted=[18000])
-    ds_32k_120k = process_xrd(ds_32k_120k, freq_wanted=[120000, 38000])
-    
-    combined_ds = xr.merge([ds_18k["Sv"], ds_32k_120k["Sv"], 
-                            ds_18k['latitude'], ds_18k['longitude'],
-                            ds_18k["frequency_nominal"], ds_32k_120k["frequency_nominal"]
-                            ])
-    combined_ds.attrs = ds_32k_120k.attrs
-
-    combined_ds = (
-        combined_ds
-        .transpose("channel", "depth", "ping_time")
-        .sel(depth=slice(None, 590))
-    )
-
-    depth = combined_ds['depth']
-    ping_time = combined_ds['ping_time']
-
-    # Create a tensor with R=120 kHz, G=38 kHz, B=18 kHz mapping
-    red_channel = extract_channels(combined_ds, ["ES120"])
-    green_channel = extract_channels(combined_ds, ["ES38"])
-    blue_channel = extract_channels(combined_ds, ["ES18"])
-
-    tensor = xr.concat([red_channel, green_channel, blue_channel], dim='channel')
-    tensor['channel'] = ['R', 'G', 'B']
-    tensor = tensor.assign_coords({'depth': depth, 'ping_time': ping_time})
-
-    mvbs_tensor = torch.tensor(tensor['Sv'].values, dtype=torch.float32)
-    
-    return (mvbs_tensor, combined_ds)
-
-def extract_channels(dataset: xr.Dataset, partial_names: List[str]) -> xr.Dataset:
-    """
-    Extracts multiple channels data from the given xarray dataset using partial channel names.
-
-    Args:
-        dataset (xr.Dataset): The input xarray dataset containing multiple channels.
-        partial_names (List[str]): The list of partial names of the channels to extract.
-
-    Returns:
-        xr.Dataset: The dataset containing only the specified channels data.
-    """
-    matching_channels = []
-    for partial_name in partial_names:
-        matching_channels.extend([channel for channel in dataset.channel.values if partial_name in str(channel)])
-    
-    if len(matching_channels) == 0:
-        raise ValueError(f"No channels found matching any of '{partial_names}'")
-    
-    return dataset.sel(channel=matching_channels)
 
 def process_store_folder(config: Dataset, store: str, end_time: datetime):
     output: Output = Output()
@@ -619,6 +629,14 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
     if len(timestamps) == 0:
         raise ValueError('No files detected at source')
 
+    log_util.log(
+        msg={
+            "msg": f"Found {len(timestamps)}" ,
+            "mod_name": __file__,
+            "func_name": "Init Flow",
+        },
+        eflogging=config.logging,
+    )
     if config.args.time_rounding_flag:
         end_time = floor_time(end_time, config.args.window_mins)
     
@@ -682,5 +700,13 @@ def process_store_folder(config: Dataset, store: str, end_time: datetime):
 
             output.group[gname] = g
         end_time = start_time
-        
+    
+    log_util.log(
+        msg={
+            "msg": f"Returning output {output}" ,
+            "mod_name": __file__,
+            "func_name": "Init Flow",
+        },
+        eflogging=config.logging,
+    )
     return output
