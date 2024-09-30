@@ -29,10 +29,11 @@ panel_object = EchopopPanel()
 def update_data_tables_from_db():
     print("Updating Visualizations")
     
-    live_init_config_path = "/home/exouser/test/Pop/live_initialization_config.yml"
-    live_file_config_path = "/home/exouser/test/Pop/live_survey_year_2019_config.yml"
+    live_init_config_path = "/home/exouser/config/live_initialization_config.yml"
+    live_file_config_path = "/home/exouser/config/live_survey_year_2019_config.yml"
 
-    realtime_survey = LiveSurvey(live_file_config_path, live_init_config_path, verbose=True)
+    realtime_survey = LiveSurvey(live_init_config_path=live_init_config_path,
+                                live_file_config_path=live_file_config_path, verbose=True)
 
     grid_db = Path(realtime_survey.config["database"]["grid"])
     survey_data_db = Path('/home/exouser/database/acoustics.db')
@@ -114,4 +115,4 @@ panel_object.panel2[:] = [(fig2)]
 # update_panel_from_db()
 
 # Serve the Panel app
-pn.serve(panel_object.view(), port=1801, websocket_origin="*", admin=True, show=False)
+pn.serve(panel_object.view(), port=1802, websocket_origin="*", admin=True, show=False)
