@@ -33,6 +33,7 @@ import datetime
 import itertools as it
 import json
 import os
+from pathlib import Path
 import re
 from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
 from zipfile import ZipFile
@@ -55,7 +56,6 @@ from echodataflow.utils.file_utils import extract_fs, isFile
 nest_asyncio.apply()
 
 
-@task
 def extract_config(
     config: Union[Dict[str, Any], str], storage_options: Dict[str, Any] = {}
 ) -> Dict[str, Any]:
@@ -584,6 +584,20 @@ def load_block(name: str = None, type: StorageType = None):
     else:
         block = coro
     return block
+
+def parse_yaml_config(config: Union[dict, str, Path], storage_options: Dict[str, Any]) -> Dict:
+    if isinstance(config, Path) or isinstance(config, str):
+        config = convert_path_to_str(config)
+        validate_yaml_file(config)
+        return extract_config(config, storage_options)
+    return config
+
+def convert_path_to_str(config: Union[str, Path]) -> str:
+    return str(config) if isinstance(config, Path) else config
+
+def validate_yaml_file(config_str) -> None:
+    if not config_str.endswith((".yaml", ".yml")):
+        raise ValueError("Configuration file must be a YAML!")
 
 def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
     """
