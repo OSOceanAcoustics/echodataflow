@@ -1,10 +1,10 @@
 from pathlib import Path
 from echodataflow.stages.echodataflow_trigger import echodataflow_trigger
 from prefect import flow
-from prefect.task_runners import SequentialTaskRunner
+from prefect.task_runners import ThreadPoolTaskRunner
 from typing import Any, Dict, Optional, Union
 
-@flow(name="docker-trigger-latest", task_runner=SequentialTaskRunner())
+@flow(name="docker-trigger-latest", task_runner=ThreadPoolTaskRunner(max_workers=1))
 def docker_trigger(
     dataset_config: Union[dict, str, Path],
     pipeline_config: Union[dict, str, Path],

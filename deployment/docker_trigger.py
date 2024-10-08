@@ -4,10 +4,10 @@ from pathlib import Path
 from echoflow import echoflow_start
 from echoflow.stages.echoflow_trigger import echoflow_trigger
 from prefect import flow
-from prefect.task_runners import SequentialTaskRunner
+from prefect.task_runners import ThreadPoolTaskRunner
 from typing import Any, Dict, Optional, Union
 
-@flow(name="Docker-Trigger", task_runner=SequentialTaskRunner())
+@flow(name="Docker-Trigger", task_runner=ThreadPoolTaskRunner(max_workers=1))
 def docker_trigger(
     dataset_config: Union[dict, str, Path],
     pipeline_config: Union[dict, str, Path],

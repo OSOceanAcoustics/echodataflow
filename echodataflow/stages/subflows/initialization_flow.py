@@ -27,7 +27,7 @@ import re
 from distributed import Client, LocalCluster
 from fastapi.encoders import jsonable_encoder
 from prefect import flow
-from prefect.task_runners import SequentialTaskRunner
+from prefect.task_runners import ThreadPoolTaskRunner
 from prefect_dask import DaskTaskRunner
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
@@ -51,7 +51,7 @@ from echodataflow.utils.function_utils import dynamic_function_call
 
 
 
-@flow(name="Initialization", task_runner=SequentialTaskRunner())
+@flow(name="Initialization", task_runner=ThreadPoolTaskRunner(max_workers=1))
 @echodataflow(type="FLOW")
 def init_flow(pipeline: Recipe, config: Dataset, json_data_path: Optional[str] = None):
     """
