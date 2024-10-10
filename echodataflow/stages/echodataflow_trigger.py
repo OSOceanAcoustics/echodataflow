@@ -31,9 +31,8 @@ from echodataflow.utils import log_util
 from echodataflow.utils.config_utils import (
     check_config,
     extract_config,
-    get_storage_options,
-    load_block,
 )
+from echodataflow.utils.filesystem_utils import load_block, get_storage_options
 
 from .subflows.initialization_flow import init_flow
 

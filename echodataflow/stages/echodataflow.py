@@ -47,7 +47,7 @@ from echodataflow.models.echodataflow_config import (
 )
 
 import echopype as ep
-from echodataflow.utils.config_utils import load_block
+from echodataflow.utils.filesystem_utils import load_block
 
 from echodataflow.stages.echodataflow_trigger import echodataflow_trigger
 
