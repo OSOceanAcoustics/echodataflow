@@ -1,4 +1,5 @@
 from enum import Enum
+import functools
 from typing import Optional
 from pydantic import BaseModel, Field, StrictBool, model_validator
 
@@ -33,6 +34,19 @@ class StorageOptions(BaseModel):
     block_type: Optional[StorageType] = Field(None, description="The type of storage. Must be one of the defined StorageType enumeration values.")
     block_name: Optional[str] = Field(None, description="The name of the storage block.")
     anon: StrictBool = Field(False, description="Whether to use anonymous access. Default is False.")
+    
+    @property  
+    @functools.lru_cache()      
+    def _storage_options_dict(self):
+        """
+        Extracts storage options using the handle_storage_options function.
+        
+        Returns:
+            dict: A dictionary representation of the storage options.
+        """
+        from echodataflow.utils.filesystem_utils import handle_storage_options
+        # Pass the StorageOptions instance itself to handle_storage_options to extract the dictionary
+        return handle_storage_options(self)
 
     # Model-wide validator to ensure logical dependencies between fields
     @model_validator(mode='before')
@@ -47,6 +61,8 @@ class StorageOptions(BaseModel):
             raise ValueError(f"A block_name must be provided when storage type is set to '{storage_type}'.")
 
         return values
+
+    
 
     class Config:        
         use_enum_values = True
