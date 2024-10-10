@@ -1,7 +1,7 @@
 from typing import Dict, Optional
 from prefect import flow
 import xarray as xr
-from prefect.task_runners import SequentialTaskRunner
+from prefect.task_runners import ThreadPoolTaskRunner
 import zarr.sync
 from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import ErrorObject, Group
@@ -11,7 +11,7 @@ from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zar
 from numcodecs import Zlib
 import zarr.storage
 
-@flow(task_runner=SequentialTaskRunner())
+@flow(task_runner=ThreadPoolTaskRunner(max_workers=1))
 def write_output(groups: Dict[str, Group], config: Dataset, stage: Stage, prev_stage: Optional[Stage]):
     log_util.log(
             msg={
