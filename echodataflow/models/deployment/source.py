@@ -24,17 +24,17 @@ class Source(BaseModel):
     Model for defining the source of the data.
 
     Attributes:
-        urlpath (Optional[Union[str, Dict[str, List[str]]]]): URL path or path pattern for the source data.
+        path (Optional[Union[str, Dict[str, List[str]]]]): URL path or path pattern for the source data.
         parameters (Optional[Parameters]): Parameters to apply to the source path.
         window_options (Optional[Dict[str, Any]]): Time window options for slicing the source data.
         storage_options (Optional[StorageOptions]): Storage options for accessing the source data.
     """
-    urlpath: Union[str, Dict[str, List[str]]] = Field(..., description="Source URL path or folder structure of the data.")
+    path: Union[str, Dict[str, List[str]]] = Field(..., description="Source URL path or folder structure of the data.")
     parameters: Optional[Parameters] = Field(None, description="Parameters to apply to the source.")
     window_options: Optional[Dict[str, Any]] = Field(None, description="Window options for the source.")
     storage_options: Optional[StorageOptions] = Field(None, description="Storage options for the source.")
 
-    def render_urlpath(self) -> Union[str, Dict[str, List[str]]]:
+    def render_path(self) -> Union[str, Dict[str, List[str]]]:
         """
         Render the URL path using the provided parameters.
 
@@ -45,19 +45,19 @@ class Source(BaseModel):
         env = jinja2.Environment()
 
         # If `urlpath` is a string, render it with parameters
-        if isinstance(self.urlpath, str):
-            return self._render_template(self.urlpath, env)
+        if isinstance(self.path, str):
+            return self._render_template(self.path, env)
 
         # If `urlpath` is a dictionary, render each value in the dictionary
-        elif isinstance(self.urlpath, dict):
+        elif isinstance(self.path, dict):
             rendered_dict = {}
-            for key, value in self.urlpath.items():
+            for key, value in self.path.items():
                 # Assume value is a list of strings that need rendering
                 rendered_list = [self._render_template(v, env) for v in value]
                 rendered_dict[key] = rendered_list
             return rendered_dict
 
-        return self.urlpath
+        return self.path
 
     def _render_template(self, template_str: str, env: jinja2.Environment) -> str:
         """
@@ -72,7 +72,22 @@ class Source(BaseModel):
         """
         template = env.from_string(template_str)
         return template.render(self.parameters.dict() if self.parameters else {})
-
+    
+    def extract_source(self):
+        path = self.render_path()
+        
+        if self.window_options is not None:
+            
+            # Treat source as a folder and iterate over files to collect and group relevant files
+            pass
+        else:
+            # return single path
+            return path
+        
+        pass
+    
+    
     class Config:
         # Allow arbitrary field types and definitions in nested dictionaries
         arbitrary_types_allowed = True
+        

@@ -1,6 +1,7 @@
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator
+from prefect.client.schemas.objects import WorkPool, WorkQueue
 
 # Assuming these imports exist in your module
 from echodataflow.models.deployment.deployment_schedule import DeploymentSchedule
@@ -25,7 +26,16 @@ class EDFLogging(BaseModel):
             raise ValueError("Logging handler must be a non-empty string.")
         return v
 
-
+class EDFWorkPool(WorkPool):
+    name: str = Field("Echodataflow-WorkPool", description="Name of the WorkPool.")
+    workqueue: Union[str, WorkQueue] = Field("default", description="WorkQueue associated with the WorkPool.")    
+    
+    @property
+    def workqueue_name(self) -> str:
+        if isinstance(self.workqueue, WorkQueue):
+            return self.workqueue.name
+        return self.workqueue
+    
 class Service(BaseModel):
     """
     Model for defining a service in the deployment pipeline.
@@ -46,8 +56,7 @@ class Service(BaseModel):
     schedule: Optional[DeploymentSchedule] = Field(None, description="Scheduling details for the service.")
     stages: List[Stage] = Field(None, description="List of stages included in the service.")
     logging: Optional[EDFLogging] = Field(None, description="Logging configuration for the service.")
-    workpool: Optional[str] = Field('Echodataflow-Workpool', description="WorkPool configuration for the service.")
-    workqueue: Optional[str] = Field('default', description="WorkQueue configuration for the service.")
+    workpool: Optional[EDFWorkPool] = Field(WorkPool(name="Echodataflow-WorkPool", type="Process"), description="WorkPool configuration for the service.")    
 
     # Validators
     @field_validator("name", mode="before")
@@ -80,7 +89,7 @@ class Deployment(BaseModel):
         storage_options (Optional[StorageOptions]): Base storage options applied to all paths.
         services (List[Service]): List of services included in the deployment.
     """
-    out_path: Optional[str] = Field(None, description="Base path for all services. This path will be used if no specific service path is defined.")
+    base_path: Optional[str] = Field(None, description="Base path for all services. This path will be used if no specific service path is defined.")
     storage_options: Optional[StorageOptions] = Field(None, description="Base Storage options, applied to all paths.")
     services: List[Service] = Field(..., description="List of services included in the deployment.")
 
@@ -90,3 +99,26 @@ class Deployment(BaseModel):
         if not isinstance(v, list) or not v:
             raise ValueError("Services must be a non-empty list of Service objects.")
         return v
+    
+    @field_validator("base_path", mode="after")
+    def construct_path(cls, v):
+        
+        if v is not None:
+            for service in cls.services:
+                for stage in service.stages:
+                    stage.source.path = v + stage.source.path
+                    stage.destination.path = v + stage.destination.path
+                    stage.group.path = v + stage.group.path
+        return v
+    
+    @field_validator("storage_options", mode="after")
+    def apply_storage_options(cls, v):
+        
+        if v is not None:
+            for service in cls.services:
+                for stage in service.stages:
+                    stage.source.storage_options = v
+                    stage.destination.storage_options = v
+                    stage.group.storage_options = v
+        return v
+    
