@@ -20,8 +20,8 @@ from echodataflow import echodataflow_start
 from echodataflow.models.datastore import StorageType
 from echodataflow.models.output_model import Output
 from echodataflow.models.run import EDFRun, FileDetails
-from echodataflow.utils.config_utils import (glob_url, handle_storage_options,
-                                             load_block)
+from echodataflow.utils.config_utils import glob_url
+from echodataflow.utils.filesystem_utils import load_block, handle_storage_options
 from echodataflow.utils.file_utils import extract_fs
 
 

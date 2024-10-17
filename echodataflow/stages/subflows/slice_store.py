@@ -19,7 +19,6 @@ Date: August 22, 2023
 from typing import Dict, Optional
 
 from prefect import flow
-from prefect.task_runners import SequentialTaskRunner
 from prefect.variables import Variable
 import xarray as xr
 import pandas as pd

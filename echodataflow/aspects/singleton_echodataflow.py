@@ -28,40 +28,26 @@ Date: August 22, 2023
 """
 import logging
 import os
-from datetime import datetime
 from typing import Dict, Union
 
 import psutil
 import yaml
 
-from echodataflow.models.datastore import Dataset
-from echodataflow.models.db_log_model import DB_Log, Log_Data, Process
-from echodataflow.models.pipeline import Recipe
+from echodataflow.models.db_log_model import DB_Log
 from echodataflow.rule_engine.dependency_engine import DependencyEngine
-from echodataflow.utils.database_utils import (
-    create_log_table,
-    get_connection,
-    get_last_log,
-    insert_log_data_by_conn,
-    update_log_data_by_conn,
-)
 
 
 class Singleton_Echodataflow:
     _instance: "Singleton_Echodataflow" = None
 
     rengine: DependencyEngine = DependencyEngine()
-    pipeline: Recipe
-    dataset: Dataset
     db_log: DB_Log
     logger: logging.Logger = None
     log_level: int  = 0
 
     def __new__(
         cls,
-        log_file: Union[Dict[str, str], str] = None,
-        pipeline: Recipe = None,
-        dataset: Dataset = None 
+        log_file: Union[Dict[str, str], str] = None
     ) -> "Singleton_Echodataflow":
         
         if cls._instance is None:
@@ -70,8 +56,6 @@ class Singleton_Echodataflow:
                 cls._instance.logger = cls._instance.logger_init(log_file)
                 cls._instance.log_level = cls._instance.logger.level
                 
-        cls._instance.pipeline = pipeline
-        cls._instance.dataset = dataset
         # cls._instance.db_log = cls._instance.setup_echodataflow_db()
         cls._instance.rengine = cls._instance.load()
         return cls._instance
@@ -111,29 +95,6 @@ class Singleton_Echodataflow:
             logging.config.dictConfig(log_file)
         return logging.getLogger("echodataflow")
 
-    def setup_echodataflow_db(self):
-        """
-        Setup the echodataflow database and return a DB_Log instance.
-
-        Returns:
-            DB_Log: The initialized DB_Log instance.
-        """
-        last_log = DB_Log()
-        try:
-            conn = get_connection(self.pipeline.database_path)
-            create_log_table(conn=conn)
-
-            if self.pipeline.use_previous_recipe == True:
-                last_log = get_last_log(conn)
-
-            last_log.start_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-            last_log.run_id = None
-
-            return last_log
-        except Exception as e:
-            print("Failed to create Database with below error")
-            print(e)
-
     def log(self, msg, level, extra):
         """
         Log a message at the specified log levels.
@@ -147,40 +108,6 @@ class Singleton_Echodataflow:
             self.logger.log(level=level, msg=msg, extra=extra)            
         else:
             print(f"{extra} : {msg}")
-
-    def add_new_process(self, process: Process, name: str):
-        """
-        Add a new process to the DB_Log instance.
-
-        Args:
-            process (Process): The process to be added.
-            name (str): The name of the process.
-        """
-        process.end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-        if name not in self.db_log.data:
-            self.db_log.data[name] = Log_Data(name=name)
-        self.db_log.data[name].process_stack.append(process)
-
-    def insert_log_data(self):
-        """
-        Insert or update log data in the database.
-
-        Returns:
-            int: The inserted or updated log entry ID.
-        """
-        self.db_log.end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
-        try:
-            conn = get_connection(self._instance.pipeline.database_path)
-            if self.db_log.run_id is None:
-                return insert_log_data_by_conn(conn, log=self.db_log)
-            else:
-                update_log_data_by_conn(conn, log=self.db_log)
-                return self.db_log.run_id
-        except Exception as e:
-            print(e)
-        finally:
-            conn.close()
-        
 
     def log_memory_usage(self):
         """

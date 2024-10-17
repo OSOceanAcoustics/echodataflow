@@ -7,9 +7,11 @@ from .stages.echodataflow import (echodataflow_config_AWS,
                                        echodataflow_create_prefect_profile,
                                        echodataflow_start, get_active_profile,
                                        load_profile)
-from .utils.config_utils import extract_fs, glob_url, load_block
+from .utils.config_utils import extract_fs, glob_url
 from .utils.file_utils import get_ed_list, get_last_run_output, get_zarr_list
 from .docker_trigger import docker_trigger
+from .utils.filesystem_utils import load_block
+from .models.deployment.stage import Stage
 
 try:
     VERSION = get_distribution(__name__).version
@@ -39,5 +41,6 @@ __all__ = [
     "get_last_run_output",
     "get_ed_list", 
     "get_zarr_list",
-    "docker_trigger"
+    "docker_trigger",
+    "Stage"
 ]
