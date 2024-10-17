@@ -6,7 +6,7 @@ storage_options:
 
 # All services configuration
 services:
-- name: service_raw_to_Sv   
+- name: service_raw_to_Sv
   tags:
   - raw2Sv
   description: null #Optional description
@@ -14,12 +14,20 @@ services:
     anchor_date: D20241007-T035100
     interval_mins: 10
   logging:
-    handler: sv_log_handler
+    handler: service_raw_to_Sv
     kafka:
       topic: echodataflow_logs
       servers:
       - localhost:9092
-
+  infrastructure:
+    workpool:
+      name: sv
+      workqueue: default
+      type: Process
+    cluster:
+      workers: 5
+      address: tcp://
+      
   stages:
   - name: edf_Sv_pipeline
     module: echodataflow.stages.subflows.Sv_pipeline # Optional module name, echodataflow to create a default flow for all the stages within it
@@ -46,7 +54,7 @@ services:
         use_offline: true # Skip this process if zarr files are already present in the output directory.      
         group: False # Group Converted files based on Transect  
     source:
-      urlpath: some_url # Single path, list or paths or a dict with some key and value as list of paths
+      path: some_url # Single path, list or paths or a dict with some key and value as list of paths
       parameters:
         # Jinja support
       window_options:
@@ -59,7 +67,7 @@ services:
         block_name: ABCD
         block_type: AWS
     group:
-      file: s3://
+      path: s3://
       grouping_regex: # pattern for grouping files based on filename
       storage_options:
         block_name: ABCD
@@ -79,11 +87,6 @@ services:
       storage_options:
         block_name: ABCD
         block_type: AWS
-    
-
-
-
-
 
 
 - name: service_produce_mvbs
