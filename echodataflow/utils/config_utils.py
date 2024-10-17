@@ -298,7 +298,7 @@ def parse_file_path(raw_file: str, fname_pattern: str) -> Dict[str, Any]:
 
 
 @task
-def get_prefect_config_dict(stage: Stage):
+def get_prefect_config_dict(stage: Stage) -> Dict[str, Any]:
     """
     Gets the updated Prefect configuration dictionary.
 
