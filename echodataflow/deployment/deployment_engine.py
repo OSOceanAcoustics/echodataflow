@@ -51,13 +51,13 @@ async def _deploy_service(
     
     schedule = [DeploymentScheduleCreate(schedule=IntervalSchedule(interval=timedelta(minutes=service.schedule.interval_mins), anchor_date=service.schedule.anchor_date))]
     
-    await create_work_pool_and_queue(service.workpool)
+    await create_work_pool_and_queue(service.infrastructure.workpool)
         
     deployment: RunnerDeployment = await edf_service_fn.to_deployment(        
         name=service.name,
-        parameters={"stages": service.stages, "edf_logger": logging_dict},
-        work_queue_name=service.workpool.name,
-        work_pool_name=service.workpool.workqueue.name,
+        parameters={"stages": service.stages, "edf_logger": logging_dict, "cluster": service.infrastructure.cluster},
+        work_pool_name=service.infrastructure.workpool.name,
+        work_queue_name=service.infrastructure.workpool.workqueue_name,
         tags=service.tags,
         schedules=schedule        
     )

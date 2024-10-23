@@ -1,9 +1,8 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from prefect.client.schemas.objects import WorkPool, WorkQueue
 
-# Assuming these imports exist in your module
 from echodataflow.models.deployment.deployment_schedule import DeploymentSchedule
 from echodataflow.models.deployment.stage import Stage
 from echodataflow.models.deployment.storage_options import StorageOptions
@@ -28,6 +27,7 @@ class EDFLogging(BaseModel):
 
 class EDFWorkPool(WorkPool):
     name: str = Field("Echodataflow-WorkPool", description="Name of the WorkPool.")
+    type: str = Field("Process", description="Type of WorkPool.")
     workqueue: Union[str, WorkQueue] = Field("default", description="WorkQueue associated with the WorkPool.")    
     
     @property
@@ -36,6 +36,20 @@ class EDFWorkPool(WorkPool):
             return self.workqueue.name
         return self.workqueue
     
+    class config:
+        arbitrary_types_allowed=True
+
+class Cluster(BaseModel):
+    address: Optional[str] = Field(None, description="Dask scheduler address")
+    workers: Optional[int] = Field(3, description="Number of workers")
+
+class Infrastructure(BaseModel):
+    workpool: Optional[EDFWorkPool] = Field(EDFWorkPool(), description="WorkPool configuration for the service.")    
+    cluster: Optional[Cluster] = Field(None, description="Dask Cluster Configuration")
+      
+    class Config:
+        arbitrary_types_allowed = True
+        
 class Service(BaseModel):
     """
     Model for defining a service in the deployment pipeline.
@@ -56,7 +70,7 @@ class Service(BaseModel):
     schedule: Optional[DeploymentSchedule] = Field(None, description="Scheduling details for the service.")
     stages: List[Stage] = Field(None, description="List of stages included in the service.")
     logging: Optional[EDFLogging] = Field(None, description="Logging configuration for the service.")
-    workpool: Optional[EDFWorkPool] = Field(WorkPool(name="Echodataflow-WorkPool", type="Process"), description="WorkPool configuration for the service.")    
+    infrastructure: Optional[Infrastructure] = Field(Infrastructure(), description="Infrastructure configuration for the service.")
 
     # Validators
     @field_validator("name", mode="before")
@@ -79,6 +93,8 @@ class Service(BaseModel):
             return list(unique_tags)
         return v
 
+    class Config:
+        arbitrary_types_allowed = True
 
 class Deployment(BaseModel):
     """
@@ -101,10 +117,13 @@ class Deployment(BaseModel):
         return v
     
     @field_validator("base_path", mode="after")
-    def construct_path(cls, v):
-        
+    def construct_path(cls, v, info: ValidationInfo):
+        """
+        This validator ensures that if a base_path is provided, it is applied to all services.
+        """
+        services = info.data.get("services", [])
         if v is not None:
-            for service in cls.services:
+            for service in services:
                 for stage in service.stages:
                     stage.source.path = v + stage.source.path
                     stage.destination.path = v + stage.destination.path
@@ -112,13 +131,18 @@ class Deployment(BaseModel):
         return v
     
     @field_validator("storage_options", mode="after")
-    def apply_storage_options(cls, v):
-        
+    def apply_storage_options(cls, v, info: ValidationInfo):
+        """
+        This validator ensures that if storage options are provided, they are applied to all services.
+        """
+        services = info.data.get("services", [])
         if v is not None:
-            for service in cls.services:
+            for service in services:
                 for stage in service.stages:
                     stage.source.storage_options = v
                     stage.destination.storage_options = v
                     stage.group.storage_options = v
         return v
-    
+
+    class Config:
+        arbitrary_types_allowed = True

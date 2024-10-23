@@ -97,7 +97,7 @@ async def create_work_pool_and_queue(edf_work_pool: EDFWorkPool):
     # Use the Prefect client asynchronously to interact with the API
     async with get_client() as client:
         # Get or create the work pool
-        work_pool = await _get_or_create_work_pool(client=client, work_pool_name=edf_work_pool.name)
+        work_pool = await _get_or_create_work_pool(client=client, work_pool=edf_work_pool)
 
         # If the work pool exists, proceed to get or create the work queue
         if work_pool:

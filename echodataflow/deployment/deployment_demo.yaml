@@ -26,11 +26,10 @@ services:
       type: Process
     cluster:
       workers: 5
-      address: tcp://
-      
+      address: tcp://   
   stages:
-  - name: edf_Sv_pipeline
-    module: echodataflow.stages.subflows.Sv_pipeline # Optional module name, echodataflow to create a default flow for all the stages within it
+  - name: Sv_flow
+    module: echodataflow.deployment.flow # Optional module name, echodataflow to create a default flow for all the stages within it
     tasks:
     - name: echodataflow_open_raw
       module: echodataflow.stages.subflows.open_raw
@@ -54,20 +53,11 @@ services:
         use_offline: true # Skip this process if zarr files are already present in the output directory.      
         group: False # Group Converted files based on Transect  
     source:
-      path: some_url # Single path, list or paths or a dict with some key and value as list of paths
-      parameters:
-        # Jinja support
-      window_options:
-        time_travel_hours: 20
-        time_travel_mins: 0
-        window_hours: 0
-        window_mins: 40
-        number_of_windows: 3
+      path: s3://ncei-wcsd-archive/data/raw/Bell_M._Shimada/SH1707/EK60/*.raw # Single path, list or paths or a dict with some key and value as list of paths
       storage_options:
-        block_name: ABCD
-        block_type: AWS
+        anon: true
     group:
-      path: s3://
+      file: s3://
       grouping_regex: # pattern for grouping files based on filename
       storage_options:
         block_name: ABCD
@@ -102,7 +92,7 @@ services:
   - name: stage_produce_mvbs
     module: echodataflow.stages.subflows.compute_MVBS
     source:
-      urlpath: s3://
+      path: s3://
       parameters:
         # Jinja support
       window_options:
@@ -140,7 +130,7 @@ services:
     - name: echodataflow_compute_NASC
       module: echodataflow.stages.subflows.compute_NASC
     source:
-      urlpath: s3://
+      path: s3://
       parameters:
         # Jinja support
       window_options:
@@ -153,7 +143,7 @@ services:
         block_name: ABCD
         block_type: AWS
     destination:
-    path: s3://
+      path: s3://
     storage_options:
       block_name: ABCD
       block_type: AWS
