@@ -45,9 +45,12 @@ from prefect import task
 from prefect.filesystems import Block
 from prefect_aws import AwsCredentials
 from prefect_azure import AzureCosmosDbCredentials
+from prefect_dask.task_runners import DaskTaskRunner
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
-from echodataflow.models.datastore import Dataset, StorageOptions, StorageType
+from echodataflow.models.datastore import Args, Dataset, StorageOptions, StorageType
+from echodataflow.models.deployment.source import Source
+from echodataflow.models.deployment.stage import Group
 from echodataflow.models.echodataflow_config import EchodataflowConfig
 from echodataflow.models.pipeline import Stage
 from echodataflow.models.run import EDFRun
@@ -337,7 +340,7 @@ def get_prefect_config_dict(stage: Stage) -> Dict[str, Any]:
 
 @task
 @echodataflow(processing_stage="Configuration", type="CONFIG_TASK")
-def glob_all_files(config: Dataset) -> List[str]:
+def glob_all_files(config: Union[Source, Dataset]) -> List[str]:
     """
     Fetches individual file URLs from a source path in the Dataset configuration.
 
@@ -352,8 +355,13 @@ def glob_all_files(config: Dataset) -> List[str]:
         raw_urls = glob_all_files(dataset_config)
     """
     total_files = []
-    data_path = config.args.rendered_path
-    storage_options = config.args.storage_options_dict
+    if isinstance(config, Source):
+        data_path = config.render_path()
+        storage_options = config.storage_options._storage_options_dict
+    else:
+        data_path = config.args.rendered_path
+        storage_options = config.args.storage_options_dict
+    
     if data_path is not None:
         if isinstance(data_path, list):
             for path in data_path:
@@ -368,7 +376,7 @@ def glob_all_files(config: Dataset) -> List[str]:
 
 @task
 @echodataflow(processing_stage="Configuration", type="CONFIG_TASK")
-def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any, Any]]:
+def parse_raw_paths(all_raw_files: List[str], config: Union[Source, Dataset], group: Group) -> List[Dict[Any, Any]]:
     """
     Parses raw URL paths, extracts information, and creates a file dictionary.
 
@@ -384,26 +392,37 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
         dataset_config = ...
         parsed_data = parse_raw_paths(all_raw_files, dataset_config)
     """
-    sonar_model = config.sonar_model
-    fname_pattern = config.raw_regex
-    transect_dict = {}
-    default_transect = str(config.args.group_name) if config.args.group_name else None    
     
-    if config.args.group and config.args.group.file:
+    default_transect = None
+    
+    if isinstance(config, Source):
+        source = config
+    else:
+        source = config.args
+        group = config.args
+    
+    if group and group.group_name:
+        default_transect = str(group.group_name)
+        
+    fname_pattern = source.raw_regex
+        
+    transect_dict = {}
+    
+    if group and group.file:
         
         # When transect info is available, extract it
-        file_input = config.args.group.file
-        storage_options = config.args.group.storage_options_dict   
-        group_regex = config.args.group.grouping_regex
+        file_input = group.file
+        storage_options = group.storage_options_dict if isinstance(group, Args) else group.storage_options._storage_options_dict  
+        group_regex = group.grouping_regex
              
         if isinstance(file_input, str):
             filename = os.path.basename(file_input)
             _, ext = os.path.splitext(filename)
             transect_dict = extract_transect_files(
                 file_format=ext.strip("."),
-                                                   file_path=file_input, 
-                                                   storage_options=storage_options, 
-                                                   group_regex=group_regex, 
+                file_path=file_input, 
+                storage_options=storage_options, 
+                group_regex=group_regex, 
                 default_transect=default_transect,
             )
         else:
@@ -413,9 +432,9 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
                 _, ext = os.path.splitext(filename)   
                 result = extract_transect_files(
                     file_format=ext.strip("."),
-                                                   file_path=f, 
-                                                   storage_options=storage_options, 
-                                                   group_regex=group_regex, 
+                    file_path=f, 
+                    storage_options=storage_options, 
+                    group_regex=group_regex, 
                     default_transect=default_transect,
                 )
                 transect_dict.update(result)
@@ -430,12 +449,11 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
             transect_dict.get(os.path.basename(raw_file).split(".")[0], {}),
         )
         transect_num = transect.get("num", default_transect)
-        if (config.args.group is None) or (transect_num is not None and bool(transect)):
+        if (group is None) or (transect_num is not None and bool(transect)):
             # Only adds to the list if not transect
             # if it's a transect, ensure it has a transect number
             raw_file_dicts.append(
                 dict(
-                    instrument=sonar_model,
                     file_path=raw_file,
                     transect_num=transect_num,
                     **parse_file_path(raw_file, fname_pattern),
@@ -447,7 +465,7 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
 @task
 @echodataflow(processing_stage="Configuration", type="CONFIG_TASK")
 def club_raw_files(
-    config: Dataset,
+    config: Union[Dataset, Group],
     raw_dicts: List[Dict[str, Any]] = [],
     raw_url_file: Optional[str] = None,
     json_storage_options: StorageOptions = None,
@@ -471,6 +489,10 @@ def club_raw_files(
         json_storage_options = ...
         grouped_raw_data = club_raw_files(dataset_config, raw_dicts, raw_url_file, json_storage_options)
     """
+    
+    if isinstance(config, Dataset):
+        config = config.args.group
+        
 
     if len(raw_dicts) == 0:
         if raw_url_file is None:
@@ -479,7 +501,7 @@ def club_raw_files(
         with file_system.open(raw_url_file) as f:
             raw_dicts = json.load(f)
 
-    if config.args.group is not None:
+    if config is not None:
         # Transect, split by transect spec
         raw_dct = {}
         for r in raw_dicts:

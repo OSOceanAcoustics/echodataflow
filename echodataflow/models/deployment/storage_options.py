@@ -35,8 +35,9 @@ class StorageOptions(BaseModel):
     block_name: Optional[str] = Field(None, description="The name of the storage block.")
     anon: StrictBool = Field(False, description="Whether to use anonymous access. Default is False.")
     
-    @property  
-    @functools.lru_cache()      
+    _cached_options: Optional[dict] = None  # Cache storage
+
+    @property
     def _storage_options_dict(self):
         """
         Extracts storage options using the handle_storage_options function.
@@ -44,9 +45,10 @@ class StorageOptions(BaseModel):
         Returns:
             dict: A dictionary representation of the storage options.
         """
-        from echodataflow.utils.filesystem_utils import handle_storage_options
-        # Pass the StorageOptions instance itself to handle_storage_options to extract the dictionary
-        return handle_storage_options(self)
+        if self._cached_options is None:
+            from echodataflow.utils.filesystem_utils import handle_storage_options
+            self._cached_options = handle_storage_options(self)
+        return self._cached_options
 
     # Model-wide validator to ensure logical dependencies between fields
     @model_validator(mode='before')
@@ -61,9 +63,7 @@ class StorageOptions(BaseModel):
             raise ValueError(f"A block_name must be provided when storage type is set to '{storage_type}'.")
 
         return values
-
     
-
     class Config:        
         use_enum_values = True
 

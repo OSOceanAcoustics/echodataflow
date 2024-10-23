@@ -33,6 +33,7 @@ class Source(BaseModel):
     parameters: Optional[Parameters] = Field(None, description="Parameters to apply to the source.")
     window_options: Optional[Dict[str, Any]] = Field(None, description="Window options for the source.")
     storage_options: Optional[StorageOptions] = Field(None, description="Storage options for the source.")
+    raw_regex: Optional[str] = Field("(.*)-?D(?P<date>\w{1,8})-T(?P<time>\w{1,6})", description="Raw regex pattern for the source.")
 
     def render_path(self) -> Union[str, Dict[str, List[str]]]:
         """
@@ -74,17 +75,18 @@ class Source(BaseModel):
         return template.render(self.parameters.dict() if self.parameters else {})
     
     def extract_source(self):
-        path = self.render_path()
+        
+        from echodataflow.utils.config_utils import glob_all_files
         
         if self.window_options is not None:
             
             # Treat source as a folder and iterate over files to collect and group relevant files
             pass
         else:
-            # return single path
-            return path
-        
-        pass
+            
+            total_files = glob_all_files(config=self)
+            
+            return total_files
     
     
     class Config:
