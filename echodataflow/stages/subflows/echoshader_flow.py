@@ -28,7 +28,8 @@ from echodataflow.models.datastore import Dataset
 from echodataflow.models.output_model import EchodataflowObject, ErrorObject, Group
 from echodataflow.models.pipeline import Stage
 from echodataflow.utils import log_util
-from echodataflow.utils.file_utils import fetch_slice_from_store, get_out_zarr, get_working_dir, get_zarr_list, isFile
+from echodataflow.utils.file_utils import get_out_zarr, get_working_dir, get_zarr_list, isFile
+from echodataflow.utils.xr_utils import fetch_slice_from_store
 import panel as pn
 from holoviews import opts
 import echoshader
@@ -151,7 +152,7 @@ def eshader_preprocess(ed: EchodataflowObject, working_dir, config: Dataset, sta
             del ds_MVBS_combined_resampled
         
         ds_MVBS_combined_resampled = xr.open_zarr(working_dir + "/" + "eshader.zarr", storage_options=config.output.storage_options_dict)
-        print(ds_MVBS_combined_resampled["softmax"])
+        # print(ds_MVBS_combined_resampled["softmax"])
 
         
         # hv_ds = hv.Dataset(ds_MVBS_combined_resampled["softmax"])

@@ -741,34 +741,3 @@ def get_out_zarr(
             return slash_pattern.join([working_dir, transect, file_name])
         else:
             return slash_pattern.join([working_dir, "zarr_files", file_name])
-
-def fetch_slice_from_store(edf_group: Group, config: Dataset, options: Dict[str, Any] = None, start_time: str = None, end_time: str = None) -> xr.Dataset:
-    default_options = {
-                "engine":"zarr",
-                "combine":"by_coords",
-                "data_vars":"minimal",
-                "coords":"minimal",
-                "compat":"override",
-                "storage_options": config.args.storage_options_dict}
-    if options:
-        default_options.update(options)
-    
-    store = xr.open_mfdataset(paths=[ed.out_path for ed in edf_group.data], **default_options).compute()
-    store_slice = store.sel(ping_time=slice(pd.to_datetime(start_time, unit="ns"), pd.to_datetime(end_time, unit="ns")))
-    
-    if store_slice["ping_time"].size == 0:
-        del store
-        del store_slice
-        raise ValueError(f"No data available between {start_time} and {end_time}")
-    
-    store_slice = store_slice.sortby('ping_time')
-
-    try:
-        # Group by ping_time and take the mean to handle overlaps
-        store_slice = store_slice.groupby('ping_time').mean()
-    except Exception as e:
-        print('Failed to group the data')
-    
-    del store
-    
-    return store_slice
