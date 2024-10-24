@@ -1,0 +1,161 @@
+# If provided, all the path use this as base path, else respective paths are used
+base_path: s3://bucket-name/path/to/output
+storage_options:
+  block_name: ABCD
+  block_type: AWS
+
+# All services configuration
+services:
+- name: service_raw_to_Sv
+  tags:
+  - raw2Sv
+  description: null #Optional description
+  schedule:
+    anchor_date: D20241007-T035100
+    interval_mins: 10
+  logging:
+    handler: service_raw_to_Sv
+    kafka:
+      topic: echodataflow_logs
+      servers:
+      - localhost:9092
+  infrastructure:
+    workpool:
+      name: sv
+      workqueue: default
+      type: Process
+    cluster:
+      workers: 5
+      address: tcp://   
+  stages:
+  - name: Sv_flow
+    module: echodataflow.deployment.flow # Optional module name, echodataflow to create a default flow for all the stages within it
+    tasks:
+    - name: echodataflow_open_raw
+      module: echodataflow.stages.subflows.open_raw
+      task_params: # All external parameters for the task, echodataflow will handle the mapping and validation
+        sonar_model: EK80
+        xml_path: s3//
+    - name: echodataflow_compute_Sv
+      module: echodataflow.stages.subflows.compute_Sv
+    - name: echodataflow_add_depth
+      module: echodataflow.stages.subflows.add_depth
+    - name: echodataflow_add_location
+      module: echodataflow.stages.subflows.add_location
+    stage_params:
+      prefect_config: # Configure any prefect related settings for a flow. For an exhaustive list of configurations refer <https://docs.prefect.io/2.11.5/concepts/flows/#flow-settings>. Task based configurations are optimized and handled by echodataflow 
+        retries: 3 # Number of retries before failing the flow
+        task_runner: DaskTaskRunner(address=tcp://127.0.0.1:59487) # Configure Runner setting for this specific stage
+      key: value
+      ky2: value2
+      options: # Echodataflow master flow configuration options
+        save_offline: true 
+        use_offline: true # Skip this process if zarr files are already present in the output directory.      
+        group: False # Group Converted files based on Transect  
+    source:
+      path: s3://ncei-wcsd-archive/data/raw/Bell_M._Shimada/SH1707/EK60/*.raw # Single path, list or paths or a dict with some key and value as list of paths
+      storage_options:
+        anon: true
+    group:
+      file: s3://
+      grouping_regex: # pattern for grouping files based on filename
+      storage_options:
+        block_name: ABCD
+        block_type: AWS
+    destination:
+      path: s3://
+      storage_options:
+        block_name: ABCD
+        block_type: AWS
+    data_quality:
+      checks:
+      - name: NULL_CHECK
+      - name: MIN_MAX_CHECK
+      - name: echodataflow.data_quality.checks.custom_check
+      block_downstream: false
+      out_path: s3://
+      storage_options:
+        block_name: ABCD
+        block_type: AWS
+
+
+- name: service_produce_mvbs
+  tags: 
+  - mvbs
+  description: MVBS
+  schedule:
+    anchor_date: D20241007-T035100
+    interval_mins: 10
+  logging:
+    handler: mvbs_log_handler
+  stages:
+  - name: stage_produce_mvbs
+    module: echodataflow.stages.subflows.compute_MVBS
+    source:
+      path: s3://
+      parameters:
+        # Jinja support
+      window_options:
+        time_travel_hours: 20
+        time_travel_mins: 0
+        window_hours: 0
+        window_mins: 40
+        number_of_windows: 3
+      storage_options:
+        block_name: ABCD
+        block_type: AWS
+    destination:
+      path: s3://
+      storage_options:
+        block_name: ABCD
+        block_type: AWS
+
+- name: service_prediction_to_nasc
+  tags: 
+  - nasc
+  description: NASC
+  schedule:
+    anchor_date: D20241007-T035100
+    interval_mins: 10
+  stages:
+  - name: stage_prediction_to_nasc
+    module: echodataflow.stages.subflows.prediction_to_nasc
+    tasks:
+    - name: echodataflow_mask_prediction
+      module: echodataflow.stages.subflows.mask_prediction
+      task_params:
+        model_path: /Users/wu-junglee/HakeSurvey2024/models/binary_hake_model_1.0m_bottom_offset_1.0m_depth_2017_2019_ver_1.ckpt
+    - name: echodataflow_apply_mask
+      module: echodataflow.stages.subflows.apply_mask
+    - name: echodataflow_compute_NASC
+      module: echodataflow.stages.subflows.compute_NASC
+    source:
+      path: s3://
+      parameters:
+        # Jinja support
+      window_options:
+        time_travel_hours: 20
+        time_travel_mins: 0
+        window_hours: 0
+        window_mins: 40
+        number_of_windows: 3
+      storage_options:
+        block_name: ABCD
+        block_type: AWS
+    destination:
+      path: s3://
+    storage_options:
+      block_name: ABCD
+      block_type: AWS
+  
+# - name: service_file_transfer
+#   tags: []
+#   description: null
+#   schedule:
+#     anchor_date: D{YYYYmmdd}T{HHMMSS}
+#     interval_mins: 10
+#   stage:
+#   - name: stage_file_transfer
+#     module: echodataflow.stages.subflows.file_transfer   
+#     stage_params:
+#       command: rclone copy --max-age 120m --no-traverse /Users/wu-junglee/SH24_replay_processed/ s3_hake:sh24replay --exclude /Sv_with_location/** 

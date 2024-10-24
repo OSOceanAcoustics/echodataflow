@@ -20,7 +20,7 @@ from typing import Optional, Union
 from fastapi.encoders import jsonable_encoder
 
 from prefect import flow
-from prefect.task_runners import SequentialTaskRunner
+from prefect.task_runners import ThreadPoolTaskRunner
 from prefect.blocks.core import Block
 from prefect.variables import Variable
 
@@ -31,14 +31,13 @@ from echodataflow.utils import log_util
 from echodataflow.utils.config_utils import (
     check_config,
     extract_config,
-    get_storage_options,
-    load_block,
 )
+from echodataflow.utils.filesystem_utils import load_block, get_storage_options
 
 from .subflows.initialization_flow import init_flow
 
 
-@flow(name="Echodataflow", task_runner=SequentialTaskRunner())
+@flow(name="Echodataflow", task_runner=ThreadPoolTaskRunner(max_workers=1))
 def echodataflow_trigger(
     dataset_config: Union[dict, str, Path],
     pipeline_config: Union[dict, str, Path],

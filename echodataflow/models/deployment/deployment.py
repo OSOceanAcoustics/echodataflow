@@ -1,0 +1,148 @@
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
+from prefect.client.schemas.objects import WorkPool, WorkQueue
+
+from echodataflow.models.deployment.deployment_schedule import DeploymentSchedule
+from echodataflow.models.deployment.stage import Stage
+from echodataflow.models.deployment.storage_options import StorageOptions
+
+
+class EDFLogging(BaseModel):
+    """
+    Model for defining logging configuration for a service.
+
+    Attributes:
+        handler (str): The name of the logging handler.
+        kafka (Optional[Dict[str, Any]]): Kafka configuration details for logging.
+    """
+    handler: str = Field(..., description="Logging handler name.")
+    kafka: Optional[Dict[str, Any]] = Field(None, description="Kafka logging configuration details.")
+
+    @field_validator("handler", mode="before")
+    def validate_handler(cls, v):
+        if not v or not isinstance(v, str) or v.strip() == "":
+            raise ValueError("Logging handler must be a non-empty string.")
+        return v
+
+class EDFWorkPool(WorkPool):
+    name: str = Field("Echodataflow-WorkPool", description="Name of the WorkPool.")
+    type: str = Field("Process", description="Type of WorkPool.")
+    workqueue: Union[str, WorkQueue] = Field("default", description="WorkQueue associated with the WorkPool.")    
+    
+    @property
+    def workqueue_name(self) -> str:
+        if isinstance(self.workqueue, WorkQueue):
+            return self.workqueue.name
+        return self.workqueue
+    
+    class config:
+        arbitrary_types_allowed=True
+
+class Cluster(BaseModel):
+    address: Optional[str] = Field(None, description="Dask scheduler address")
+    workers: Optional[int] = Field(3, description="Number of workers")
+
+class Infrastructure(BaseModel):
+    workpool: Optional[EDFWorkPool] = Field(EDFWorkPool(), description="WorkPool configuration for the service.")    
+    cluster: Optional[Cluster] = Field(None, description="Dask Cluster Configuration")
+      
+    class Config:
+        arbitrary_types_allowed = True
+        
+class Service(BaseModel):
+    """
+    Model for defining a service in the deployment pipeline.
+
+    Attributes:
+        name (str): Name of the service.
+        tags (Optional[List[str]]): List of tags associated with the service.
+        description (Optional[str]): Description of the service.
+        schedule (Optional[DeploymentSchedule]): Scheduling details for the service.
+        stages (Optional[List[Stage]]): List of stages included in the service.
+        logging (Optional[EDFLogging]): Logging configuration for the service.
+        workpool (Optional[str]): WorkPool configuration for the service.
+        workqueue (Optional[str]): WorkQueue configuration for the service.
+    """
+    name: str = Field(..., description="Name of the service.")
+    tags: Optional[List[str]] = Field(default_factory=list, description="List of tags associated with the service. Tags must be unique.")
+    description: Optional[str] = Field(None, description="Description of the service.")
+    schedule: Optional[DeploymentSchedule] = Field(None, description="Scheduling details for the service.")
+    stages: List[Stage] = Field(None, description="List of stages included in the service.")
+    logging: Optional[EDFLogging] = Field(None, description="Logging configuration for the service.")
+    infrastructure: Optional[Infrastructure] = Field(Infrastructure(), description="Infrastructure configuration for the service.")
+
+    # Validators
+    @field_validator("name", mode="before")
+    def validate_service_name(cls, v):
+        if not v or not isinstance(v, str) or v.strip() == "":
+            raise ValueError("Service name must be a non-empty string.")
+        return v
+
+    @field_validator("tags", mode="before")
+    def validate_tags(cls, v):
+        if v:
+            if not isinstance(v, list):
+                raise ValueError("Tags must be a list of strings.")
+            # Remove duplicates and ensure all tags are non-empty strings
+            unique_tags = set()
+            for tag in v:
+                if not isinstance(tag, str) or tag.strip() == "":
+                    raise ValueError("Each tag must be a non-empty string.")
+                unique_tags.add(tag.strip())
+            return list(unique_tags)
+        return v
+
+    class Config:
+        arbitrary_types_allowed = True
+
+class Deployment(BaseModel):
+    """
+    Model for defining a deployment with multiple services.
+
+    Attributes:
+        out_path (Optional[str]): Base path for all services.
+        storage_options (Optional[StorageOptions]): Base storage options applied to all paths.
+        services (List[Service]): List of services included in the deployment.
+    """
+    base_path: Optional[str] = Field(None, description="Base path for all services. This path will be used if no specific service path is defined.")
+    storage_options: Optional[StorageOptions] = Field(None, description="Base Storage options, applied to all paths.")
+    services: List[Service] = Field(..., description="List of services included in the deployment.")
+
+    # Validators
+    @field_validator("services", mode="before")
+    def validate_services(cls, v):
+        if not isinstance(v, list) or not v:
+            raise ValueError("Services must be a non-empty list of Service objects.")
+        return v
+    
+    @field_validator("base_path", mode="after")
+    def construct_path(cls, v, info: ValidationInfo):
+        """
+        This validator ensures that if a base_path is provided, it is applied to all services.
+        """
+        services = info.data.get("services", [])
+        if v is not None:
+            for service in services:
+                for stage in service.stages:
+                    stage.source.path = v + stage.source.path
+                    stage.destination.path = v + stage.destination.path
+                    stage.group.path = v + stage.group.path
+        return v
+    
+    @field_validator("storage_options", mode="after")
+    def apply_storage_options(cls, v, info: ValidationInfo):
+        """
+        This validator ensures that if storage options are provided, they are applied to all services.
+        """
+        services = info.data.get("services", [])
+        if v is not None:
+            for service in services:
+                for stage in service.stages:
+                    stage.source.storage_options = v
+                    stage.destination.storage_options = v
+                    stage.group.storage_options = v
+        return v
+
+    class Config:
+        arbitrary_types_allowed = True

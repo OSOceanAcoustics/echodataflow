@@ -33,6 +33,7 @@ import datetime
 import itertools as it
 import json
 import os
+from pathlib import Path
 import re
 from typing import Any, Coroutine, Dict, List, Literal, Optional, Union
 from zipfile import ZipFile
@@ -44,9 +45,12 @@ from prefect import task
 from prefect.filesystems import Block
 from prefect_aws import AwsCredentials
 from prefect_azure import AzureCosmosDbCredentials
+from prefect_dask.task_runners import DaskTaskRunner
 
 from echodataflow.aspects.echodataflow_aspect import echodataflow
-from echodataflow.models.datastore import Dataset, StorageOptions, StorageType
+from echodataflow.models.datastore import Args, Dataset, StorageOptions, StorageType
+from echodataflow.models.deployment.source import Source
+from echodataflow.models.deployment.stage import Group
 from echodataflow.models.echodataflow_config import EchodataflowConfig
 from echodataflow.models.pipeline import Stage
 from echodataflow.models.run import EDFRun
@@ -55,7 +59,6 @@ from echodataflow.utils.file_utils import extract_fs, isFile
 nest_asyncio.apply()
 
 
-@task
 def extract_config(
     config: Union[Dict[str, Any], str], storage_options: Dict[str, Any] = {}
 ) -> Dict[str, Any]:
@@ -298,7 +301,7 @@ def parse_file_path(raw_file: str, fname_pattern: str) -> Dict[str, Any]:
 
 
 @task
-def get_prefect_config_dict(stage: Stage):
+def get_prefect_config_dict(stage: Stage) -> Dict[str, Any]:
     """
     Gets the updated Prefect configuration dictionary.
 
@@ -337,7 +340,7 @@ def get_prefect_config_dict(stage: Stage):
 
 @task
 @echodataflow(processing_stage="Configuration", type="CONFIG_TASK")
-def glob_all_files(config: Dataset) -> List[str]:
+def glob_all_files(config: Union[Source, Dataset]) -> List[str]:
     """
     Fetches individual file URLs from a source path in the Dataset configuration.
 
@@ -352,8 +355,13 @@ def glob_all_files(config: Dataset) -> List[str]:
         raw_urls = glob_all_files(dataset_config)
     """
     total_files = []
-    data_path = config.args.rendered_path
-    storage_options = config.args.storage_options_dict
+    if isinstance(config, Source):
+        data_path = config.render_path()
+        storage_options = config.storage_options._storage_options_dict
+    else:
+        data_path = config.args.rendered_path
+        storage_options = config.args.storage_options_dict
+    
     if data_path is not None:
         if isinstance(data_path, list):
             for path in data_path:
@@ -368,7 +376,7 @@ def glob_all_files(config: Dataset) -> List[str]:
 
 @task
 @echodataflow(processing_stage="Configuration", type="CONFIG_TASK")
-def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any, Any]]:
+def parse_raw_paths(all_raw_files: List[str], config: Union[Source, Dataset], group: Group) -> List[Dict[Any, Any]]:
     """
     Parses raw URL paths, extracts information, and creates a file dictionary.
 
@@ -384,26 +392,37 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
         dataset_config = ...
         parsed_data = parse_raw_paths(all_raw_files, dataset_config)
     """
-    sonar_model = config.sonar_model
-    fname_pattern = config.raw_regex
-    transect_dict = {}
-    default_transect = str(config.args.group_name) if config.args.group_name else None    
     
-    if config.args.group and config.args.group.file:
+    default_transect = None
+    
+    if isinstance(config, Source):
+        source = config
+    else:
+        source = config.args
+        group = config.args
+    
+    if group and group.group_name:
+        default_transect = str(group.group_name)
+        
+    fname_pattern = source.raw_regex
+        
+    transect_dict = {}
+    
+    if group and group.file:
         
         # When transect info is available, extract it
-        file_input = config.args.group.file
-        storage_options = config.args.group.storage_options_dict   
-        group_regex = config.args.group.grouping_regex
+        file_input = group.file
+        storage_options = group.storage_options_dict if isinstance(group, Args) else group.storage_options._storage_options_dict  
+        group_regex = group.grouping_regex
              
         if isinstance(file_input, str):
             filename = os.path.basename(file_input)
             _, ext = os.path.splitext(filename)
             transect_dict = extract_transect_files(
                 file_format=ext.strip("."),
-                                                   file_path=file_input, 
-                                                   storage_options=storage_options, 
-                                                   group_regex=group_regex, 
+                file_path=file_input, 
+                storage_options=storage_options, 
+                group_regex=group_regex, 
                 default_transect=default_transect,
             )
         else:
@@ -413,9 +432,9 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
                 _, ext = os.path.splitext(filename)   
                 result = extract_transect_files(
                     file_format=ext.strip("."),
-                                                   file_path=f, 
-                                                   storage_options=storage_options, 
-                                                   group_regex=group_regex, 
+                    file_path=f, 
+                    storage_options=storage_options, 
+                    group_regex=group_regex, 
                     default_transect=default_transect,
                 )
                 transect_dict.update(result)
@@ -430,12 +449,11 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
             transect_dict.get(os.path.basename(raw_file).split(".")[0], {}),
         )
         transect_num = transect.get("num", default_transect)
-        if (config.args.group is None) or (transect_num is not None and bool(transect)):
+        if (group is None) or (transect_num is not None and bool(transect)):
             # Only adds to the list if not transect
             # if it's a transect, ensure it has a transect number
             raw_file_dicts.append(
                 dict(
-                    instrument=sonar_model,
                     file_path=raw_file,
                     transect_num=transect_num,
                     **parse_file_path(raw_file, fname_pattern),
@@ -447,7 +465,7 @@ def parse_raw_paths(all_raw_files: List[str], config: Dataset) -> List[Dict[Any,
 @task
 @echodataflow(processing_stage="Configuration", type="CONFIG_TASK")
 def club_raw_files(
-    config: Dataset,
+    config: Union[Dataset, Group],
     raw_dicts: List[Dict[str, Any]] = [],
     raw_url_file: Optional[str] = None,
     json_storage_options: StorageOptions = None,
@@ -471,6 +489,10 @@ def club_raw_files(
         json_storage_options = ...
         grouped_raw_data = club_raw_files(dataset_config, raw_dicts, raw_url_file, json_storage_options)
     """
+    
+    if isinstance(config, Dataset):
+        config = config.args.group
+        
 
     if len(raw_dicts) == 0:
         if raw_url_file is None:
@@ -479,7 +501,7 @@ def club_raw_files(
         with file_system.open(raw_url_file) as f:
             raw_dicts = json.load(f)
 
-    if config.args.group is not None:
+    if config is not None:
         # Transect, split by transect spec
         raw_dct = {}
         for r in raw_dicts:
@@ -510,80 +532,19 @@ def club_raw_files(
     return all_files
 
 
-def get_storage_options(storage_options: Block = None) -> Dict[str, Any]:
-    """
-    Get storage options from a Block.
+def parse_yaml_config(config: Union[dict, str, Path], storage_options: Dict[str, Any]) -> Dict:
+    if isinstance(config, Path) or isinstance(config, str):
+        config = convert_path_to_str(config)
+        validate_yaml_file(config)
+        return extract_config(config, storage_options)
+    return config
 
-    Parameters:
-        storage_options (Block, optional): A block containing storage options.
+def convert_path_to_str(config: Union[str, Path]) -> str:
+    return str(config) if isinstance(config, Path) else config
 
-    Returns:
-        Dict[str, Any]: Dictionary containing storage options.
-
-    Example:
-        aws_credentials = AwsCredentials(...)
-        storage_opts = get_storage_options(aws_credentials)
-    """
-    storage_options_dict: Dict[str, Any] = {}
-    if storage_options is not None:
-        if isinstance(storage_options, AwsCredentials):
-            storage_options_dict["key"] = storage_options.aws_access_key_id
-            storage_options_dict[
-                "secret"
-            ] = storage_options.aws_secret_access_key.get_secret_value()
-            if storage_options.aws_session_token:
-                storage_options_dict["token"] = storage_options.aws_session_token
-
-    return storage_options_dict
-
-
-def handle_storage_options(storage_options: Union[Dict[str, Any], Block] = None) -> Dict:
-    if storage_options:
-        if isinstance(storage_options, Block):
-            return get_storage_options(storage_options=storage_options)
-        elif isinstance(storage_options, dict) and storage_options.get("block_name"):
-            block = load_block(
-                name=storage_options.get("block_name"), type=storage_options.get("type")
-            )
-            return get_storage_options(block)
-        else:
-            return storage_options if storage_options and len(storage_options.keys()) > 0 else {}
-    return {}
-
-def load_block(name: str = None, type: StorageType = None):
-    """
-    Load a block of a specific type by name.
-
-    Parameters:
-        name (str, optional): The name of the block to load.
-        type (StorageType, optional): The type of the block to load.
-
-    Returns:
-        block: The loaded block.
-
-    Raises:
-        ValueError: If name or type is not provided.
-
-    Example:
-        loaded_aws_credentials = load_block(name="my-aws-creds", type=StorageType.AWS)
-    """
-    if name is None or type is None:
-        raise ValueError("Cannot load block without name")
-
-    if type == StorageType.AWS or type == StorageType.AWS.value:
-        coro = AwsCredentials.load(name=name)
-    elif type == StorageType.AZCosmos or type == StorageType.AZCosmos.value:
-        coro = AzureCosmosDbCredentials.load(name=name)
-    elif type == StorageType.ECHODATAFLOW or type == StorageType.ECHODATAFLOW.value:
-        coro = EchodataflowConfig.load(name=name)
-    elif type == StorageType.EDFRUN or type == StorageType.EDFRUN.value:
-        coro = EDFRun.load(name=name)
-
-    if isinstance(coro, Coroutine):
-        block = nest_asyncio.asyncio.run(coro)
-    else:
-        block = coro
-    return block
+def validate_yaml_file(config_str) -> None:
+    if not config_str.endswith((".yaml", ".yml")):
+        raise ValueError("Configuration file must be a YAML!")
 
 def sanitize_external_params(config: Dataset, external_params: Dict[str, Any]):
     """
