@@ -68,9 +68,8 @@ def process_raw_files():
     new_files = raw_files_in_folder.difference(raw_files_in_df)
     print(f"Found {len(new_files)} new files to process")
 
-    # Convert raw files to Sv
+    # Convert raw files to Sv in parallel
     future_all = []
-    # new_entries = []
     for nf in new_files:
         new_processed_raw = raw2Sv.with_options(
             task_run_name=nf, name=nf, retries=3
@@ -82,9 +81,14 @@ def process_raw_files():
     for nf, ff in zip(new_files, future_all):
         result = [nf] + list(ff.result())
         results.append(result)
-        
-        # Sv_filename, first_ping_time, last_ping_time = raw2Sv(raw_path / nf)
-        # new_entries.append([nf, Sv_filename, first_ping_time, last_ping_time])
+
+    # # Sequentially process new files
+    # results = []
+    # for nf in new_files:
+    #     Sv_filename, first_ping_time, last_ping_time = raw2Sv.with_options(
+    #         task_run_name=nf, name=nf, retries=3
+    #     )(raw_path / nf)
+    #     results.append([nf, Sv_filename, first_ping_time, last_ping_time])
 
     # Add new entries to df_Sv
     if len(results) > 0:
