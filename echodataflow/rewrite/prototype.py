@@ -69,15 +69,27 @@ def process_raw_files():
     print(f"Found {len(new_files)} new files to process")
 
     # Convert raw files to Sv
-    new_entries = []
+    future_all = []
+    # new_entries = []
     for nf in new_files:
-        Sv_filename, first_ping_time, last_ping_time = raw2Sv(raw_path / nf)
-        new_entries.append([nf, Sv_filename, first_ping_time, last_ping_time])
+        new_processed_raw = raw2Sv.with_options(
+            task_run_name=nf, name=nf, retries=3
+        )
+        future = new_processed_raw.submit(raw_path / nf)
+        future_all.append(future)
+
+    results = []
+    for nf, ff in zip(new_files, future_all):
+        result = [nf] + list(ff.result())
+        results.append(result)
+        
+        # Sv_filename, first_ping_time, last_ping_time = raw2Sv(raw_path / nf)
+        # new_entries.append([nf, Sv_filename, first_ping_time, last_ping_time])
 
     # Add new entries to df_Sv
-    if len(new_files) > 0:
+    if len(results) > 0:
         df_new = pd.DataFrame(
-            new_entries,
+            results,
             columns=["raw_filename", "Sv_filename", "last_ping_time", "first_ping_time"]
         )
         
@@ -87,7 +99,7 @@ def process_raw_files():
         print(f"Added {len(new_files)} new entries to tracking CSV")
 
 
-@task(log_prints=True)
+@task(log_prints=True)#, task_run_name="{raw_path.name}")
 def raw2Sv(raw_path: str):
     """
     Convert raw sonar data to Sv and save to zarr format.
