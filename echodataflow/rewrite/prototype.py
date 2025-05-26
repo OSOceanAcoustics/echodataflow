@@ -1,6 +1,8 @@
 from pathlib import Path
 import datetime
+import numpy as np
 import pandas as pd
+import xarray as xr
 
 import echopype as ep
 
@@ -15,6 +17,7 @@ from botocore.config import Config
 data_path = Path("/Users/wujung/code_git/echodataflow/temp_data")
 raw_path = data_path / "raw"
 Sv_path = data_path / "Sv"
+MVBS_path = data_path / "MVBS"
 
 # Initiate counter for raw file copy
 df_raw = pd.read_csv(
@@ -36,7 +39,7 @@ if not Sv_csv_path.exists():
 
 
 @flow(log_prints=True)
-def copy_raw_files():
+def copy_raw():
     print("Copy raw files to simulate data generation")
     print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
     counter = Variable.get("counter_raw_copy")
@@ -58,7 +61,7 @@ def copy_raw_files():
 
 
 @flow(log_prints=True)
-def process_raw_files():
+def process_raw():
     # Load info dataframe containing raw to Sv correspondence
     df_Sv = pd.read_csv(Sv_csv_path, index_col=0)
     raw_files_in_folder = set([ff.name for ff in raw_path.glob("*.raw")])
@@ -146,6 +149,107 @@ def raw2Sv(raw_path: str):
 
 
 @flow(log_prints=True)
+def process_MVBS(
+    end_time: str = "2023-08-04T16:00:00",
+    slice_time_len: str = "20min",
+    num_slices: int = 3
+):
+    """
+    Process raw files to create MVBS files of specified length.
+
+    Parameters
+    ----------
+    end_time : str
+        The end time for the MVBS computation in ISO format (e.g., "2023-10-01 12:00:00").
+    slice_time_len : str
+        The length of each slice in a format recognized by pandas (e.g., "20min").
+    num_slices : int
+        The number of slices to create.
+
+    Examples
+    --------
+    >>> process_MVBS(end_time="2023-10-01 12:00:00", slice_time_len="20min", num_slices=3)
+    """
+    logger = get_run_logger()
+
+    # Load info dataframe containing raw to Sv correspondence
+    df_Sv = pd.read_csv(Sv_csv_path, index_col=0)
+
+    # Compute slice time range
+    end_time = pd.to_datetime(end_time)
+    slice_time_len = pd.to_timedelta(slice_time_len)
+    start_time = sorted([end_time - s * slice_time_len for s in np.arange(num_slices)+1])
+    end_time = [st + slice_time_len for st in start_time]    
+    
+    # Sequentially create MVBS slices
+    for ns in range(num_slices):
+        logger.info(f"Slice {ns+1}: {start_time[ns]} to {end_time[ns]}")
+
+        # Get Sv files in the specified time range
+        Sv_filenames = df_Sv[
+            (pd.to_datetime(df_Sv["last_ping_time"]) >= start_time[ns]) &
+            (pd.to_datetime(df_Sv["first_ping_time"]) <= end_time[ns])
+        ]["Sv_filename"].tolist()
+        logger.info(f"Found {len(Sv_filenames)} Sv files in the specified time range")
+
+        # If no Sv files found, skip this slice
+        if len(Sv_filenames) == 0:
+            logger.info(f"No Sv files found for slice {ns+1}, skipping")
+            continue
+
+        MVBS_run_name = (
+            f"MVBS_{start_time[ns].strftime("%Y%m%dT%H%M%S")}"
+            f"_{end_time[ns].strftime("%Y%m%dT%H%M%S")}"
+        )
+        create_MVBS.with_options(
+            task_run_name=MVBS_run_name, name=MVBS_run_name,
+        )(start_time=start_time[ns], end_time=end_time[ns], Sv_filenames=Sv_filenames)
+
+
+@task(log_prints=True)
+def create_MVBS(start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filenames: list[str]):
+    """
+    Create MVBS from Sv files in the specified time range.
+    Parameters
+    ----------
+    start_time : pd.Timestamp
+        The start time for the MVBS computation.
+    end_time : pd.Timestamp
+        The end time for the MVBS computation.    
+    Sv_filenames : list[str]
+        List of Sv filenames to process.
+    """
+
+    # Combine Sv files into a single dataset
+    ds_Sv = xr.open_mfdataset(
+        [Sv_path / svf for svf in Sv_filenames],
+        parallel=True,
+        chunks={"channel": 1, "ping_time": 1000, "range_sample": -1},
+        engine="zarr",  # use zarr engine for reading
+    )
+
+    # Compute MVBS for the slice and save to zarr
+    out_path = MVBS_path / (
+        f"MVBS_{start_time.strftime('%Y%m%dT%H%M%S')}"
+        f"_{end_time.strftime('%Y%m%dT%H%M%S')}.zarr"
+    )
+    ds_MVBS = ep.commongrid.compute_MVBS(
+        ds_Sv=ds_Sv.sel(ping_time=slice(start_time, end_time)),  # slice start/end
+        range_var="depth",
+        range_bin='1m',
+        ping_time_bin='5s',
+        reindex=False,
+        fill_value=np.nan,
+    )
+    ds_MVBS.chunk({"channel": 1, "ping_time": -1, "depth": -1}).to_zarr(
+        store=out_path,  # existing MVBS will be overwritten
+        mode="w",
+        consolidated=True,
+        # storage_options=config.output.storage_options_dict,
+    )
+
+
+@flow(log_prints=True)
 def flow_1():
     print("This is flow 1")
     print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
@@ -177,21 +281,25 @@ if __name__ == "__main__":
     #     )
     freq_min = 2
     deploy(
-        copy_raw_files.from_source(
+        copy_raw.from_source(
             source=str(Path(__file__).parent),
-            entrypoint="prototype.py:copy_raw_files"
+            entrypoint="prototype.py:copy_raw"
         ).to_deployment(
-            name="copy-raw-files",
+            name="copy-raw",
             # work_pool_name="local",
             # cron=f"*/{freq_min} * * * *",  # run every freq_min
         ),
-        process_raw_files.from_source(
+        process_raw.from_source(
             source=str(Path(__file__).parent),
-            entrypoint="prototype.py:process_raw_files"
-        ).to_deployment(name="process-raw-files"),
-        flow_3.from_source(
+            entrypoint="prototype.py:process_raw",
+        ).to_deployment(
+            name="process-raw",
+        ),
+        process_MVBS.from_source(
             source=str(Path(__file__).parent),
-            entrypoint="prototype.py:flow_3"
-        ).to_deployment(name="flow_3-deploy"),
+            entrypoint="prototype.py:process_MVBS",
+        ).to_deployment(
+            name="process-MVBS",
+        ),
         work_pool_name="local",
     )
