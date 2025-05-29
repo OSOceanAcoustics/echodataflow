@@ -72,7 +72,7 @@ def copy_raw():
 
 
 @flow(log_prints=True)
-def process_raw():
+def flow_raw2Sv():
     # Load info dataframe containing raw to Sv correspondence
     df_Sv = pd.read_csv(Sv_csv_path, index_col=0)
     raw_files_in_folder = set([ff.name for ff in raw_path.glob("*.raw")])
@@ -85,7 +85,7 @@ def process_raw():
     # Convert raw files to Sv in parallel
     future_all = []
     for nf in new_files:
-        new_processed_raw = raw2Sv.with_options(
+        new_processed_raw = task_raw2Sv.with_options(
             task_run_name=nf, name=nf, retries=3
         )
         future = new_processed_raw.submit(raw_path / nf)
@@ -118,7 +118,7 @@ def process_raw():
 
 
 @task(log_prints=True)#, task_run_name="{raw_path.name}")
-def raw2Sv(raw_path: str):
+def task_raw2Sv(raw_path: str):
     """
     Convert raw sonar data to Sv and save to zarr format.
     """
@@ -160,7 +160,7 @@ def raw2Sv(raw_path: str):
 
 
 @flow(log_prints=True)
-def process_MVBS(
+def flow_create_MVBS(
     end_time: str = "2023-08-04T16:00:00",
     slice_time_len: str = "10min",
     num_slices: int = 3
@@ -212,13 +212,13 @@ def process_MVBS(
             f"MVBS_{start_time[ns].strftime("%Y%m%dT%H%M%S")}"
             f"_{end_time[ns].strftime("%Y%m%dT%H%M%S")}"
         )
-        create_MVBS.with_options(
+        task_create_MVBS.with_options(
             task_run_name=MVBS_run_name, name=MVBS_run_name,
         )(start_time=start_time[ns], end_time=end_time[ns], Sv_filenames=Sv_filenames)
 
 
 @task(log_prints=True)
-def create_MVBS(start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filenames: list[str]):
+def task_create_MVBS(start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filenames: list[str]):
     """
     Create MVBS from Sv files in the specified time range.
     Parameters
@@ -367,16 +367,6 @@ def task_predict_MVBS(
 
 
 if __name__ == "__main__":
-    # for seq, f in enumerate([flow_1, flow_2, flow_3]):
-    #     freq_min = 15+seq
-    #     f.from_source(
-    #         source=".",
-    #         entrypoint="/Users/wujung/code_git/echodataflow/echodataflow/rewrite/example.py:" + f.__name__
-    #     ).deploy(
-    #         name=f"{f.__name__}-deployment",
-    #         work_pool_name="local",
-    #         cron=f"*/{freq_min} * * * *"  # run every 5+seq mins
-    #     )
     freq_min = 2
     deploy(
         copy_raw.from_source(
@@ -387,17 +377,17 @@ if __name__ == "__main__":
             # work_pool_name="local",
             # cron=f"*/{freq_min} * * * *",  # run every freq_min
         ),
-        process_raw.from_source(
+        flow_raw2Sv.from_source(
             source=str(Path(__file__).parent),
-            entrypoint="prototype.py:process_raw",
+            entrypoint="prototype.py:flow_raw2Sv",
         ).to_deployment(
-            name="process-raw",
+            name="raw2Sv",
         ),
-        process_MVBS.from_source(
+        flow_create_MVBS.from_source(
             source=str(Path(__file__).parent),
-            entrypoint="prototype.py:process_MVBS",
+            entrypoint="prototype.py:flow_create_MVBS",
         ).to_deployment(
-            name="process-MVBS",
+            name="create-MVBS",
         ),
         predict_MVBS.from_source(
             source=str(Path(__file__).parent),
