@@ -1,8 +1,11 @@
 from pathlib import Path
 import datetime
+import re
+
 import numpy as np
 import pandas as pd
 import xarray as xr
+import numpy as np
 
 import echopype as ep
 
@@ -13,11 +16,19 @@ import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
+from utils import get_MVBS_tensor, get_hake_model
+
+import torch
+from src.model.BinaryHakeModel import BinaryHakeModel
+
+
 # Set up paths
 data_path = Path("/Users/wujung/code_git/echodataflow/temp_data")
 raw_path = data_path / "raw"
 Sv_path = data_path / "Sv"
 MVBS_path = data_path / "MVBS"
+prediction_path = data_path / "prediction"
+
 
 # Initiate counter for raw file copy
 df_raw = pd.read_csv(
@@ -151,7 +162,7 @@ def raw2Sv(raw_path: str):
 @flow(log_prints=True)
 def process_MVBS(
     end_time: str = "2023-08-04T16:00:00",
-    slice_time_len: str = "20min",
+    slice_time_len: str = "10min",
     num_slices: int = 3
 ):
     """
@@ -224,11 +235,14 @@ def create_MVBS(start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filenames: 
     ds_Sv = xr.open_mfdataset(
         [Sv_path / svf for svf in Sv_filenames],
         parallel=True,
+        coords="minimal",
+        data_vars="minimal",
+        compat='override',
         chunks={"channel": 1, "ping_time": 1000, "range_sample": -1},
         engine="zarr",  # use zarr engine for reading
     )
 
-    # Compute MVBS for the slice and save to zarr
+    # Compute MVBS for the slice
     out_path = MVBS_path / (
         f"MVBS_{start_time.strftime('%Y%m%dT%H%M%S')}"
         f"_{end_time.strftime('%Y%m%dT%H%M%S')}.zarr"
@@ -241,7 +255,9 @@ def create_MVBS(start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filenames: 
         reindex=False,
         fill_value=np.nan,
     )
-    ds_MVBS.chunk({"channel": 1, "ping_time": -1, "depth": -1}).to_zarr(
+
+    # Save to zarr
+    ds_MVBS.chunk({"channel": -1, "ping_time": -1, "depth": -1}).to_zarr(
         store=out_path,  # existing MVBS will be overwritten
         mode="w",
         consolidated=True,
@@ -250,23 +266,105 @@ def create_MVBS(start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filenames: 
 
 
 @flow(log_prints=True)
-def flow_1():
-    print("This is flow 1")
-    print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
+def predict_MVBS(
+    mvbs_file_list: list[str] = ["MVBS_20230804T154000_20230804T155000.zarr"],
+    temperature: float = 0.5,
+):
+    """
+    Predict on MVBS files of specified length.
 
-
-@flow(log_prints=True)
-def flow_2():
+    Parameters
+    ----------
+    end_time : str
+        The end time for the MVBS computation in ISO format (e.g., "2023-10-01 12:00:00").
+    slice_time_len : str
+        The length of each slice in a format recognized by pandas (e.g., "20min").
+    num_slices : int
+        The number of slices to create.
+    """
     logger = get_run_logger()
-    logger.info("This message will appear in the Prefect UI")    
-    print("This is flow 2")
-    print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
+
+    # Load binary hake models with weights
+    model_epoch = 85
+    model_folder = "/Users/wujung/code_git/echodataflow/temp_model/model_160_epochs/model_weights"
+    model_path = f"{model_folder}/binary_hake_model_1.0m_bottom_offset_1.0m_depth_2017_2019_epoch_{model_epoch:03d}.ckpt"
+    model = get_hake_model(model_path)
+
+    # mvbs_file_list = ["MVBS_20230804T153000_20230804T154000.zarr"]
+
+    for mvbs_file in mvbs_file_list:
+        logger.info(f"Processing MVBS file: {mvbs_file}")
+        
+        # Check if the file exists
+        mvbs_path = MVBS_path / mvbs_file
+        if not mvbs_path.exists():
+            logger.warning(f"MVBS file {mvbs_file} does not exist, skipping")
+            continue
+
+        # Predict on the MVBS file
+        task_predict_MVBS.with_options(
+            task_run_name=mvbs_file, name=mvbs_file,
+        )(mvbs_file=mvbs_path, model=model, temperature=temperature)
 
 
-@flow(log_prints=True)
-def flow_3():
-    print("This is flow 3")
-    print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
+
+@task(log_prints=True)
+def task_predict_MVBS(
+    mvbs_file: str,
+    model: BinaryHakeModel,
+    temperature: int = 0.5,
+):
+    """
+    Predict on a single MVBS file.
+    
+    Parameters
+    ----------
+    mvbs_file : str
+        Path to the MVBS file.
+    model : 
+        The model to use for prediction.
+    """
+    # Load MVBS data
+    ds_MVBS = xr.open_dataset(mvbs_file, engine="zarr")
+
+    # Prepare input tensor: slice depth and ensure order of coordinates
+    mvbs_tensor = get_MVBS_tensor(ds_MVBS)
+
+    # Predict using the model
+    score_tensor = model(mvbs_tensor).detach().squeeze(0)
+    score_tensor_softmax = torch.nn.functional.softmax(score_tensor / temperature, dim=0)
+
+    # Assemble output DataArrays
+    da_score = xr.DataArray(
+        score_tensor,
+        coords={
+            "class": ["background", "hake"],
+            "depth": ds_MVBS["depth"].sel(depth=slice(None, 590)).values,
+            "ping_time": ds_MVBS["ping_time"].values,
+        }
+    )
+    da_score_softmax = xr.DataArray(
+        score_tensor_softmax,
+        coords={
+            "class": ["background", "hake"],
+            "depth": ds_MVBS["depth"].sel(depth=slice(None, 590)).values,
+            "ping_time": ds_MVBS["ping_time"].values,
+        }
+    )
+
+    # Save to zarr
+    mvbs_time = re.match(r"MVBS_(\w+).zarr", mvbs_file.name).group(1)
+    da_score.chunk({"class": -1, "ping_time": -1, "depth": -1}).to_zarr(
+        store=prediction_path / f"score_{mvbs_time}.zarr",
+        mode="w",
+        consolidated=True,
+    )
+    da_score_softmax.chunk({"class": -1, "ping_time": -1, "depth": -1}).to_zarr(
+        store=prediction_path / f"softmax_{mvbs_time}.zarr",
+        mode="w",
+        consolidated=True,
+    )
+
 
 if __name__ == "__main__":
     # for seq, f in enumerate([flow_1, flow_2, flow_3]):
@@ -300,6 +398,12 @@ if __name__ == "__main__":
             entrypoint="prototype.py:process_MVBS",
         ).to_deployment(
             name="process-MVBS",
+        ),
+        predict_MVBS.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="prototype.py:predict_MVBS",
+        ).to_deployment(
+            name="predict-MVBS",
         ),
         work_pool_name="local",
     )

@@ -3,7 +3,9 @@ channels:
   - conda-forge
   - defaults
 dependencies:
+  - boto3
   - echopype
   - ipykernel
+  - opencv  # this should be specified in hakeML
   - prefect
   - python=3.12
