@@ -11,6 +11,7 @@ import echopype as ep
 
 from prefect import deploy, flow, task, get_run_logger
 from prefect.variables import Variable
+from prefect.events import DeploymentEventTrigger
 
 import boto3
 from botocore import UNSIGNED
@@ -394,6 +395,12 @@ if __name__ == "__main__":
             entrypoint="prototype.py:predict_MVBS",
         ).to_deployment(
             name="predict-MVBS",
+            triggers=[
+                DeploymentEventTrigger(
+                    expect={"prefect.flow-run.Completed"},
+                    match_related={"prefect.resource.name": "create-MVBS"},
+                )
+            ]
         ),
         work_pool_name="local",
     )
