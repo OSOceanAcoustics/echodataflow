@@ -449,6 +449,10 @@ def flow_file_upload(
 
 
 if __name__ == "__main__":
+
+    # Set raw copy counter
+    Variable.set("counter_raw_copy", 0)
+
     freq_min = 2
     deploy(
         copy_raw.from_source(
