@@ -45,7 +45,7 @@ df_raw = pd.read_csv(
     names=["date", "time", "size", "filename"]  # assign column names
 )
 
-# Info dataframe for which raw files to process
+# Info dataframe for which raw files to convert to Sv
 Sv_csv_path = data_path / "SH2306_Sv_files.csv"
 if not Sv_csv_path.exists():
     df_Sv = pd.DataFrame(
@@ -53,12 +53,14 @@ if not Sv_csv_path.exists():
     )
     df_Sv.to_csv(Sv_csv_path)
 
+# Info dataframe for MVBS files
+MVBS_csv_path = data_path / "SH2306_MVBS_files.csv"
+if not MVBS_csv_path.exists():
+    df_MVBS = pd.DataFrame(
+        columns=["MVBS_filename", "last_ping_time", "first_ping_time"]
+    )
+    df_MVBS.to_csv(MVBS_csv_path)
 
-
-@flow(log_prints=True)
-def flow_loggin_test():
-    print("This is flow_loggin_test!")
-    print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
 
 
 @flow(log_prints=True)
@@ -107,14 +109,6 @@ def flow_raw2Sv():
     for nf, ff in zip(new_files, future_all):
         result = [nf] + list(ff.result())
         results.append(result)
-
-    # # Sequentially process new files
-    # results = []
-    # for nf in new_files:
-    #     Sv_filename, first_ping_time, last_ping_time = raw2Sv.with_options(
-    #         task_run_name=nf, name=nf, retries=3
-    #     )(raw_path / nf)
-    #     results.append([nf, Sv_filename, first_ping_time, last_ping_time])
 
     # Add new entries to df_Sv
     if len(results) > 0:
@@ -195,8 +189,9 @@ def flow_create_MVBS(
     """
     logger = get_run_logger()
 
-    # Load info dataframe containing raw to Sv correspondence
+    # Load Sv and MVBS info dataframes
     df_Sv = pd.read_csv(Sv_csv_path, index_col=0)
+    df_MVBS = pd.read_csv(MVBS_csv_path, index_col=0)
 
     # Compute slice time range
     end_time = pd.to_datetime(end_time)
@@ -205,32 +200,42 @@ def flow_create_MVBS(
     end_time = [st + slice_time_len for st in start_time]    
     
     # Sequentially create MVBS slices
-    for ns in range(num_slices):
-        logger.info(f"Slice {ns+1}: {start_time[ns]} to {end_time[ns]}")
+    for snum in range(num_slices):
+        logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
 
         # Get Sv files in the specified time range
         Sv_filenames = df_Sv[
-            (pd.to_datetime(df_Sv["last_ping_time"]) >= start_time[ns]) &
-            (pd.to_datetime(df_Sv["first_ping_time"]) <= end_time[ns])
+            (pd.to_datetime(df_Sv["last_ping_time"]) >= start_time[snum]) &
+            (pd.to_datetime(df_Sv["first_ping_time"]) <= end_time[snum])
         ]["Sv_filename"].tolist()
         logger.info(f"Found {len(Sv_filenames)} Sv files in the specified time range")
 
         # If no Sv files found, skip this slice
         if len(Sv_filenames) == 0:
-            logger.info(f"No Sv files found for slice {ns+1}, skipping")
+            logger.info(f"No Sv files found for slice {snum+1}, skipping")
             continue
 
-        MVBS_run_name = (
-            f"MVBS_{start_time[ns].strftime("%Y%m%dT%H%M%S")}"
-            f"_{end_time[ns].strftime("%Y%m%dT%H%M%S")}"
-        )
-        task_create_MVBS.with_options(
-            task_run_name=MVBS_run_name, name=MVBS_run_name,
-        )(start_time=start_time[ns], end_time=end_time[ns], Sv_filenames=Sv_filenames)
+        # Create MVBS for this slice
+        MVBS_filename = f"MVBS_{start_time[snum].strftime("%Y%m%dT%H%M%S")}"
+        first_ping_time, last_ping_time = task_create_MVBS.with_options(
+            task_run_name=MVBS_filename, name=MVBS_filename,
+        )(MVBS_filename=MVBS_filename, start_time=start_time[snum], end_time=end_time[snum], Sv_filenames=Sv_filenames)
+
+        # Add MVBS slice info to dataframe
+        if MVBS_filename in df_MVBS["MVBS_filename"].values:
+            logger.info(f"MVBS file {MVBS_filename} already exists, updating first and last ping times")
+            idx_to_add = df_MVBS.index[df_MVBS["MVBS_filename"] == MVBS_filename]
+        else:
+            logger.info(f"Adding new MVBS file {MVBS_filename} to tracking dataframe")
+            idx_to_add = len(df_MVBS) + 1
+        df_MVBS.loc[idx_to_add] = [MVBS_filename, last_ping_time, first_ping_time]
+
+    # Save updated MVBS info dataframe
+    df_MVBS.to_csv(MVBS_csv_path)
 
 
 @task(log_prints=True)
-def task_create_MVBS(start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filenames: list[str]):
+def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filenames: list[str]):
     """
     Create MVBS from Sv files in the specified time range.
     Parameters
@@ -255,10 +260,6 @@ def task_create_MVBS(start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filena
     )
 
     # Compute MVBS for the slice
-    out_path = MVBS_path / (
-        f"MVBS_{start_time.strftime('%Y%m%dT%H%M%S')}"
-        f"_{end_time.strftime('%Y%m%dT%H%M%S')}.zarr"
-    )
     ds_MVBS = ep.commongrid.compute_MVBS(
         ds_Sv=ds_Sv.sel(ping_time=slice(start_time, end_time)),  # slice start/end
         range_var="depth",
@@ -268,18 +269,24 @@ def task_create_MVBS(start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filena
         fill_value=np.nan,
     )
 
-    # Save to zarr
+    # Save to zarr: 1 chunk along each dimension
     ds_MVBS.chunk({"channel": -1, "ping_time": -1, "depth": -1}).to_zarr(
-        store=out_path,  # existing MVBS will be overwritten
+        store=MVBS_path / MVBS_filename,  # existing file will be overwritten
         mode="w",
         consolidated=True,
         # storage_options=config.output.storage_options_dict,
     )
+    first_ping_time = ds_MVBS["ping_time"][-1].values
+    last_ping_time = ds_MVBS["ping_time"][0].values
+
+    return first_ping_time, last_ping_time
 
 
 @flow(log_prints=True)
 def flow_predict_MVBS(
-    mvbs_file_list: list[str] = ["MVBS_20230804T154000_20230804T155000.zarr"],
+    end_time: str = "2023-08-04T16:00:00",
+    slice_time_len: str = "10min",
+    num_slices: int = 3,
     temperature: float = 0.5,
 ):
     """
@@ -302,7 +309,25 @@ def flow_predict_MVBS(
     model_path = f"{model_folder}/binary_hake_model_1.0m_bottom_offset_1.0m_depth_2017_2019_epoch_{model_epoch:03d}.ckpt"
     model = get_hake_model(model_path)
 
-    # mvbs_file_list = ["MVBS_20230804T153000_20230804T154000.zarr"]
+    # Compute slice time range
+    end_time = pd.to_datetime(end_time)
+    slice_time_len = pd.to_timedelta(slice_time_len)
+    start_time = sorted([end_time - s * slice_time_len for s in np.arange(num_slices)+1])
+    end_time = [st + slice_time_len for st in start_time]
+
+    # Assemble MVBS file set for each prediction slice
+    mvbs_file_list = []
+    for snum in range(num_slices):
+        logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
+
+        # Find MVBS files in the specified time range
+        mvbs_files = list(MVBS_path.glob(f"MVBS_{start_time[snum].strftime('%Y%m%dT%H%M%S')}*.zarr"))
+        if len(mvbs_files) == 0:
+            logger.info(f"No MVBS files found for slice {snum+1}, skipping")
+            continue
+
+        # Add found files to the list
+        mvbs_file_list.extend(mvbs_files)
 
     for mvbs_file in mvbs_file_list:
         logger.info(f"Processing MVBS file: {mvbs_file}")
@@ -441,12 +466,6 @@ if __name__ == "__main__":
             entrypoint="prototype.py:flow_file_upload",
         ).to_deployment(
             name="file-upload",
-        ),
-        flow_loggin_test.from_source(
-            source=str(Path(__file__).parent),
-            entrypoint="prototype.py:flow_loggin_test",
-        ).to_deployment(
-            name="logging-test",
         ),
         work_pool_name="local",
     )
