@@ -49,7 +49,7 @@ df_raw = pd.read_csv(
 Sv_csv_path = data_path / "SH2306_Sv_files.csv"
 if not Sv_csv_path.exists():
     df_Sv = pd.DataFrame(
-        columns=["raw_filename", "Sv_filename", "last_ping_time", "first_ping_time"]
+        columns=["raw_filename", "Sv_filename", "first_ping_time", "last_ping_time"]
     )
     df_Sv.to_csv(Sv_csv_path)
 
@@ -57,7 +57,7 @@ if not Sv_csv_path.exists():
 MVBS_csv_path = data_path / "SH2306_MVBS_files.csv"
 if not MVBS_csv_path.exists():
     df_MVBS = pd.DataFrame(
-        columns=["MVBS_filename", "last_ping_time", "first_ping_time"]
+        columns=["MVBS_filename", "first_ping_time", "last_ping_time"]
     )
     df_MVBS.to_csv(MVBS_csv_path)
 
@@ -114,7 +114,7 @@ def flow_raw2Sv():
     if len(results) > 0:
         df_new = pd.DataFrame(
             results,
-            columns=["raw_filename", "Sv_filename", "last_ping_time", "first_ping_time"]
+            columns=["raw_filename", "Sv_filename", "first_ping_time", "last_ping_time"]
         )
         
         # Concatenate with existing df_Sv and save
@@ -159,10 +159,8 @@ def task_raw2Sv(raw_path: str):
         consolidated=True,
         # storage_options=config.output.storage_options_dict,
     )
-    first_ping_time = ds_Sv["ping_time"][-1].values
-    last_ping_time = ds_Sv["ping_time"][0].values
 
-    return out_path.name, first_ping_time, last_ping_time
+    return out_path.name, ds_Sv["ping_time"][0].values, ds_Sv["ping_time"][-1].values
 
 
 @flow(log_prints=True)
@@ -228,7 +226,7 @@ def flow_create_MVBS(
         else:
             logger.info(f"Adding new MVBS file {MVBS_filename} to tracking dataframe")
             idx_to_add = len(df_MVBS) + 1
-        df_MVBS.loc[idx_to_add] = [MVBS_filename, last_ping_time, first_ping_time]
+        df_MVBS.loc[idx_to_add] = [MVBS_filename, first_ping_time, last_ping_time]
 
     # Save updated MVBS info dataframe
     df_MVBS.to_csv(MVBS_csv_path)
@@ -276,10 +274,8 @@ def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.
         consolidated=True,
         # storage_options=config.output.storage_options_dict,
     )
-    first_ping_time = ds_MVBS["ping_time"][-1].values
-    last_ping_time = ds_MVBS["ping_time"][0].values
 
-    return first_ping_time, last_ping_time
+    return ds_MVBS["ping_time"][0].values, ds_MVBS["ping_time"][-1].values
 
 
 @flow(log_prints=True)
