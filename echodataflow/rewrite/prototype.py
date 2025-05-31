@@ -23,6 +23,11 @@ import torch
 from src.model.BinaryHakeModel import BinaryHakeModel
 
 
+# Turn on verbose logging for echopype
+# otherwise all logging will be muted
+ep.utils.log.verbose()
+
+
 # Set up paths
 data_path = Path("/Users/wujung/code_git/echodataflow/temp_data")
 raw_path = data_path / "raw"
