@@ -11,7 +11,6 @@ import echopype as ep
 
 from prefect import deploy, flow, task, get_run_logger
 from prefect.variables import Variable
-from prefect.events import DeploymentEventTrigger
 from prefect_shell import ShellOperation
 
 import boto3
@@ -49,6 +48,12 @@ if not Sv_csv_path.exists():
     )
     df_Sv.to_csv(Sv_csv_path)
 
+
+
+@flow(log_prints=True)
+def flow_loggin_test():
+    print("This is flow_loggin_test!")
+    print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
 
 
 @flow(log_prints=True)
@@ -368,7 +373,7 @@ def task_predict_MVBS(
     )
 
 
-@flow
+@flow(timeout_seconds=600, log_prints=True)
 def flow_file_upload(
     src_dir: str = str(MVBS_path),
     dest_dir: str = "osn_sdsc_hake:/agr230002-bucket01/prefect_test",
@@ -376,6 +381,8 @@ def flow_file_upload(
     """
     Upload files via rlcone.
     """
+    print("test")
+
     # for long running operations, you can use a context manager
     with ShellOperation(
         commands=[
@@ -392,6 +399,7 @@ def flow_file_upload(
 
         # Get results
         output_lines = file_upload_process.fetch_result()
+    
 
 
 if __name__ == "__main__":
@@ -428,6 +436,12 @@ if __name__ == "__main__":
             entrypoint="prototype.py:flow_file_upload",
         ).to_deployment(
             name="file-upload",
+        ),
+        flow_loggin_test.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="prototype.py:flow_loggin_test",
+        ).to_deployment(
+            name="logging-test",
         ),
         work_pool_name="local",
     )
