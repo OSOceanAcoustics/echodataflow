@@ -12,6 +12,7 @@ import echopype as ep
 from prefect import deploy, flow, task, get_run_logger
 from prefect.variables import Variable
 from prefect.events import DeploymentEventTrigger
+from prefect_shell import ShellOperation
 
 import boto3
 from botocore import UNSIGNED
@@ -267,7 +268,7 @@ def task_create_MVBS(start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filena
 
 
 @flow(log_prints=True)
-def predict_MVBS(
+def flow_predict_MVBS(
     mvbs_file_list: list[str] = ["MVBS_20230804T154000_20230804T155000.zarr"],
     temperature: float = 0.5,
 ):
@@ -367,6 +368,32 @@ def task_predict_MVBS(
     )
 
 
+@flow
+def flow_file_upload(
+    src_dir: str = str(MVBS_path),
+    dest_dir: str = "osn_sdsc_hake:/agr230002-bucket01/prefect_test",
+):
+    """
+    Upload files via rlcone.
+    """
+    # for long running operations, you can use a context manager
+    with ShellOperation(
+        commands=[
+            f"rclone sync -vP {src_dir} {dest_dir}"
+        ],
+        working_dir=src_dir,
+    ) as file_upload_operation:
+
+        # Trigger runs the process in the background
+        file_upload_process = file_upload_operation.trigger()
+
+        # Wait for the process to finish
+        file_upload_process.wait_for_completion()
+
+        # Get results
+        output_lines = file_upload_process.fetch_result()
+
+
 if __name__ == "__main__":
     freq_min = 2
     deploy(
@@ -390,17 +417,17 @@ if __name__ == "__main__":
         ).to_deployment(
             name="create-MVBS",
         ),
-        predict_MVBS.from_source(
+        flow_predict_MVBS.from_source(
             source=str(Path(__file__).parent),
-            entrypoint="prototype.py:predict_MVBS",
+            entrypoint="prototype.py:flow_predict_MVBS",
         ).to_deployment(
             name="predict-MVBS",
-            triggers=[
-                DeploymentEventTrigger(
-                    expect={"prefect.flow-run.Completed"},
-                    match_related={"prefect.resource.name": "create-MVBS"},
-                )
-            ]
+        ),
+        flow_file_upload.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="prototype.py:flow_file_upload",
+        ).to_deployment(
+            name="file-upload",
         ),
         work_pool_name="local",
     )

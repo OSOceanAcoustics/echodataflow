@@ -9,3 +9,5 @@ dependencies:
   - opencv  # this should be specified in hakeML
   - prefect
   - python=3.12
+  - pip:
+    - prefect[shell]
