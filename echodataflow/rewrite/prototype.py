@@ -214,7 +214,7 @@ def flow_create_MVBS(
             continue
 
         # Create MVBS for this slice
-        MVBS_filename = f"MVBS_{start_time[snum].strftime("%Y%m%dT%H%M%S")}"
+        MVBS_filename = f"MVBS_{start_time[snum].strftime("%Y%m%dT%H%M%S")}.zarr"
         first_ping_time, last_ping_time = task_create_MVBS.with_options(
             task_run_name=MVBS_filename, name=MVBS_filename,
         )(MVBS_filename=MVBS_filename, start_time=start_time[snum], end_time=end_time[snum], Sv_filenames=Sv_filenames)
@@ -255,11 +255,14 @@ def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.
         compat='override',
         chunks={"channel": 1, "ping_time": 1000, "range_sample": -1},
         engine="zarr",  # use zarr engine for reading
+    ).sel(
+        # slice start/end, end exclusive
+        ping_time=slice(start_time, end_time-pd.to_timedelta("1nanoseconds"))
     )
 
     # Compute MVBS for the slice
     ds_MVBS = ep.commongrid.compute_MVBS(
-        ds_Sv=ds_Sv.sel(ping_time=slice(start_time, end_time)),  # slice start/end
+        ds_Sv=ds_Sv,
         range_var="depth",
         range_bin='1m',
         ping_time_bin='5s',
@@ -279,8 +282,8 @@ def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.
 
 
 @flow(log_prints=True)
-def flow_predict_MVBS(
-    end_time: str = "2023-08-04T16:00:00",
+def flow_predict_hake(
+    end_time: str = "2023-08-04T16:05:00",
     slice_time_len: str = "10min",
     num_slices: int = 3,
     temperature: float = 0.5,
@@ -311,39 +314,46 @@ def flow_predict_MVBS(
     start_time = sorted([end_time - s * slice_time_len for s in np.arange(num_slices)+1])
     end_time = [st + slice_time_len for st in start_time]
 
-    # Assemble MVBS file set for each prediction slice
-    mvbs_file_list = []
+    # Load Sv and MVBS info dataframes
+    df_MVBS = pd.read_csv(MVBS_csv_path, index_col=0)
+
+    # Sequentially predict over combined MVBS slices
     for snum in range(num_slices):
         logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
 
-        # Find MVBS files in the specified time range
-        mvbs_files = list(MVBS_path.glob(f"MVBS_{start_time[snum].strftime('%Y%m%dT%H%M%S')}*.zarr"))
-        if len(mvbs_files) == 0:
+        # Get MVBS files in the specified time range
+        MVBS_filenames = df_MVBS[
+            (pd.to_datetime(df_MVBS["last_ping_time"]) >= start_time[snum]) &
+            (pd.to_datetime(df_MVBS["first_ping_time"]) <= end_time[snum])
+        ]["MVBS_filename"].tolist()
+        logger.info(f"Found {len(MVBS_filenames)} MVBS files in the specified time range")
+
+        # Skip prediction if no MVBS files found
+        if len(MVBS_filenames) == 0:
             logger.info(f"No MVBS files found for slice {snum+1}, skipping")
-            continue
+            continue        
 
-        # Add found files to the list
-        mvbs_file_list.extend(mvbs_files)
-
-    for mvbs_file in mvbs_file_list:
-        logger.info(f"Processing MVBS file: {mvbs_file}")
-        
-        # Check if the file exists
-        mvbs_path = MVBS_path / mvbs_file
-        if not mvbs_path.exists():
-            logger.warning(f"MVBS file {mvbs_file} does not exist, skipping")
-            continue
-
-        # Predict on the MVBS file
-        task_predict_MVBS.with_options(
-            task_run_name=mvbs_file, name=mvbs_file,
-        )(mvbs_file=mvbs_path, model=model, temperature=temperature)
-
+        # Predict on the MVBS files
+        predict_filename_postfix=f"{start_time[snum].strftime("%Y%m%dT%H%M%S")}"
+        task_predict_hake.with_options(
+            task_run_name=f"predict_{predict_filename_postfix}",
+            name=f"predict_{predict_filename_postfix}",
+        )(
+            predict_filename_postfix=predict_filename_postfix,
+            MVBS_filenames=MVBS_filenames,
+            start_time=start_time[snum],
+            end_time=end_time[snum],
+            model=model,
+            temperature=temperature
+        )
 
 
 @task(log_prints=True)
-def task_predict_MVBS(
-    mvbs_file: str,
+def task_predict_hake(
+    predict_filename_postfix: str,
+    MVBS_filenames: list[str],
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
     model: BinaryHakeModel,
     temperature: int = 0.5,
 ):
@@ -352,19 +362,30 @@ def task_predict_MVBS(
     
     Parameters
     ----------
-    mvbs_file : str
+    MVBS_filenames : str
         Path to the MVBS file.
     model : 
         The model to use for prediction.
     """
-    # Load MVBS data
-    ds_MVBS = xr.open_dataset(mvbs_file, engine="zarr")
+    # Combine MVBS files into a single dataset
+    ds_MVBS = xr.open_mfdataset(
+        [MVBS_path / mvbsf for mvbsf in MVBS_filenames],
+        parallel=True,
+        coords="minimal",
+        data_vars="minimal",
+        compat='override',
+        chunks={"channel": -1, "ping_time": -1, "depth": -1},  # load everything into 1 chunk
+        engine="zarr",  # use zarr engine for reading
+    ).sel(
+        # slice start/end, end exclusive
+        ping_time=slice(start_time, end_time-pd.to_timedelta("10milliseconds"))
+    )
 
     # Prepare input tensor: slice depth and ensure order of coordinates
-    mvbs_tensor = get_MVBS_tensor(ds_MVBS)
+    input_tensor = get_MVBS_tensor(ds_MVBS)
 
     # Predict using the model
-    score_tensor = model(mvbs_tensor).detach().squeeze(0)
+    score_tensor = model(input_tensor).detach().squeeze(0)
     score_tensor_softmax = torch.nn.functional.softmax(score_tensor / temperature, dim=0)
 
     # Assemble output DataArrays
@@ -386,14 +407,13 @@ def task_predict_MVBS(
     )
 
     # Save to zarr
-    mvbs_time = re.match(r"MVBS_(\w+).zarr", mvbs_file.name).group(1)
     da_score.chunk({"class": -1, "ping_time": -1, "depth": -1}).to_zarr(
-        store=prediction_path / f"score_{mvbs_time}.zarr",
+        store=prediction_path / f"score_{predict_filename_postfix}.zarr",
         mode="w",
         consolidated=True,
     )
     da_score_softmax.chunk({"class": -1, "ping_time": -1, "depth": -1}).to_zarr(
-        store=prediction_path / f"softmax_{mvbs_time}.zarr",
+        store=prediction_path / f"softmax_{predict_filename_postfix}.zarr",
         mode="w",
         consolidated=True,
     )
@@ -451,11 +471,11 @@ if __name__ == "__main__":
         ).to_deployment(
             name="create-MVBS",
         ),
-        flow_predict_MVBS.from_source(
+        flow_predict_hake.from_source(
             source=str(Path(__file__).parent),
-            entrypoint="prototype.py:flow_predict_MVBS",
+            entrypoint="prototype.py:flow_predict_hake",
         ).to_deployment(
-            name="predict-MVBS",
+            name="predict-hake",
         ),
         flow_file_upload.from_source(
             source=str(Path(__file__).parent),
