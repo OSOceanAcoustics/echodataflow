@@ -119,7 +119,7 @@ def flow_raw2Sv():
         
         # Concatenate with existing df_Sv and save
         df_Sv = pd.concat([df_Sv, df_new], ignore_index=True)
-        df_Sv.to_csv(Sv_csv_path, date_format="%Y-%m-%dT%H:%M:%S.%f")
+        df_Sv.to_csv(Sv_csv_path, date_format="%Y-%m-%dT%H:%M:%S")
         print(f"Added {len(new_files)} new entries to tracking CSV")
 
 
@@ -211,7 +211,12 @@ def flow_create_MVBS(
 
     # Load Sv and MVBS info dataframes
     df_Sv = pd.read_csv(Sv_csv_path, index_col=0)
-    df_MVBS = pd.read_csv(MVBS_csv_path, index_col=0)
+    df_MVBS = pd.read_csv(
+        MVBS_csv_path,
+        index_col=0,
+        date_format="ISO8601",
+        parse_dates=["first_ping_time", "last_ping_time"]
+    )
 
     # Compute slice time range
     end_time = pd.to_datetime(end_time)
@@ -251,7 +256,7 @@ def flow_create_MVBS(
         df_MVBS.loc[idx_to_add] = [MVBS_filename, first_ping_time, last_ping_time]
 
     # Save updated MVBS info dataframe
-    df_MVBS.to_csv(MVBS_csv_path, date_format="%Y-%m-%dT%H:%M:%S.%f")
+    df_MVBS.to_csv(MVBS_csv_path, date_format="%Y-%m-%dT%H:%M:%S")
 
 
 @task(log_prints=True)
@@ -300,7 +305,10 @@ def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.
         # storage_options=config.output.storage_options_dict,
     )
 
-    return ds_MVBS["ping_time"][0].values, ds_MVBS["ping_time"][-1].values
+    return (
+        pd.to_datetime(ds_MVBS["ping_time"][0].values),
+        pd.to_datetime(ds_MVBS["ping_time"][-1].values)
+    )
 
 
 @flow(log_prints=True)
@@ -359,7 +367,12 @@ def flow_predict_hake(
     end_time = [st + slice_time_min for st in start_time]
 
     # Load Sv and MVBS info dataframes
-    df_MVBS = pd.read_csv(MVBS_csv_path, index_col=0)
+    df_MVBS = pd.read_csv(
+        MVBS_csv_path,
+        index_col=0,
+        date_format="ISO8601",
+        parse_dates=["first_ping_time", "last_ping_time"]
+    )
 
     # Sequentially predict over combined MVBS slices
     for snum in range(num_slices):
