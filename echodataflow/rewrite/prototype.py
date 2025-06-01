@@ -1,6 +1,6 @@
 from pathlib import Path
 import datetime
-import re
+from yaml import safe_load
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
-from utils import get_MVBS_tensor, get_hake_model
+from utils import get_MVBS_tensor, get_hake_model, round_up_minutes, extract_mins
 
 import torch
 from src.model.BinaryHakeModel import BinaryHakeModel
@@ -67,7 +67,7 @@ if not MVBS_csv_path.exists():
 def copy_raw():
     print("Copy raw files to simulate data generation")
     print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
-    counter = Variable.get("counter_raw_copy")
+    counter = Variable.get("counter_raw_copy", default=None)
 
     # Get filename from dataframe
     filename = df_raw.iloc[counter]['filename']
@@ -166,8 +166,8 @@ def task_raw2Sv(raw_path: str):
 @flow(log_prints=True)
 def flow_create_MVBS(
     end_time: str = "2023-08-04T16:00:00",
-    slice_time_len: str = "10min",
-    num_slices: int = 3
+    slice_time_min: int = 10,
+    num_slices: int = 3,
 ):
     """
     Process raw files to create MVBS files of specified length.
@@ -176,8 +176,8 @@ def flow_create_MVBS(
     ----------
     end_time : str
         The end time for the MVBS computation in ISO format (e.g., "2023-10-01 12:00:00").
-    slice_time_len : str
-        The length of each slice in a format recognized by pandas (e.g., "20min").
+    slice_time_min : int
+        The length of each slice in mins in a format recognized by pandas.
     num_slices : int
         The number of slices to create.
 
@@ -187,15 +187,39 @@ def flow_create_MVBS(
     """
     logger = get_run_logger()
 
+    # Load parameters from variables or set defaults
+    slice_time_min = Variable.get("create_mvbs__slice_time_min", default=slice_time_min)
+    num_slices = Variable.get("create_mvbs__num_slices", default=num_slices)
+
+    # Set end_time to current time - offset if not provided
+    curr_time_offset_seconds = Variable.get("curr_time_offset_seconds", default=0)
+    if Variable.get("flow_start_time") is not None:
+        end_time = round_up_minutes(
+            (
+                datetime.datetime.now()
+                - datetime.timedelta(seconds=curr_time_offset_seconds)
+            ),
+            interval=slice_time_min,
+        )
+    else:
+        end_time = pd.to_datetime(end_time)
+
+    logger.info(
+        "flow started with parameters:\n"
+        f"- end_time: {end_time}\n"
+        f"- slice_time_min: {slice_time_min}\n"
+        f"- num_slices: {num_slices}\n"
+    )
+
     # Load Sv and MVBS info dataframes
     df_Sv = pd.read_csv(Sv_csv_path, index_col=0)
     df_MVBS = pd.read_csv(MVBS_csv_path, index_col=0)
 
     # Compute slice time range
     end_time = pd.to_datetime(end_time)
-    slice_time_len = pd.to_timedelta(slice_time_len)
-    start_time = sorted([end_time - s * slice_time_len for s in np.arange(num_slices)+1])
-    end_time = [st + slice_time_len for st in start_time]    
+    slice_time_min = pd.to_timedelta(f"{slice_time_min}min")
+    start_time = sorted([end_time - s * slice_time_min for s in np.arange(num_slices)+1])
+    end_time = [st + slice_time_min for st in start_time]    
     
     # Sequentially create MVBS slices
     for snum in range(num_slices):
@@ -284,7 +308,7 @@ def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.
 @flow(log_prints=True)
 def flow_predict_hake(
     end_time: str = "2023-08-04T16:05:00",
-    slice_time_len: str = "10min",
+    slice_time_min: int = 10,
     num_slices: int = 3,
     temperature: float = 0.5,
 ):
@@ -310,9 +334,9 @@ def flow_predict_hake(
 
     # Compute slice time range
     end_time = pd.to_datetime(end_time)
-    slice_time_len = pd.to_timedelta(slice_time_len)
-    start_time = sorted([end_time - s * slice_time_len for s in np.arange(num_slices)+1])
-    end_time = [st + slice_time_len for st in start_time]
+    slice_time_min = pd.to_timedelta(slice_time_min+"min")
+    start_time = sorted([end_time - s * slice_time_min for s in np.arange(num_slices)+1])
+    end_time = [st + slice_time_min for st in start_time]
 
     # Load Sv and MVBS info dataframes
     df_MVBS = pd.read_csv(MVBS_csv_path, index_col=0)
@@ -450,10 +474,32 @@ def flow_file_upload(
 
 if __name__ == "__main__":
 
-    # Set raw copy counter
-    Variable.set("counter_raw_copy", 0)
+    # Load variables from config
+    with open(Path(__file__).parent / "config.yaml", "r") as file:
+        config = safe_load(file)
 
-    freq_min = 2
+    # Set init variables
+    init_dict = config.pop("init")
+    Variable.set("flow_start_time", init_dict["flow_start_time"], overwrite=True)
+    Variable.set("counter_raw_copy", init_dict["counter_raw_copy"], overwrite=True)
+    if init_dict["flow_start_time"] is None:
+        curr_time_offset = datetime.timedelta(seconds=0)
+    else:
+        curr_time_offset = (
+            datetime.datetime.now()
+            - datetime.datetime.strptime(
+                init_dict["flow_start_time"], "%Y%m%dT%H%M%S"
+            )
+        )
+    Variable.set("curr_time_offset_seconds", curr_time_offset.total_seconds(), overwrite=True)
+
+    # Populate other variables
+    for flow_name, flow_params in config.items():
+        for p in flow_params:
+            # format: {FLOW_NAME}__{PARAM_NAME}
+            Variable.set(f"{flow_name.lower()}__{p}", config[flow_name][p], overwrite=True)
+
+    # freq_min = 2
     deploy(
         copy_raw.from_source(
             source=str(Path(__file__).parent),
@@ -474,6 +520,7 @@ if __name__ == "__main__":
             entrypoint="prototype.py:flow_create_MVBS",
         ).to_deployment(
             name="create-MVBS",
+            cron=f"*/{config["create_MVBS"]["slice_time_min"]} * * * *",
         ),
         flow_predict_hake.from_source(
             source=str(Path(__file__).parent),

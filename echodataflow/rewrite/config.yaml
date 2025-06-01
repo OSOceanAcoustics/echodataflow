@@ -1,0 +1,9 @@
+init:
+  counter_raw_copy: 0
+  flow_start_time: 20230804T155000
+create_MVBS:
+  slice_time_min: 10
+  num_slices: 3
+predict_hake:
+  slice_time_min: 10
+  num_slices: 3
