@@ -119,7 +119,7 @@ def flow_raw2Sv():
         
         # Concatenate with existing df_Sv and save
         df_Sv = pd.concat([df_Sv, df_new], ignore_index=True)
-        df_Sv.to_csv(Sv_csv_path)
+        df_Sv.to_csv(Sv_csv_path, date_format="%Y-%m-%dT%H:%M:%S.%f")
         print(f"Added {len(new_files)} new entries to tracking CSV")
 
 
@@ -201,8 +201,6 @@ def flow_create_MVBS(
             ),
             interval=slice_time_min,
         )
-    else:
-        end_time = pd.to_datetime(end_time)
 
     logger.info(
         "flow started with parameters:\n"
@@ -249,11 +247,11 @@ def flow_create_MVBS(
             idx_to_add = df_MVBS.index[df_MVBS["MVBS_filename"] == MVBS_filename]
         else:
             logger.info(f"Adding new MVBS file {MVBS_filename} to tracking dataframe")
-            idx_to_add = len(df_MVBS) + 1
+            idx_to_add = len(df_MVBS)
         df_MVBS.loc[idx_to_add] = [MVBS_filename, first_ping_time, last_ping_time]
 
     # Save updated MVBS info dataframe
-    df_MVBS.to_csv(MVBS_csv_path)
+    df_MVBS.to_csv(MVBS_csv_path, date_format="%Y-%m-%dT%H:%M:%S.%f")
 
 
 @task(log_prints=True)
@@ -332,9 +330,31 @@ def flow_predict_hake(
     model_path = f"{model_folder}/binary_hake_model_1.0m_bottom_offset_1.0m_depth_2017_2019_epoch_{model_epoch:03d}.ckpt"
     model = get_hake_model(model_path)
 
+    # Load parameters from variables or set defaults
+    slice_time_min = Variable.get("predict_hake__slice_time_min", default=slice_time_min)
+    num_slices = Variable.get("predict_hake__num_slices", default=num_slices)
+
+    # Set end_time to current time - offset if not provided
+    curr_time_offset_seconds = Variable.get("curr_time_offset_seconds", default=0)
+    if Variable.get("flow_start_time") is not None:
+        end_time = round_up_minutes(
+            (
+                datetime.datetime.now()
+                - datetime.timedelta(seconds=curr_time_offset_seconds)
+            ),
+            interval=slice_time_min,
+        )
+
+    logger.info(
+        "flow started with parameters:\n"
+        f"- end_time: {end_time}\n"
+        f"- slice_time_min: {slice_time_min}\n"
+        f"- num_slices: {num_slices}\n"
+    )
+
     # Compute slice time range
     end_time = pd.to_datetime(end_time)
-    slice_time_min = pd.to_timedelta(slice_time_min+"min")
+    slice_time_min = pd.to_timedelta(f"{slice_time_min}min")
     start_time = sorted([end_time - s * slice_time_min for s in np.arange(num_slices)+1])
     end_time = [st + slice_time_min for st in start_time]
 
@@ -527,6 +547,7 @@ if __name__ == "__main__":
             entrypoint="prototype.py:flow_predict_hake",
         ).to_deployment(
             name="predict-hake",
+            cron=f"*/{config["predict_hake"]["slice_time_min"]} * * * *",
         ),
         flow_file_upload.from_source(
             source=str(Path(__file__).parent),
