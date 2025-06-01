@@ -193,7 +193,7 @@ def task_raw2Sv(raw_path: str):
 @flow(log_prints=True)
 def flow_create_MVBS(
     time_offset_seconds: float = 0.0,
-    slice_time_mins: int = 10,
+    slice_mins: int = 10,
     num_slices: int = 3,
 ):
     """
@@ -201,29 +201,25 @@ def flow_create_MVBS(
 
     Parameters
     ----------
-    end_time : str
-        The end time for the MVBS computation in ISO format (e.g., "2023-10-01 12:00:00").
-    slice_time_mins : int
-        The length of each slice in mins in a format recognized by pandas.
+    time_offset_seconds : float
+        The time offset in seconds from current time to set the end time for MVBS computation.
+    slice_mins : int
+        Length of each slice in minutes.
     num_slices : int
         The number of slices to create.
-
-    Examples
-    --------
-    >>> process_MVBS(end_time="2023-10-01 12:00:00", slice_time_len="20min", num_slices=3)
     """
     logger = get_run_logger()
 
     # Set end_time to current time - time_offset_seconds
     end_time = round_up_mins(
         datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds),
-        slice_mins=slice_time_mins,
+        slice_mins=slice_mins,
     )
 
     logger.info(
         "flow started with parameters:\n"
         f"- end_time: {end_time}\n"
-        f"- slice_time_mins: {slice_time_mins}\n"
+        f"- slice_mins: {slice_mins}\n"
         f"- num_slices: {num_slices}\n"
     )
 
@@ -243,9 +239,9 @@ def flow_create_MVBS(
 
     # Compute slice time range
     end_time = pd.to_datetime(end_time)
-    slice_time_mins = pd.to_timedelta(f"{slice_time_mins}min")
-    start_time = sorted([end_time - s * slice_time_mins for s in np.arange(num_slices)+1])
-    end_time = [st + slice_time_mins for st in start_time]    
+    slice_mins = pd.to_timedelta(f"{slice_mins}min")
+    start_time = sorted([end_time - s * slice_mins for s in np.arange(num_slices)+1])
+    end_time = [st + slice_mins for st in start_time]    
     
     # Sequentially create MVBS slices
     for snum in range(num_slices):
@@ -337,7 +333,7 @@ def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.
 @flow(log_prints=True)
 def flow_predict_hake(
     time_offset_seconds: float = 0.0,
-    slice_time_mins: int = 10,
+    slice_mins: int = 10,
     num_slices: int = 3,
     temperature: float = 0.5,
 ):
@@ -346,12 +342,14 @@ def flow_predict_hake(
 
     Parameters
     ----------
-    end_time : str
-        The end time for the MVBS computation in ISO format (e.g., "2023-10-01 12:00:00").
-    slice_time_len : str
-        The length of each slice in a format recognized by pandas (e.g., "20min").
+    time_offset_seconds : float
+        The time offset in seconds from current time to set the end time for MVBS computation.
+    slice_mins : int
+        Length of each slice in minutes.
     num_slices : int
         The number of slices to create.
+    temperature : float
+        Temperature parameter for softmax scaling in prediction.
     """
     logger = get_run_logger()
 
@@ -364,21 +362,22 @@ def flow_predict_hake(
     # Set end_time to current time - time_offset_seconds
     end_time = round_up_mins(
         datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds),
-        slice_mins=slice_time_mins,
+        slice_mins=slice_mins,
     )
 
     logger.info(
         "flow started with parameters:\n"
         f"- end_time: {end_time}\n"
-        f"- slice_time_mins: {slice_time_mins}\n"
+        f"- slice_mins: {slice_mins}\n"
         f"- num_slices: {num_slices}\n"
+        f"- temperature: {temperature}\n"
     )
 
     # Compute slice time range
     end_time = pd.to_datetime(end_time)
-    slice_time_mins = pd.to_timedelta(f"{slice_time_mins}min")
-    start_time = sorted([end_time - s * slice_time_mins for s in np.arange(num_slices)+1])
-    end_time = [st + slice_time_mins for st in start_time]
+    slice_mins = pd.to_timedelta(f"{slice_mins}min")
+    start_time = sorted([end_time - s * slice_mins for s in np.arange(num_slices)+1])
+    end_time = [st + slice_mins for st in start_time]
 
     # Load Sv and MVBS info dataframes
     df_MVBS = pd.read_csv(
