@@ -17,7 +17,7 @@ import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
-from utils import get_MVBS_tensor, get_hake_model, round_up_mins
+from utils import get_MVBS_tensor, get_hake_model, round_up_mins, get_slice_start_end_times
 
 import torch
 from src.model.BinaryHakeModel import BinaryHakeModel
@@ -238,10 +238,9 @@ def flow_create_MVBS(
     )
 
     # Compute slice time range
-    end_time = pd.to_datetime(end_time)
-    slice_mins = pd.to_timedelta(f"{slice_mins}min")
-    start_time = sorted([end_time - s * slice_mins for s in np.arange(num_slices)+1])
-    end_time = [st + slice_mins for st in start_time]    
+    start_time, end_time = get_slice_start_end_times(
+        end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
+    )
     
     # Sequentially create MVBS slices
     for snum in range(num_slices):
@@ -260,19 +259,22 @@ def flow_create_MVBS(
             continue
 
         # Create MVBS for this slice
-        MVBS_filename = f"MVBS_{start_time[snum].strftime("%Y%m%dT%H%M%S")}.zarr"
-        first_ping_time, last_ping_time = task_create_MVBS.with_options(
-            task_run_name=MVBS_filename, name=MVBS_filename,
-        )(MVBS_filename=MVBS_filename, start_time=start_time[snum], end_time=end_time[snum], Sv_filenames=Sv_filenames)
+        try:
+            MVBS_filename = f"MVBS_{start_time[snum].strftime("%Y%m%dT%H%M%S")}.zarr"
+            first_ping_time, last_ping_time = task_create_MVBS.with_options(
+                task_run_name=MVBS_filename, name=MVBS_filename,
+            )(MVBS_filename=MVBS_filename, start_time=start_time[snum], end_time=end_time[snum], Sv_filenames=Sv_filenames)
 
-        # Add MVBS slice info to dataframe
-        if MVBS_filename in df_MVBS["MVBS_filename"].values:
-            logger.info(f"MVBS file {MVBS_filename} already exists, updating first and last ping times")
-            idx_to_add = df_MVBS.index[df_MVBS["MVBS_filename"] == MVBS_filename]
-        else:
-            logger.info(f"Adding new MVBS file {MVBS_filename} to tracking dataframe")
-            idx_to_add = len(df_MVBS)
-        df_MVBS.loc[idx_to_add] = [MVBS_filename, first_ping_time, last_ping_time]
+            # Add MVBS slice info to dataframe
+            if MVBS_filename in df_MVBS["MVBS_filename"].values:
+                logger.info(f"MVBS file {MVBS_filename} already exists, updating first and last ping times")
+                idx_to_add = df_MVBS.index[df_MVBS["MVBS_filename"] == MVBS_filename]
+            else:
+                logger.info(f"Adding new MVBS file {MVBS_filename} to tracking dataframe")
+                idx_to_add = len(df_MVBS)
+            df_MVBS.loc[idx_to_add] = [MVBS_filename, first_ping_time, last_ping_time]
+        except Exception as e:
+            logger.error(f"Error during MVBS creation for slice {snum+1}: {e}")
 
     # Save updated MVBS info dataframe
     df_MVBS.to_csv(MVBS_csv_path, date_format="%Y-%m-%dT%H:%M:%S")
@@ -282,14 +284,15 @@ def flow_create_MVBS(
 def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filenames: list[str]):
     """
     Create MVBS from Sv files in the specified time range.
+
     Parameters
     ----------
+    MVBS_filename : str
+        The name of the MVBS file to create.
     start_time : pd.Timestamp
-        The start time for the MVBS computation.
+        The start time for the MVBS slice.
     end_time : pd.Timestamp
-        The end time for the MVBS computation.    
-    Sv_filenames : list[str]
-        List of Sv filenames to process.
+        The end time for the MVBS slice.
     """
 
     # Combine Sv files into a single dataset
@@ -374,10 +377,9 @@ def flow_predict_hake(
     )
 
     # Compute slice time range
-    end_time = pd.to_datetime(end_time)
-    slice_mins = pd.to_timedelta(f"{slice_mins}min")
-    start_time = sorted([end_time - s * slice_mins for s in np.arange(num_slices)+1])
-    end_time = [st + slice_mins for st in start_time]
+    start_time, end_time = get_slice_start_end_times(
+        end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
+    )
 
     # Load Sv and MVBS info dataframes
     df_MVBS = pd.read_csv(
@@ -404,18 +406,21 @@ def flow_predict_hake(
             continue        
 
         # Predict on the MVBS files
-        predict_filename_postfix=f"{start_time[snum].strftime("%Y%m%dT%H%M%S")}"
-        task_predict_hake.with_options(
-            task_run_name=f"predict_{predict_filename_postfix}",
-            name=f"predict_{predict_filename_postfix}",
-        )(
-            predict_filename_postfix=predict_filename_postfix,
-            MVBS_filenames=MVBS_filenames,
-            start_time=start_time[snum],
-            end_time=end_time[snum],
-            model=model,
-            temperature=temperature
-        )
+        try:
+            predict_filename_postfix=f"{start_time[snum].strftime("%Y%m%dT%H%M%S")}"
+            task_predict_hake.with_options(
+                task_run_name=f"predict_{predict_filename_postfix}",
+                name=f"predict_{predict_filename_postfix}",
+            )(
+                predict_filename_postfix=predict_filename_postfix,
+                MVBS_filenames=MVBS_filenames,
+                start_time=start_time[snum],
+                end_time=end_time[snum],
+                model=model,
+                temperature=temperature
+            )
+        except Exception as e:
+            logger.error(f"Error during prediction for slice {snum+1}: {e}")
 
 
 @task(log_prints=True)
@@ -429,13 +434,21 @@ def task_predict_hake(
 ):
     """
     Predict on a single MVBS file.
-    
+
     Parameters
     ----------
-    MVBS_filenames : str
-        Path to the MVBS file.
-    model : 
-        The model to use for prediction.
+    predict_filename_postfix : str
+        Postfix for the prediction filename, typically a timestamp.
+    MVBS_filenames : list[str]
+        List of MVBS filenames to process.
+    start_time : pd.Timestamp
+        The start time for the MVBS computation.
+    end_time : pd.Timestamp
+        The end time for the MVBS computation.
+    model : BinaryHakeModel
+        The trained model to use for prediction.
+    temperature : float
+        Temperature parameter for softmax scaling in prediction.
     """
     # Combine MVBS files into a single dataset
     ds_MVBS = xr.open_mfdataset(

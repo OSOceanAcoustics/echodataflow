@@ -1,6 +1,7 @@
 from pathlib import Path
 import datetime
 import numpy as np
+import pandas as pd
 import torch
 from src.model.BinaryHakeModel import BinaryHakeModel
 
@@ -73,3 +74,24 @@ def round_up_mins(dt: datetime.datetime, slice_mins: int) -> datetime.datetime:
                     second=0,
                     microsecond=0) 
             + datetime.timedelta(days=days_to_add))
+
+
+def get_slice_start_end_times(
+    end_time: datetime.datetime, 
+    slice_mins: int, 
+    num_slices: int
+):
+    """
+    Get slice start and end times based on the end time of the last slice.
+    
+    Returns
+    -------
+    tuple
+        Start and end times as datetime objects.
+    """
+    end_time = pd.to_datetime(end_time)
+    slice_mins = pd.to_timedelta(f"{slice_mins}min")
+    start_time = sorted([end_time - s * slice_mins for s in np.arange(num_slices)+1])
+    end_time = [st + slice_mins for st in start_time]
+    
+    return start_time, end_time
