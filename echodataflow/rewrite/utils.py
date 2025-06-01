@@ -45,14 +45,14 @@ def get_hake_model(model_path: str) -> BinaryHakeModel:
     return model
 
 
-def round_up_minutes(dt: datetime.datetime, interval: int) -> datetime.datetime:
+def round_up_mins(dt: datetime.datetime, slice_mins: int) -> datetime.datetime:
     """Round down datetime to nearest interval minutes.
     
     Parameters
     ----------
     dt : datetime.datetime
         Datetime to round
-    interval : int
+    slice_mins : int
         Interval in minutes to round to
         
     Returns
@@ -62,7 +62,7 @@ def round_up_minutes(dt: datetime.datetime, interval: int) -> datetime.datetime:
     """
     # Round up minutes and handle day rollover
     minutes_since_midnight = dt.hour * 60 + dt.minute
-    rounded_minutes = ((minutes_since_midnight + interval - 1) // interval) * interval
+    rounded_minutes = ((minutes_since_midnight + slice_mins - 1) // slice_mins) * slice_mins
     
     days_to_add = rounded_minutes // (24 * 60)  # Number of days to add
     final_minutes = rounded_minutes % (24 * 60)  # Minutes in the final day
@@ -73,9 +73,3 @@ def round_up_minutes(dt: datetime.datetime, interval: int) -> datetime.datetime:
                     second=0,
                     microsecond=0) 
             + datetime.timedelta(days=days_to_add))
-
-def extract_mins(min_str: str) -> int:
-    """
-    Extract minutes from a string like '10mins'.
-    """
-    return int(min_str.replace("mins", ""))
