@@ -5,6 +5,7 @@ copy_raw:
   interval: 2
 raw2Sv:
   interval: 5
+  parallel: False
 create_MVBS:
   interval: 10
   slice_mins: 10

@@ -1,5 +1,6 @@
 from pathlib import Path
 import datetime
+import asyncio
 from yaml import safe_load
 
 import numpy as np
@@ -9,9 +10,12 @@ import numpy as np
 
 import echopype as ep
 
-from prefect import deploy, flow, task, get_run_logger
+from prefect import deploy, flow, task, get_run_logger, get_client
 from prefect.variables import Variable
 from prefect_shell import ShellOperation
+from prefect_dask import DaskTaskRunner
+from prefect.concurrency.sync import concurrency
+
 
 import boto3
 from botocore import UNSIGNED
@@ -21,6 +25,14 @@ from utils import get_MVBS_tensor, get_hake_model, round_up_mins, get_slice_star
 
 import torch
 from src.model.BinaryHakeModel import BinaryHakeModel
+
+
+
+async def set_concurrency_limit():
+    async with get_client() as client:
+        await client.create_concurrency_limit(tag="raw2Sv", concurrency_limit=4)
+
+asyncio.run(set_concurrency_limit())
 
 
 # Turn on verbose logging for echopype
@@ -85,8 +97,11 @@ def copy_raw():
     Variable.set("counter_raw_copy", value=counter+1, overwrite=True)
 
 
-@flow(log_prints=True)
-def flow_raw2Sv():
+@flow(
+    log_prints=True,
+    task_runner=DaskTaskRunner(address="tcp://127.0.0.1:52476")
+)
+def flow_raw2Sv(parallel: bool = False):
     # Load info dataframe containing raw to Sv correspondence
     df_Sv = pd.read_csv(
         Sv_csv_path,
@@ -113,19 +128,31 @@ def flow_raw2Sv():
         print(f"Reprocess {last_raw_filename}")
         new_files.add(last_raw_filename)
 
-    # Convert raw files to Sv in parallel
-    future_all = []
-    for nf in new_files:
-        new_processed_raw = task_raw2Sv.with_options(
-            task_run_name=nf, name=nf, retries=3
-        )
-        future = new_processed_raw.submit(raw_path / nf)
-        future_all.append(future)
+    if parallel:
+        # Convert raw files to Sv in parallel
+        print("Processing raw files in parallel")
+        future_all = []
+        for nf in new_files:
+            new_processed_raw = task_raw2Sv.with_options(
+                task_run_name=nf, name=nf, retries=3
+            )
+            future = new_processed_raw.submit(raw_path / nf)
+            future_all.append(future)
 
-    results = []
-    for nf, ff in zip(new_files, future_all):
-        result = [nf] + list(ff.result())
-        results.append(result)
+        results = []
+        for nf, ff in zip(new_files, future_all):
+            result = [nf] + list(ff.result())
+            results.append(result)
+
+    else:
+        # Convert raw files to Sv sequentially
+        print("Processing raw files sequentially")
+        results = []
+        for nf in new_files:
+            Sv_filename, first_ping_time, last_ping_time = task_raw2Sv.with_options(
+                task_run_name=nf, name=nf, retries=3
+            )(raw_path / nf)
+            results.append([nf, Sv_filename, first_ping_time, last_ping_time])
 
     # Add new entries to df_Sv
     if len(results) > 0:
@@ -146,7 +173,10 @@ def flow_raw2Sv():
         print(f"Added {len(new_files)} new entries to tracking CSV")
 
 
-@task(log_prints=True)#, task_run_name="{raw_path.name}")
+@task(
+    log_prints=True,
+    tags=["raw2Sv"],
+)
 def task_raw2Sv(raw_path: str):
     """
     Convert raw sonar data to Sv and save to zarr format.
@@ -210,6 +240,7 @@ def flow_create_MVBS(
     """
     logger = get_run_logger()
 
+    # with concurrency("create_MVBS", occupy=1):
     # Set end_time to current time - time_offset_seconds
     end_time = round_up_mins(
         datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds),
@@ -574,6 +605,7 @@ if __name__ == "__main__":
             entrypoint="prototype.py:flow_raw2Sv",
         ).to_deployment(
             name="raw2Sv",
+            parameters=config["raw2Sv"],
             cron=f"*/{interval_dict["raw2Sv"]} * * * *",
         ),
         flow_create_MVBS.from_source(
