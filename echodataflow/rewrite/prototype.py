@@ -16,7 +16,7 @@ from prefect_shell import ShellOperation
 from prefect_dask import DaskTaskRunner
 from prefect.concurrency.sync import concurrency
 
-from prefect.states import Cancelled
+from prefect.states import Cancelled, Failed
 from prefect import runtime
 from prefect.client.schemas.filters import FlowRunFilter
 
@@ -215,16 +215,21 @@ async def flow_raw2Sv(parallel: bool = False, encode_mode: str = "power"):
 
     else:
         # Convert raw files to Sv sequentially
+        errors = []
         print("Processing raw files sequentially")
         results = []
         for nf in new_files:
-            Sv_filename, first_ping_time, last_ping_time = task_raw2Sv.with_options(
-                task_run_name=nf, name=nf, retries=3
-            )(
-                raw_path=raw_path / nf,
-                encode_mode=encode_mode
-            )
-            results.append([nf, Sv_filename, first_ping_time, last_ping_time])
+            try:
+                Sv_filename, first_ping_time, last_ping_time = task_raw2Sv.with_options(
+                    task_run_name=nf, name=nf, retries=3
+                )(
+                    raw_path=raw_path / nf,
+                    encode_mode=encode_mode
+                )
+                results.append([nf, Sv_filename, first_ping_time, last_ping_time])
+            except Exception as e:
+                errors.append(e)
+                print(f"Error converting {nf}: {e}")
 
     # Add new entries to df_Sv
     if len(results) > 0:
@@ -243,6 +248,16 @@ async def flow_raw2Sv(parallel: bool = False, encode_mode: str = "power"):
         )
         df_Sv.to_csv(Sv_csv_path, date_format="%Y-%m-%dT%H:%M:%S.%f")
         print(f"Added {len(new_files)} new entries to tracking CSV")
+
+    # Set flow to Failed state if any errors occurred
+    if len(errors) > 0:
+        error_msg = f"{len(errors)} errors during raw to Sv conversion out of {len(new_files)} files"
+        async with get_client() as client:
+            await client.set_flow_run_state(
+                flow_run_id=runtime.flow_run.id,
+                state=Failed(message=error_msg)
+            )
+        raise Exception(error_msg)
 
 
 @task(
@@ -293,7 +308,7 @@ def task_raw2Sv(raw_path: str, encode_mode: str = "power"):
 
 
 @flow(log_prints=True)
-def flow_create_MVBS(
+async def flow_create_MVBS(
     time_offset_seconds: float = 0.0,
     slice_mins: int = 10,
     num_slices: int = 3,
@@ -346,6 +361,7 @@ def flow_create_MVBS(
     )
     
     # Sequentially create MVBS slices
+    errors = []
     for snum in range(num_slices):
         logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
 
@@ -377,10 +393,21 @@ def flow_create_MVBS(
                 idx_to_add = len(df_MVBS)
             df_MVBS.loc[idx_to_add] = [MVBS_filename, first_ping_time, last_ping_time]
         except Exception as e:
+            errors.append(e)
             logger.error(f"Error during MVBS creation for slice {snum+1}: {e}")
 
     # Save updated MVBS info dataframe
     df_MVBS.to_csv(MVBS_csv_path, date_format="%Y-%m-%dT%H:%M:%S")
+
+    # Set flow to Failed state if any errors occurred
+    if len(errors) > 0:
+        error_msg = f"{len(errors)} errors during MVBS creation out of {num_slices} slices"
+        async with get_client() as client:
+            await client.set_flow_run_state(
+                flow_run_id=runtime.flow_run.id,
+                state=Failed(message=error_msg)
+            )
+        raise Exception(error_msg)
 
 
 @task(log_prints=True)
@@ -444,7 +471,7 @@ def task_create_MVBS(
 
 
 @flow(log_prints=True)
-def flow_predict_hake(
+async def flow_predict_hake(
     time_offset_seconds: float = 0.0,
     slice_mins: int = 10,
     num_slices: int = 3,
@@ -505,8 +532,8 @@ def flow_predict_hake(
         parse_dates=["first_ping_time", "last_ping_time"]
     )
 
-
     # Sequentially predict over combined MVBS slices
+    errors = []
     for snum in range(num_slices):
         logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
 
@@ -546,10 +573,21 @@ def flow_predict_hake(
                 idx_to_add = len(df_prediction)
             df_prediction.loc[idx_to_add] = [predict_filename_postfix, score_filename, softmax_filename, first_ping_time, last_ping_time]
         except Exception as e:
+            errors.append(e)
             logger.error(f"Error during prediction for slice {snum+1}: {e}")
-
+        
         # Save updated prediction info dataframe
         df_prediction.to_csv(prediction_csv_path, date_format="%Y-%m-%dT%H:%M:%S")
+
+    # Set flow to Failed state if any errors occurred
+    if len(errors) > 0:
+        error_msg = f"{len(errors)} errors during prediction out of {num_slices} slices"
+        async with get_client() as client:
+            await client.set_flow_run_state(
+                flow_run_id=runtime.flow_run.id,
+                state=Failed(message=error_msg)
+            )
+        raise Exception(error_msg)  # Stop the flow execution
 
 
 @task(log_prints=True)
@@ -672,7 +710,7 @@ def flow_file_upload(
 
 
 @flow(log_prints=True) #, timeout_seconds=600)
-def flow_compute_NASC(
+async def flow_compute_NASC(
     time_offset_seconds: float = 0.0,
     slice_mins: int = 10,
     num_slices: int = 3,
@@ -716,6 +754,7 @@ def flow_compute_NASC(
     )
 
     # Sequentially compute NASC
+    errors = []
     for snum in range(num_slices):
         logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
 
@@ -754,8 +793,18 @@ def flow_compute_NASC(
             )
 
         except Exception as e:
+            errors.append(e)
             logger.error(f"Error during NASC computation for slice {snum+1}: {e}")
-            continue
+
+    # Set flow to Failed state if any errors occurred
+    if len(errors) > 0:
+        error_msg = f"{len(errors)} errors during NASC computation out of {num_slices} slices"
+        async with get_client() as client:
+            await client.set_flow_run_state(
+                flow_run_id=runtime.flow_run.id,
+                state=Failed(message=error_msg)
+            )
+        raise Exception(error_msg)
 
 
 @task(log_prints=True)
