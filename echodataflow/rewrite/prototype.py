@@ -16,12 +16,23 @@ from prefect_shell import ShellOperation
 from prefect_dask import DaskTaskRunner
 from prefect.concurrency.sync import concurrency
 
+from prefect.states import Cancelled
+from prefect import runtime
+from prefect.client.schemas.filters import FlowRunFilter
+
+
 
 import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
-from utils import get_MVBS_tensor, get_hake_model, round_up_mins, get_slice_start_end_times
+from utils import (
+    get_MVBS_tensor,
+    get_hake_model,
+    round_up_mins,
+    get_slice_start_end_times,
+    # deployment_already_running
+)
 
 import torch
 from src.model.BinaryHakeModel import BinaryHakeModel
@@ -41,11 +52,29 @@ ep.utils.log.verbose()
 
 
 # Set up paths
-data_path = Path("/Users/wujung/code_git/echodataflow/temp_data")
-raw_path = data_path / "raw"
+context = "SH2306"
+
+if context == "SH2306":
+    data_path = Path("/Users/wujung/code_git/echodataflow/temp_data")  # SH2306
+    raw_path = data_path / "raw"  # SH2306
+    Sv_csv_filename = "SH2306_Sv_files.csv"
+    MVBS_csv_filename = "SH2306_MVBS_files.csv"
+else:
+    data_path = Path("/Users/wujung/code_git/echodataflow/temp_data_replay")  # gear trial replay
+    raw_path = Path("/Users/wujung/code_git/echodataflow/temp_data_replay/raw")  # gear trial replay
+    Sv_csv_filename = "gear_trial_replay_Sv_files.csv"
+    MVBS_csv_filename = "gear_trial_replay_MVBS_files.csv"
+
 Sv_path = data_path / "Sv"
 MVBS_path = data_path / "MVBS"
 prediction_path = data_path / "prediction"
+
+if not Sv_path.exists():
+    Sv_path.mkdir(parents=True, exist_ok=True)
+if not MVBS_path.exists():
+    MVBS_path.mkdir(parents=True, exist_ok=True)
+if not prediction_path.exists():
+    prediction_path.mkdir(parents=True, exist_ok=True)
 
 
 # Initiate counter for raw file copy
@@ -58,7 +87,7 @@ df_raw = pd.read_csv(
 )
 
 # Info dataframe for which raw files to convert to Sv
-Sv_csv_path = data_path / "SH2306_Sv_files.csv"
+Sv_csv_path = data_path / Sv_csv_filename
 if not Sv_csv_path.exists():
     df_Sv = pd.DataFrame(
         columns=["raw_filename", "Sv_filename", "first_ping_time", "last_ping_time"]
@@ -66,13 +95,29 @@ if not Sv_csv_path.exists():
     df_Sv.to_csv(Sv_csv_path)
 
 # Info dataframe for MVBS files
-MVBS_csv_path = data_path / "SH2306_MVBS_files.csv"
+MVBS_csv_path = data_path / MVBS_csv_filename
 if not MVBS_csv_path.exists():
     df_MVBS = pd.DataFrame(
         columns=["MVBS_filename", "first_ping_time", "last_ping_time"]
     )
     df_MVBS.to_csv(MVBS_csv_path)
 
+
+@task(log_prints=True)
+async def deployment_already_running() -> bool:
+    # Check if the deployment is already running
+    async with get_client() as client:
+        # Get all running flows for this deployment using simpler filters
+        running_flows = await client.read_flow_runs(
+            flow_run_filter=FlowRunFilter(
+                deployment_id={"any_": [runtime.deployment.id]},
+                state={"type": {"any_": ["RUNNING"]}}
+            )
+        )
+        if len(running_flows) > 1:
+            return True
+        else:
+            return False
 
 
 @flow(log_prints=True)
@@ -101,7 +146,18 @@ def copy_raw():
     log_prints=True,
     task_runner=DaskTaskRunner(address="tcp://127.0.0.1:52476")
 )
-def flow_raw2Sv(parallel: bool = False):
+async def flow_raw2Sv(parallel: bool = False, encode_mode: str = "power"):
+
+    # Check if the deployment is already running
+    already_running = await deployment_already_running()
+    if already_running:
+        async with get_client() as client:
+            await client.set_flow_run_state(
+                flow_run_id=runtime.flow_run.id,
+                state=Cancelled(message="Another instance of this flow is already running")
+            )
+            return  # exit the flow early
+
     # Load info dataframe containing raw to Sv correspondence
     df_Sv = pd.read_csv(
         Sv_csv_path,
@@ -151,7 +207,10 @@ def flow_raw2Sv(parallel: bool = False):
         for nf in new_files:
             Sv_filename, first_ping_time, last_ping_time = task_raw2Sv.with_options(
                 task_run_name=nf, name=nf, retries=3
-            )(raw_path / nf)
+            )(
+                raw_path=raw_path / nf,
+                encode_mode=encode_mode
+            )
             results.append([nf, Sv_filename, first_ping_time, last_ping_time])
 
     # Add new entries to df_Sv
@@ -177,7 +236,7 @@ def flow_raw2Sv(parallel: bool = False):
     log_prints=True,
     tags=["raw2Sv"],
 )
-def task_raw2Sv(raw_path: str):
+def task_raw2Sv(raw_path: str, encode_mode: str = "power"):
     """
     Convert raw sonar data to Sv and save to zarr format.
     """
@@ -191,7 +250,7 @@ def task_raw2Sv(raw_path: str):
     ds_Sv = ep.calibrate.compute_Sv(
         echodata=ed,
         waveform_mode="CW",  # can be Sv_kwargs
-        encode_mode="power",
+        encode_mode=encode_mode,
     )
     ds_Sv = ep.consolidate.add_depth(
         ds=ds_Sv,
@@ -598,7 +657,7 @@ if __name__ == "__main__":
             entrypoint="prototype.py:copy_raw"
         ).to_deployment(
             name="copy-raw",
-            cron=f"*/{interval_dict["copy_raw"]} * * * *",
+            # cron=f"*/{interval_dict["copy_raw"]} * * * *",
         ),
         flow_raw2Sv.from_source(
             source=str(Path(__file__).parent),

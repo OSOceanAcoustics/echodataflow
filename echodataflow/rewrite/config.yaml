@@ -1,11 +1,12 @@
 init:
   counter_raw_copy: 0
-  flow_start_time: "20230804T153000"
+  flow_start_time: "20250308T001256"  # "20230804T153000"
 copy_raw:
   interval: 2
 raw2Sv:
   interval: 5
   parallel: False
+  encode_mode: power
 create_MVBS:
   interval: 10
   slice_mins: 10
