@@ -59,11 +59,13 @@ if context == "SH2306":
     raw_path = data_path / "raw"  # SH2306
     Sv_csv_filename = "SH2306_Sv_files.csv"
     MVBS_csv_filename = "SH2306_MVBS_files.csv"
+    prediction_csv_filename = "SH2306_prediction_files.csv"
 else:
     data_path = Path("/Users/wujung/code_git/echodataflow/temp_data_replay")  # gear trial replay
     raw_path = Path("/Users/wujung/code_git/echodataflow/temp_data_replay/raw")  # gear trial replay
     Sv_csv_filename = "gear_trial_replay_Sv_files.csv"
     MVBS_csv_filename = "gear_trial_replay_MVBS_files.csv"
+    prediction_csv_filename = "gear_trial_replay_prediction_files.csv"
 
 Sv_path = data_path / "Sv"
 MVBS_path = data_path / "MVBS"
@@ -101,6 +103,14 @@ if not MVBS_csv_path.exists():
         columns=["MVBS_filename", "first_ping_time", "last_ping_time"]
     )
     df_MVBS.to_csv(MVBS_csv_path)
+
+# Info dataframe for prediction files
+prediction_csv_path = data_path / prediction_csv_filename
+if not prediction_csv_path.exists():
+    df_prediction = pd.DataFrame(
+        columns=["prediction_filename_postfix", "score_filename", "softmax_filename", "first_ping_time", "last_ping_time"]
+    )
+    df_prediction.to_csv(prediction_csv_path)
 
 
 @task(log_prints=True)
@@ -478,6 +488,13 @@ def flow_predict_hake(
         date_format="ISO8601",
         parse_dates=["first_ping_time", "last_ping_time"]
     )
+    df_prediction = pd.read_csv(
+        prediction_csv_path,
+        index_col=0,
+        date_format="ISO8601",
+        parse_dates=["first_ping_time", "last_ping_time"]
+    )
+
 
     # Sequentially predict over combined MVBS slices
     for snum in range(num_slices):
@@ -498,7 +515,7 @@ def flow_predict_hake(
         # Predict on the MVBS files
         try:
             predict_filename_postfix=f"{start_time[snum].strftime("%Y%m%dT%H%M%S")}"
-            task_predict_hake.with_options(
+            score_filename, softmax_filename, first_ping_time, last_ping_time = task_predict_hake.with_options(
                 task_run_name=f"predict_{predict_filename_postfix}",
                 name=f"predict_{predict_filename_postfix}",
             )(
@@ -509,8 +526,20 @@ def flow_predict_hake(
                 model=model,
                 temperature=temperature
             )
+
+            # Add prediction slice info to dataframe
+            if predict_filename_postfix in df_prediction["prediction_filename_postfix"].values:
+                logger.info(f"Prediction file {predict_filename_postfix} already exists, updating first and last ping times")
+                idx_to_add = df_prediction.index[df_prediction["prediction_filename_postfix"] == predict_filename_postfix]
+            else:
+                logger.info(f"Adding new prediction file {predict_filename_postfix} to tracking dataframe")
+                idx_to_add = len(df_prediction)
+            df_prediction.loc[idx_to_add] = [predict_filename_postfix, score_filename, softmax_filename, first_ping_time, last_ping_time]
         except Exception as e:
             logger.error(f"Error during prediction for slice {snum+1}: {e}")
+
+        # Save updated prediction info dataframe
+        df_prediction.to_csv(prediction_csv_path, date_format="%Y-%m-%dT%H:%M:%S")
 
 
 @task(log_prints=True)
@@ -541,7 +570,7 @@ def task_predict_hake(
         Temperature parameter for softmax scaling in prediction.
     """
     # Combine MVBS files into a single dataset
-    ds_MVBS = xr.open_mfdataset(
+    ds_MVBS_combine = xr.open_mfdataset(
         [MVBS_path / mvbsf for mvbsf in MVBS_filenames],
         parallel=True,
         coords="minimal",
@@ -555,7 +584,7 @@ def task_predict_hake(
     )
 
     # Prepare input tensor: slice depth and ensure order of coordinates
-    input_tensor = get_MVBS_tensor(ds_MVBS)
+    input_tensor = get_MVBS_tensor(ds_MVBS_combine)
 
     # Predict using the model
     score_tensor = model(input_tensor).detach().squeeze(0)
@@ -566,29 +595,38 @@ def task_predict_hake(
         score_tensor,
         coords={
             "class": ["background", "hake"],
-            "depth": ds_MVBS["depth"].sel(depth=slice(None, 590)).values,
-            "ping_time": ds_MVBS["ping_time"].values,
+            "depth": ds_MVBS_combine["depth"].sel(depth=slice(None, 590)).values,
+            "ping_time": ds_MVBS_combine["ping_time"].values,
         }
     )
     da_score_softmax = xr.DataArray(
         score_tensor_softmax,
         coords={
             "class": ["background", "hake"],
-            "depth": ds_MVBS["depth"].sel(depth=slice(None, 590)).values,
-            "ping_time": ds_MVBS["ping_time"].values,
+            "depth": ds_MVBS_combine["depth"].sel(depth=slice(None, 590)).values,
+            "ping_time": ds_MVBS_combine["ping_time"].values,
         }
     )
 
     # Save to zarr
+    score_filename = f"score_{predict_filename_postfix}.zarr"
+    softmax_filename = f"softmax_{predict_filename_postfix}.zarr"
     da_score.chunk({"class": -1, "ping_time": -1, "depth": -1}).to_zarr(
-        store=prediction_path / f"score_{predict_filename_postfix}.zarr",
+        store=prediction_path / score_filename,
         mode="w",
         consolidated=True,
     )
     da_score_softmax.chunk({"class": -1, "ping_time": -1, "depth": -1}).to_zarr(
-        store=prediction_path / f"softmax_{predict_filename_postfix}.zarr",
+        store=prediction_path / softmax_filename,
         mode="w",
         consolidated=True,
+    )
+
+    return (
+        score_filename,
+        softmax_filename,
+        pd.to_datetime(ds_MVBS_combine["ping_time"][0].values),
+        pd.to_datetime(ds_MVBS_combine["ping_time"][-1].values)
     )
 
 
@@ -616,8 +654,53 @@ def flow_file_upload(
         # Wait for the process to finish
         file_upload_process.wait_for_completion()
 
-        # Get results
+        # Print results
         output_lines = file_upload_process.fetch_result()
+        print(output_lines)
+
+
+# @flow(log_prints=True) #, timeout_seconds=600)
+# def flow_compute_hake_NASC(
+#     time_offset_seconds: float = 0.0,
+#     slice_mins: int = 10,
+#     num_slices: int = 3,
+# ):
+#     """
+#     Compute NASC by combining MVBS and hake prediction.
+#     """
+#     logger = get_run_logger()
+
+#     # Set end_time to current time - time_offset_seconds
+#     end_time = round_up_mins(
+#         datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds),
+#         slice_mins=slice_mins,
+#     )
+
+#     logger.info(
+#         "flow started with parameters:\n"
+#         f"- end_time: {end_time}\n"
+#         f"- slice_mins: {slice_mins}\n"
+#         f"- num_slices: {num_slices}\n"
+#     )
+
+#     # Load Sv and MVBS info dataframes
+#     df_Sv = pd.read_csv(
+#         Sv_csv_path,
+#         index_col=0,
+#         date_format="ISO8601",
+#         parse_dates=["first_ping_time", "last_ping_time"]
+#     )
+#     df_MVBS = pd.read_csv(
+#         MVBS_csv_path,
+#         index_col=0,
+#         date_format="ISO8601",
+#         parse_dates=["first_ping_time", "last_ping_time"]
+#     )
+
+#     # Compute slice time range
+#     start_time, end_time = get_slice_start_end_times(
+#         end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
+#     )
     
 
 
@@ -665,7 +748,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="raw2Sv",
             parameters=config["raw2Sv"],
-            cron=f"*/{interval_dict["raw2Sv"]} * * * *",
+            # cron=f"*/{interval_dict["raw2Sv"]} * * * *",
         ),
         flow_create_MVBS.from_source(
             source=str(Path(__file__).parent),
@@ -673,7 +756,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="create-MVBS",
             parameters=config["create_MVBS"],
-            cron=f"*/{interval_dict["create_MVBS"]} * * * *",
+            # cron=f"*/{interval_dict["create_MVBS"]} * * * *",
         ),
         flow_predict_hake.from_source(
             source=str(Path(__file__).parent),
@@ -681,7 +764,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="predict-hake",
             parameters=config["predict_hake"],
-            cron=f"*/{interval_dict["predict_hake"]} * * * *",
+            # cron=f"*/{interval_dict["predict_hake"]} * * * *",
         ),
         flow_file_upload.from_source(
             source=str(Path(__file__).parent),
