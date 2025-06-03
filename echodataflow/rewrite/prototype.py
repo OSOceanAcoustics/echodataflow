@@ -70,6 +70,7 @@ else:
 Sv_path = data_path / "Sv"
 MVBS_path = data_path / "MVBS"
 prediction_path = data_path / "prediction"
+NASC_path = data_path / "NASC"
 
 if not Sv_path.exists():
     Sv_path.mkdir(parents=True, exist_ok=True)
@@ -77,6 +78,8 @@ if not MVBS_path.exists():
     MVBS_path.mkdir(parents=True, exist_ok=True)
 if not prediction_path.exists():
     prediction_path.mkdir(parents=True, exist_ok=True)
+if not NASC_path.exists():
+    NASC_path.mkdir(parents=True, exist_ok=True)
 
 
 # Initiate counter for raw file copy
@@ -381,7 +384,12 @@ def flow_create_MVBS(
 
 
 @task(log_prints=True)
-def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.Timestamp, Sv_filenames: list[str]):
+def task_create_MVBS(
+    MVBS_filename: str,
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
+    Sv_filenames: list[str]
+):
     """
     Create MVBS from Sv files in the specified time range.
 
@@ -394,6 +402,7 @@ def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.
     end_time : pd.Timestamp
         The end time for the MVBS slice.
     """
+    logger = get_run_logger()
 
     # Combine Sv files into a single dataset
     ds_Sv = xr.open_mfdataset(
@@ -420,6 +429,7 @@ def task_create_MVBS(MVBS_filename: str, start_time: pd.Timestamp, end_time: pd.
     )
 
     # Save to zarr: 1 chunk along each dimension
+    logger.info(f"Saving MVBS to {MVBS_filename}")
     ds_MVBS.chunk({"channel": -1, "ping_time": -1, "depth": -1}).to_zarr(
         store=MVBS_path / MVBS_filename,  # existing file will be overwritten
         mode="w",
@@ -594,29 +604,31 @@ def task_predict_hake(
     da_score = xr.DataArray(
         score_tensor,
         coords={
-            "class": ["background", "hake"],
+            "scatterer_class": ["background", "hake"],
             "depth": ds_MVBS_combine["depth"].sel(depth=slice(None, 590)).values,
             "ping_time": ds_MVBS_combine["ping_time"].values,
-        }
+        },
+        name="score",
     )
     da_score_softmax = xr.DataArray(
         score_tensor_softmax,
         coords={
-            "class": ["background", "hake"],
+            "scatterer_class": ["background", "hake"],
             "depth": ds_MVBS_combine["depth"].sel(depth=slice(None, 590)).values,
             "ping_time": ds_MVBS_combine["ping_time"].values,
-        }
+        },
+        name="softmax_score",
     )
 
     # Save to zarr
     score_filename = f"score_{predict_filename_postfix}.zarr"
     softmax_filename = f"softmax_{predict_filename_postfix}.zarr"
-    da_score.chunk({"class": -1, "ping_time": -1, "depth": -1}).to_zarr(
+    da_score.chunk({"scatterer_class": -1, "ping_time": -1, "depth": -1}).to_zarr(
         store=prediction_path / score_filename,
         mode="w",
         consolidated=True,
     )
-    da_score_softmax.chunk({"class": -1, "ping_time": -1, "depth": -1}).to_zarr(
+    da_score_softmax.chunk({"scatterer_class": -1, "ping_time": -1, "depth": -1}).to_zarr(
         store=prediction_path / softmax_filename,
         mode="w",
         consolidated=True,
@@ -659,49 +671,178 @@ def flow_file_upload(
         print(output_lines)
 
 
-# @flow(log_prints=True) #, timeout_seconds=600)
-# def flow_compute_hake_NASC(
-#     time_offset_seconds: float = 0.0,
-#     slice_mins: int = 10,
-#     num_slices: int = 3,
-# ):
-#     """
-#     Compute NASC by combining MVBS and hake prediction.
-#     """
-#     logger = get_run_logger()
+@flow(log_prints=True) #, timeout_seconds=600)
+def flow_compute_NASC(
+    time_offset_seconds: float = 0.0,
+    slice_mins: int = 10,
+    num_slices: int = 3,
+    softmax_threshold: float = 0.5,
+):
+    """
+    Compute NASC by combining MVBS and hake prediction.
+    """
+    logger = get_run_logger()
 
-#     # Set end_time to current time - time_offset_seconds
-#     end_time = round_up_mins(
-#         datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds),
-#         slice_mins=slice_mins,
-#     )
+    # Set end_time to current time - time_offset_seconds
+    end_time = round_up_mins(
+        datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds),
+        slice_mins=slice_mins,
+    )
 
-#     logger.info(
-#         "flow started with parameters:\n"
-#         f"- end_time: {end_time}\n"
-#         f"- slice_mins: {slice_mins}\n"
-#         f"- num_slices: {num_slices}\n"
-#     )
+    logger.info(
+        "flow started with parameters:\n"
+        f"- end_time: {end_time}\n"
+        f"- slice_mins: {slice_mins}\n"
+        f"- num_slices: {num_slices}\n"
+    )
 
-#     # Load Sv and MVBS info dataframes
-#     df_Sv = pd.read_csv(
-#         Sv_csv_path,
-#         index_col=0,
-#         date_format="ISO8601",
-#         parse_dates=["first_ping_time", "last_ping_time"]
-#     )
-#     df_MVBS = pd.read_csv(
-#         MVBS_csv_path,
-#         index_col=0,
-#         date_format="ISO8601",
-#         parse_dates=["first_ping_time", "last_ping_time"]
-#     )
+    # Load MVBS and prediction info dataframes
+    df_MVBS = pd.read_csv(
+        MVBS_csv_path,
+        index_col=0,
+        date_format="ISO8601",
+        parse_dates=["first_ping_time", "last_ping_time"]
+    )
+    df_prediction = pd.read_csv(
+        prediction_csv_path,
+        index_col=0,
+        date_format="ISO8601",
+        parse_dates=["first_ping_time", "last_ping_time"]
+    )
 
-#     # Compute slice time range
-#     start_time, end_time = get_slice_start_end_times(
-#         end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
-#     )
+    # Compute slice time range
+    start_time, end_time = get_slice_start_end_times(
+        end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
+    )
+
+    # Sequentially compute NASC
+    for snum in range(num_slices):
+        logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
+
+        # Get MVBS files in the specified time range
+        MVBS_filenames = df_MVBS[
+            (pd.to_datetime(df_MVBS["last_ping_time"]) >= start_time[snum]) &
+            (pd.to_datetime(df_MVBS["first_ping_time"]) <= end_time[snum])
+        ]["MVBS_filename"].tolist()
+        logger.info(f"Found {len(MVBS_filenames)} MVBS files in the specified time range")
+
+        # Get softmax files in the specified time range
+        softmax_filenames = df_prediction[
+            (pd.to_datetime(df_prediction["last_ping_time"]) >= start_time[snum]) &
+            (pd.to_datetime(df_prediction["first_ping_time"]) <= end_time[snum])
+        ]["softmax_filename"].tolist()
+        logger.info(f"Found {len(softmax_filenames)} softmax files in the specified time range")
+
+        # If no MVBS or softmax files found, skip this slice
+        if len(MVBS_filenames) == 0 or len(softmax_filenames) == 0:
+            logger.info(f"No MVBS or softmax files found for slice {snum+1}, skipping")
+            continue
+
+        # Compute NASC for this slice
+        try:
+            NASC_filename = f"NASC_{start_time[snum].strftime('%Y%m%dT%H%M%S')}.zarr"
+            task_compute_NASC.with_options(
+                task_run_name=NASC_filename,
+                name=NASC_filename,
+            )(
+                NASC_filename=NASC_filename,
+                MVBS_filenames=MVBS_filenames,
+                softmax_filenames=softmax_filenames,
+                start_time=start_time[snum],
+                end_time=end_time[snum],
+                softmax_threshold=softmax_threshold
+            )
+
+        except Exception as e:
+            logger.error(f"Error during NASC computation for slice {snum+1}: {e}")
+            continue
+
+
+@task(log_prints=True)
+def task_compute_NASC(
+    NASC_filename: str,
+    MVBS_filenames: list[str],
+    softmax_filenames: list[str],
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
+    softmax_threshold: float = 0.5,
+):
+    """
+    Compute NASC from MVBS and hake prediction files.
+
+    Parameters
+    ----------
+    MVBS_filenames : list[str]
+        List of MVBS filenames to process.
+    softmax_filenames : list[str]
+        List of softmax filenames to process.
+    start_time : pd.Timestamp
+        The start time for the NASC computation.
+    end_time : pd.Timestamp
+        The end time for the NASC computation.
+    threshold : float
+        Threshold for hake detection.
+    """
+    logger = get_run_logger()
+
+    # Combine MVBS files into a single dataset
+    ds_MVBS_combine = xr.open_mfdataset(
+        [MVBS_path / mvbsf for mvbsf in MVBS_filenames],
+        parallel=True,
+        coords="minimal",
+        data_vars="minimal",
+        compat='override',
+        chunks={"channel": -1, "ping_time": -1, "depth": -1},  # load everything into 1 chunk
+        engine="zarr",  # use zarr engine for reading
+    ).sel(
+        # slice start/end, end exclusive
+        ping_time=slice(start_time, end_time-pd.to_timedelta("10milliseconds")),
+        depth=slice(None, 590)  # slice depth to match hake model input
+    ).transpose("channel", "ping_time", "depth")  # transpose to match dimension order of mask
+                                                  # TODO: remove once update echopype to 0.10.2
+
+    # Combine softmax files into a single dataset
+    da_softmax_combine = xr.open_mfdataset(
+        [prediction_path / softmaxf for softmaxf in softmax_filenames],
+        parallel=True,
+        coords="minimal",
+        data_vars="minimal",
+        compat='override',
+        chunks={"scatterer_class": -1, "ping_time": -1, "depth": -1},  # load everything into 1 chunk
+        engine="zarr",  # use zarr engine for reading
+    ).sel(
+        # slice start/end, end exclusive
+        ping_time=slice(start_time, end_time-pd.to_timedelta("10milliseconds"))
+    ).to_dataarray()
+    da_softmax_combine = (
+        da_softmax_combine.isel(variable=0).sel(scatterer_class="hake")
+        .transpose("ping_time", "depth")  # TODO: remove once update echopype to 0.10.2
+    ).drop_vars(["scatterer_class", "variable"])
     
+    # Apply mask based on threshold
+    ds_MVBS_combine_masked = ep.mask.apply_mask(
+        source_ds=ds_MVBS_combine,
+        mask=da_softmax_combine > softmax_threshold,
+        var_name="Sv",
+        fill_value=np.nan,
+    )
+
+    # Compute NASC from MVBS and hake prediction
+    ds_NASC = ep.commongrid.compute_NASC(
+        ds_Sv=ds_MVBS_combine_masked,
+        range_bin="10m",
+        dist_bin="0.5nmi"
+    )
+
+    # Save to zarr
+    logger.info(f"Saving NASC to zarr: {NASC_filename}")
+    ds_NASC.to_zarr(
+        store=NASC_path / NASC_filename,
+        mode="w",
+        consolidated=True,
+        # storage_options=config.output.storage_options_dict,
+    )
+
 
 
 if __name__ == "__main__":
@@ -731,7 +872,7 @@ if __name__ == "__main__":
             interval_dict[flow_name] = config[flow_name].pop("interval", None)
 
     # Add time_offset_seconds to create_MVBS and predict_hake config dict
-    for flow_name in ["create_MVBS", "predict_hake"]:
+    for flow_name in ["create_MVBS", "predict_hake", "compute_NASC"]:
         config[flow_name]["time_offset_seconds"] = curr_time_offset.total_seconds()
 
     deploy(
@@ -765,6 +906,14 @@ if __name__ == "__main__":
             name="predict-hake",
             parameters=config["predict_hake"],
             # cron=f"*/{interval_dict["predict_hake"]} * * * *",
+        ),
+        flow_compute_NASC.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="prototype.py:flow_compute_NASC",
+        ).to_deployment(
+            name="compute-NASC",
+            parameters=config["compute_NASC"],
+            # cron=f"*/{interval_dict["compute_NASC"]} * * * *",
         ),
         flow_file_upload.from_source(
             source=str(Path(__file__).parent),

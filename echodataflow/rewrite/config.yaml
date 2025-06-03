@@ -1,6 +1,6 @@
 init:
   counter_raw_copy: 0
-  flow_start_time: "20230804T153000"  # "20250308T001256"
+  flow_start_time: "20230804T155000"  # "20250308T001256"
 copy_raw:
   interval: 2
 raw2Sv:
@@ -16,3 +16,8 @@ predict_hake:
   slice_mins: 10
   num_slices: 3
   temperature: 0.5
+compute_NASC:
+  interval: 10
+  slice_mins: 10
+  num_slices: 3
+  softmax_threshold: 0.5
