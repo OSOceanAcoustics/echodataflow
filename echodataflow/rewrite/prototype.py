@@ -12,26 +12,23 @@ import echopype as ep
 
 from prefect import deploy, flow, task, get_run_logger, get_client
 from prefect.variables import Variable
-from prefect_shell import ShellOperation
 from prefect_dask import DaskTaskRunner
-from prefect.concurrency.sync import concurrency
 
 from prefect.states import Cancelled, Failed
 from prefect import runtime
 from prefect.client.schemas.filters import FlowRunFilter
 
-
-
 import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
+
+from helpers import deployment_already_running, flow_file_upload
 from utils import (
     get_MVBS_tensor,
     get_hake_model,
     round_up_mins,
     get_slice_start_end_times,
-    # deployment_already_running
 )
 
 import torch
@@ -114,23 +111,6 @@ if not prediction_csv_path.exists():
         columns=["prediction_filename_postfix", "score_filename", "softmax_filename", "first_ping_time", "last_ping_time"]
     )
     df_prediction.to_csv(prediction_csv_path)
-
-
-@task(log_prints=True)
-async def deployment_already_running() -> bool:
-    # Check if the deployment is already running
-    async with get_client() as client:
-        # Get all running flows for this deployment using simpler filters
-        running_flows = await client.read_flow_runs(
-            flow_run_filter=FlowRunFilter(
-                deployment_id={"any_": [runtime.deployment.id]},
-                state={"type": {"any_": ["RUNNING"]}}
-            )
-        )
-        if len(running_flows) > 1:
-            return True
-        else:
-            return False
 
 
 @flow(log_prints=True)
@@ -678,35 +658,6 @@ def task_predict_hake(
         pd.to_datetime(ds_MVBS_combine["ping_time"][0].values),
         pd.to_datetime(ds_MVBS_combine["ping_time"][-1].values)
     )
-
-
-@flow(timeout_seconds=600, log_prints=True)
-def flow_file_upload(
-    src_dir: str = str(MVBS_path),
-    dest_dir: str = "osn_sdsc_hake:/agr230002-bucket01/prefect_test",
-):
-    """
-    Upload files via rlcone.
-    """
-    print("test")
-
-    # for long running operations, you can use a context manager
-    with ShellOperation(
-        commands=[
-            f"rclone sync -vP {src_dir} {dest_dir}"
-        ],
-        working_dir=src_dir,
-    ) as file_upload_operation:
-
-        # Trigger runs the process in the background
-        file_upload_process = file_upload_operation.trigger()
-
-        # Wait for the process to finish
-        file_upload_process.wait_for_completion()
-
-        # Print results
-        output_lines = file_upload_process.fetch_result()
-        print(output_lines)
 
 
 @flow(log_prints=True) #, timeout_seconds=600)
