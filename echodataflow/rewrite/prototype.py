@@ -1,7 +1,6 @@
 from pathlib import Path
 import datetime
 import asyncio
-from yaml import safe_load
 
 import numpy as np
 import pandas as pd
@@ -10,20 +9,17 @@ import numpy as np
 
 import echopype as ep
 
-from prefect import deploy, flow, task, get_run_logger, get_client
-from prefect.variables import Variable
-from prefect_dask import DaskTaskRunner
-
-from prefect.states import Cancelled, Failed
-from prefect import runtime
-from prefect.client.schemas.filters import FlowRunFilter
-
 import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
+from prefect import flow, task, get_run_logger, get_client
+from prefect_dask import DaskTaskRunner
+from prefect.states import Cancelled, Failed
+from prefect import runtime
+from prefect.variables import Variable
 
-from helpers import deployment_already_running, flow_file_upload
+from helpers import deployment_already_running
 from utils import (
     get_MVBS_tensor,
     get_hake_model,
@@ -114,7 +110,11 @@ if not prediction_csv_path.exists():
 
 
 @flow(log_prints=True)
-def copy_raw():
+def flow_copy_raw(
+    # df_raw,  # DataFrame containing raw file metadata
+    # raw_path: str,  # Path to copy raw files to
+    s3_path: str = "data/raw/Bell_M._Shimada/SH2306/EK80",  # S3 path for raw files
+):
     print("Copy raw files to simulate data generation")
     print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
     counter = Variable.get("counter_raw_copy", default=None)
@@ -128,11 +128,12 @@ def copy_raw():
     
     # Copy file
     bucket = "noaa-wcsd-pds"
-    s3_path = f"data/raw/Bell_M._Shimada/SH2306/EK80/{filename}"    
+    s3_path = f"{s3_path}/{filename}"    
     s3.download_file(bucket, s3_path, raw_path / f"{filename}")
 
     # Increment ocunter
     Variable.set("counter_raw_copy", value=counter+1, overwrite=True)
+
 
 
 @flow(
@@ -841,85 +842,4 @@ def task_compute_NASC(
         mode="w",
         consolidated=True,
         # storage_options=config.output.storage_options_dict,
-    )
-
-
-
-if __name__ == "__main__":
-
-    # Load variables from config
-    with open(Path(__file__).parent / "config.yaml", "r") as file:
-        config = safe_load(file)
-
-    # Set init variables
-    init_dict = config.pop("init")
-    Variable.set("flow_start_time", init_dict["flow_start_time"], overwrite=True)
-    Variable.set("counter_raw_copy", init_dict["counter_raw_copy"], overwrite=True)
-    if init_dict["flow_start_time"] is None:
-        curr_time_offset = datetime.timedelta(seconds=0)
-    else:
-        curr_time_offset = (
-            datetime.datetime.now()
-            - datetime.datetime.strptime(
-                init_dict["flow_start_time"], "%Y%m%dT%H%M%S"
-            )
-        )
-
-    # Set interval dict
-    interval_dict = {}
-    for flow_name in config.keys():
-        if flow_name != "init":
-            interval_dict[flow_name] = config[flow_name].pop("interval", None)
-
-    # Add time_offset_seconds to create_MVBS and predict_hake config dict
-    for flow_name in ["create_MVBS", "predict_hake", "compute_NASC"]:
-        config[flow_name]["time_offset_seconds"] = curr_time_offset.total_seconds()
-
-    deploy(
-        copy_raw.from_source(
-            source=str(Path(__file__).parent),
-            entrypoint="prototype.py:copy_raw"
-        ).to_deployment(
-            name="copy-raw",
-            # cron=f"*/{interval_dict["copy_raw"]} * * * *",
-        ),
-        flow_raw2Sv.from_source(
-            source=str(Path(__file__).parent),
-            entrypoint="prototype.py:flow_raw2Sv",
-        ).to_deployment(
-            name="raw2Sv",
-            parameters=config["raw2Sv"],
-            # cron=f"*/{interval_dict["raw2Sv"]} * * * *",
-        ),
-        flow_create_MVBS.from_source(
-            source=str(Path(__file__).parent),
-            entrypoint="prototype.py:flow_create_MVBS",
-        ).to_deployment(
-            name="create-MVBS",
-            parameters=config["create_MVBS"],
-            # cron=f"*/{interval_dict["create_MVBS"]} * * * *",
-        ),
-        flow_predict_hake.from_source(
-            source=str(Path(__file__).parent),
-            entrypoint="prototype.py:flow_predict_hake",
-        ).to_deployment(
-            name="predict-hake",
-            parameters=config["predict_hake"],
-            # cron=f"*/{interval_dict["predict_hake"]} * * * *",
-        ),
-        flow_compute_NASC.from_source(
-            source=str(Path(__file__).parent),
-            entrypoint="prototype.py:flow_compute_NASC",
-        ).to_deployment(
-            name="compute-NASC",
-            parameters=config["compute_NASC"],
-            # cron=f"*/{interval_dict["compute_NASC"]} * * * *",
-        ),
-        flow_file_upload.from_source(
-            source=str(Path(__file__).parent),
-            entrypoint="prototype.py:flow_file_upload",
-        ).to_deployment(
-            name="file-upload",
-        ),
-        work_pool_name="local",
     )
