@@ -3,6 +3,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from core import TS_L_PARAMS
+
 
 data_path = Path("/Users/wujung/code_git/echodataflow/temp_bio")
 csv_path = data_path / "bio_csv"
@@ -100,6 +102,69 @@ def get_length_weight_regression(df_specimen: pd.DataFrame) -> pd.DataFrame:
     return df_regres
 
 
+def add_stratum(df, df_stratum):
+    # Create latitude bins from the stratum definitions
+    lat_bins = [-90.0] + df_stratum["latitude_northern_limit"].tolist() + [90.0]
+    lat_labels = df_stratum.index.tolist() + [max(df_stratum.index) + 1]
+
+    # Add stratum column based on td_latitude
+    df["stratum"] = pd.cut(
+        df["td_latitude"],
+        bins=lat_bins,
+        labels=lat_labels,
+        include_lowest=True
+    ).astype(int)
+
+    return df
+
+
+def get_sigma_bs_mean_stratum(
+    df_length_count: pd.DataFrame,
+) -> pd.DataFrame:
+    # Compute sigma_bs for each row
+    df_length_count["sigma_bs"] = 10 ** ((
+        TS_L_PARAMS["slope"] * np.log10(df_length_count["rounded_length"])
+        + TS_L_PARAMS["intercept"]
+    ) / 10)
+
+    # Get mean sigma_bs for each stratum
+    return df_length_count.groupby("stratum").apply(
+        lambda df: pd.Series(
+            (df["sigma_bs"] * df["frequency"]).sum() / df["frequency"].sum(),
+            index=["sigma_bs_mean"],
+        ),
+        include_groups=False
+    ).reset_index()
+
+
+def get_weight_mean_stratum(
+    df_length_count: pd.DataFrame,
+    df_length_weight_regression: pd.DataFrame,
+) -> pd.DataFrame:
+    # Merge length-weight regression coefficients
+    df_merged = pd.merge(
+        df_length_count,
+        df_length_weight_regression[df_length_weight_regression["sex"] == "all"][["stratum", "p1", "p2"]],
+        on="stratum",
+        how="left"
+    )
+
+    # Then compute weight using the length-weight relationship: W = 10^(p1 * log10(L) + p2)
+    df_merged["weight"] = 10 ** (
+        df_merged["p1"] * np.log10(df_merged["rounded_length"]) + df_merged["p2"]
+    )
+
+    # Get mean weight for each stratum
+    return df_merged.groupby("stratum").apply(
+        lambda df: pd.Series(
+            (df["weight"] * df["frequency"]).sum() / df["frequency"].sum(),
+            index=["weight_mean"],
+        ),
+        include_groups=False
+    ).reset_index()
+
+
+
 def ingest_biological_data(
     bio_path: str = data_path,
     date_prefix: str = "202407",
@@ -126,34 +191,45 @@ def ingest_biological_data(
         print(f"No hauls to process for {date_prefix} with species code {species_code}.")
         return
     else:
-        for haul_num in hauls_to_process:
-            print(f"Processing haul number {haul_num} for {date_prefix} with species code {species_code}.")
+        haul_num = 11
+        print(f"Processing haul number {haul_num} for {date_prefix} with species code {species_code}.")
 
-            # Consolidate length count for each haul
-            df_length = pd.read_csv(
-                csv_path / f"{date_prefix}_{species_code}_{haul_num:03d}_lf.csv", index_col=0
-            )
-            df_specimen = pd.read_csv(
-                csv_path / f"{date_prefix}_{species_code}_{haul_num:03d}_spec.csv", index_col=0
-            )
-            df_length_count = get_count_from_length_specimen(df_length, df_specimen)
+        # Consolidate length count for each haul
+        df_length = pd.read_csv(
+            csv_path / f"{date_prefix}_{species_code}_{haul_num:03d}_lf.csv", index_col=0
+        )
+        df_specimen = pd.read_csv(
+            csv_path / f"{date_prefix}_{species_code}_{haul_num:03d}_spec.csv", index_col=0
+        )
+        df_length_count = get_count_from_length_specimen(df_length, df_specimen)
 
-            # Add haul number and lat/lon for downstream stratification
-            df_info = pd.read_csv(
-                csv_path / f"{date_prefix}_{haul_num:03d}_operation_info.csv", index_col=0
-            ).reset_index()  # reset index to get operation_number into a column
-            df_length_count = pd.merge(
-                df_length_count,
-                df_info, 
-                how="cross"  # create all possible combinations, but we only have 1 row here
-            )
+        # Add haul number and lat/lon for downstream stratification
+        df_info = pd.read_csv(
+            csv_path / f"{date_prefix}_{haul_num:03d}_operation_info.csv", index_col=0
+        ).reset_index()  # reset index to get operation_number into a column
+        df_specimen = pd.merge(
+            df_specimen,
+            df_info,
+            how="cross"  # create all possible combinations, but we only have 1 row here
+        )
+        df_length_count = pd.merge(
+            df_length_count,
+            df_info, 
+            how="cross"  # create all possible combinations, but we only have 1 row here
+        )
 
-            # Add latitude and longitude to specimen data
-            df_specimen_with_lat_lon = pd.merge(
-                df_specimen,
-                df_info[["td_latitude", "td_longitude"]],
-                how="cross"  # create all possible combinations, but we only have 1 row here
-            )
+        # Add stratrum info to df_specimen and df_length_count based on latitude
+        df_stratum = pd.read_csv(data_path / "inpfc_def.csv", index_col=0)
+        df_specimen = add_stratum(df_specimen, df_stratum)
+        df_length_count = add_stratum(df_length_count, df_stratum)
 
-            # Compute length-weight relationship: male, female, and all fish combined
-            df_length_weight_regression = get_length_weight_regression(df_specimen)
+        # Compute length-weight relationship for each stratum
+        # Separately for: male, female, all fish combined
+        df_length_weight_regression = get_length_weight_regression(df_specimen)
+
+        # Compute mean sigma_bs and mean weight for each stratum
+        # columns: stratum, sigma_bs_mean, weight_mean
+        df_stratum = get_sigma_bs_mean_stratum(df_length_count)
+        df_weight_mean = get_weight_mean_stratum(df_length_count, df_length_weight_regression)
+        df_stratum = df_stratum.merge(df_weight_mean, on="stratum", how="outer")
+        
