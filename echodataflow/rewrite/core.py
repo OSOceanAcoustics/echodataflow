@@ -19,3 +19,9 @@ GRID_PARAMS = {
     # EPSG coordinate projection (latitude/longitude)
     "projection": "epsg:4326"
 }
+
+INFO_DATAFRAME_MAPPING = {
+    "td_timestamp": "timestamp",
+    "td_latitude": "latitude",
+    "td_longitude": "longitude",
+}

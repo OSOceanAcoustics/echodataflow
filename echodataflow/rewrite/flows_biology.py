@@ -11,7 +11,7 @@ from shapely.geometry import box
 
 import echopype as ep
 
-from core import TS_L_PARAMS
+from core import TS_L_PARAMS, INFO_DATAFRAME_MAPPING
 from grid import create_boundary_gdf, create_grid_from_bounds
 
 
@@ -19,19 +19,26 @@ data_path = Path("/Users/wujung/code_git/echodataflow/temp_bio")
 csv_path = data_path / "bio_csv"
 NASC_path = data_path / "nasc_zarr"
 
-# Initialize haul sigma_bs dataframe
-df_haul_sigma_bs = pd.DataFrame(
+# Initialize dataframes
+df_haul_info_all = pd.DataFrame(
+    columns=["operation_number", "timestamp", "latitude", "longitude"]
+)
+df_specimen_all = pd.DataFrame(
+    columns=["operation_number", "partition", "species", "sex", "rounded_length", "frequency"]
+)
+df_length_all = pd.DataFrame(
     columns=[
-        "haul_num",
-        "species_code",
-        "latitude",
-        "longitude",
-        "length_bin",
-        "length_count",
+        "operation_number", "partition", "species",
+        "length_type", "length", "sex", "organism_weight", "barcode"
     ]
 )
-df_haul_sigma_bs.to_csv(csv_path / "haul_sigma_bs.csv")
-
+df_length_count_all = pd.DataFrame(
+    columns=["sex", "rounded_length", "frequency", "operation_number"]
+)
+df_haul_info_all.to_csv(data_path / "haul_info_all.csv")
+df_specimen_all.to_csv(data_path / "specimen_all.csv")
+df_length_all.to_csv(data_path / "length_all.csv")
+df_length_count_all.to_csv(data_path / "length_count_all.csv")
 
 # Create boundary GeoDataFrame with UTM projection
 gdf_boundary, gdf_boundary_utm, utm_num = create_boundary_gdf(
@@ -86,18 +93,18 @@ def get_count_from_length_specimen(
     df_specimen["rounded_length"] = df_specimen["length"].round(0)
 
     # Get length count from both dataframes
-    specimen_counts = df_specimen.groupby(["sex", "rounded_length"]).size().reset_index(name="frequency")
-    length_counts = df_length.groupby(["sex", "rounded_length"]).agg({"frequency": "sum"}).reset_index()
+    specimen_counts = df_specimen.groupby(["sex", "rounded_length", "operation_number"]).size().reset_index(name="frequency")
+    length_counts = df_length.groupby(["sex", "rounded_length", "operation_number"]).agg({"frequency": "sum"}).reset_index()
     
     df_combined = pd.merge(
         specimen_counts.reset_index(),
         length_counts.reset_index(),
-        on=["sex", "rounded_length"],
+        on=["sex", "rounded_length", "operation_number"],
         how="outer"
     ).fillna(0)
     df_combined["frequency"] = (df_combined["frequency_x"] + df_combined["frequency_y"]).astype(int)
 
-    return df_combined[["sex", "rounded_length", "frequency"]]
+    return df_combined[["sex", "rounded_length", "frequency", "operation_number"]]
 
 
 def get_length_weight_regression(df_specimen: pd.DataFrame) -> pd.DataFrame:
@@ -195,9 +202,14 @@ def get_weight_mean_stratum(
 
 
 def ingest_biological_data(
-    bio_path: str = data_path,
+    bio_path: str = csv_path,
     date_prefix: str = "202407",
     species_code: int = 22500,
+    haul_info_path: str = data_path / "haul_info.csv",
+    specimen_all_path: str = data_path / "specimen_all.csv",
+    length_all_path: str = data_path / "length_all.csv",
+    length_count_all_path: str = data_path / "length_count_all.csv",
+    stratum_mean_path: str = data_path / "stratum_mean.csv",
 ):
 
     # Get all filenames
@@ -212,66 +224,100 @@ def ingest_biological_data(
     hauls_valid = get_valid_hauls(date_prefix, species_code, bio_filenames)
 
     # Get hauls to process
-    df_haul_sigma_bs = pd.read_csv(df_haul_sigma_bs, index_col=0)
-    hauls_processed = set(df_haul_sigma_bs["haul_num"].unique())
-    hauls_to_process = hauls_valid.difference(hauls_processed)
+    df_haul_info_all = pd.read_csv(haul_info_path, index_col=0)
+    if df_haul_info_all.empty:
+        hauls_processed = set()
+    else:
+        hauls_processed = set(df_haul_info_all["operation_number"].unique())
+    hauls_to_process = list(hauls_valid.difference(hauls_processed))
     
     if not hauls_to_process:  # if there are hauls to process
         print(f"No hauls to process for {date_prefix} with species code {species_code}.")
         return
     else:
-        haul_num = 11
-        print(f"Processing haul number {haul_num} for {date_prefix} with species code {species_code}.")
+        # Load dataframes from all hauls to process
+        df_length = []
+        df_specimen = []
+        df_info = []
+        for haul_num in hauls_to_process:
+            df_length.append(
+                pd.read_csv(
+                    csv_path / f"{date_prefix}_{species_code}_{haul_num:03d}_lf.csv", index_col=0
+                ).reset_index()
+            )
+            df_specimen.append(
+                pd.read_csv(
+                    csv_path / f"{date_prefix}_{species_code}_{haul_num:03d}_spec.csv", index_col=0
+                ).reset_index()
+            )
+            df_info.append(
+                pd.read_csv(
+                    csv_path / f"{date_prefix}_{haul_num:03d}_operation_info.csv", index_col=0
+                ).rename(columns=INFO_DATAFRAME_MAPPING).reset_index()  # reset index to get operation_number into a column
+            )
+        df_length = pd.concat(df_length, ignore_index=True)
+        df_specimen = pd.concat(df_specimen, ignore_index=True)
+        df_info = pd.concat(df_info, ignore_index=True)
 
-        # Consolidate length count for each haul
-        df_length = pd.read_csv(
-            csv_path / f"{date_prefix}_{species_code}_{haul_num:03d}_lf.csv", index_col=0
-        )
-        df_specimen = pd.read_csv(
-            csv_path / f"{date_prefix}_{species_code}_{haul_num:03d}_spec.csv", index_col=0
-        )
+        # Combined length frequency from length and specimen dataframes
         df_length_count = get_count_from_length_specimen(df_length, df_specimen)
 
         # Add haul number and lat/lon for downstream stratification
-        df_info = pd.read_csv(
-            csv_path / f"{date_prefix}_{haul_num:03d}_operation_info.csv", index_col=0
-        ).reset_index()  # reset index to get operation_number into a column
         df_specimen = pd.merge(
             df_specimen,
             df_info,
-            how="cross"  # create all possible combinations, but we only have 1 row here
+            on="operation_number",
+            how="left"
         )
         df_length_count = pd.merge(
             df_length_count,
-            df_info, 
-            how="cross"  # create all possible combinations, but we only have 1 row here
+            df_info,
+            on="operation_number",
+            how="left"
         )
+
+        # Update df_haul_info_all, df_specimen_all, df_length_all
+        df_specimen_all = pd.read_csv(specimen_all_path, index_col=0)
+        df_length_all = pd.read_csv(length_all_path, index_col=0)
+        df_length_count_all = pd.read_csv(length_count_all_path, index_col=0)
+        df_haul_info_all = pd.read_csv(haul_info_path, index_col=0)
+
+        df_specimen_all = pd.concat([df_specimen_all, df_specimen], ignore_index=True)
+        df_length_all = pd.concat([df_length_all, df_length], ignore_index=True)
+        df_length_count_all = pd.concat([df_length_count_all, df_length_count], ignore_index=True)
+        df_haul_info_all = pd.concat([df_haul_info_all, df_info], ignore_index=True)
+
+        df_specimen_all.to_csv(specimen_all_path)
+        df_length_all.to_csv(length_all_path)
+        df_length_count_all.to_csv(length_count_all_path)
+        df_haul_info_all.to_csv(haul_info_path)
 
         # Add stratrum info to df_specimen and df_length_count based on latitude
         df_stratum = pd.read_csv(data_path / "inpfc_def.csv", index_col=0).reset_index().rename(
             columns={"stratum_num": "stratum"}
         )
-        df_specimen = add_stratum(df_specimen, df_stratum)
-        df_length_count = add_stratum(df_length_count, df_stratum)
+        df_specimen_all = add_stratum(df_specimen_all, df_stratum)
+        df_length_count_all = add_stratum(df_length_count_all, df_stratum)
 
         # Compute length-weight relationship for each stratum
         # Separately for: male, female, all fish combined
-        df_length_weight_regression = get_length_weight_regression(df_specimen)
+        df_length_weight_regression = get_length_weight_regression(df_specimen_all)
 
         # Compute mean sigma_bs and mean weight for each stratum
         # columns: stratum, sigma_bs_mean, weight_mean
         df_stratum = pd.merge(
             df_stratum,
-            get_sigma_bs_mean_stratum(df_length_count),
+            get_sigma_bs_mean_stratum(df_length_count_all),
             on="stratum",
             how="outer"
         )
         df_stratum = pd.merge(
             df_stratum,
-            get_weight_mean_stratum(df_length_count, df_length_weight_regression),
+            get_weight_mean_stratum(df_length_count_all, df_length_weight_regression),
             on="stratum",
             how="outer"
-        )        
+        )
+        df_stratum.to_csv(stratum_mean_path)
 
 
 def combine_NASC_dataset_to_dataframe(NASC_filenames: list) -> pd.DataFrame:
