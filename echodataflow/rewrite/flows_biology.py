@@ -14,6 +14,8 @@ import echopype as ep
 from core import TS_L_PARAMS, INFO_DATAFRAME_MAPPING
 from grid import create_boundary_gdf, create_grid_from_bounds
 
+from prefect import task, flow
+
 
 data_path = Path("/Users/wujung/code_git/echodataflow/temp_bio")
 csv_path = data_path / "bio_csv"
@@ -39,6 +41,15 @@ df_haul_info_all.to_csv(data_path / "haul_info_all.csv")
 df_specimen_all.to_csv(data_path / "specimen_all.csv")
 df_length_all.to_csv(data_path / "length_all.csv")
 df_length_count_all.to_csv(data_path / "length_count_all.csv")
+
+
+# Path to dataframe containing processed NASC filenames
+NASC_processed_path = data_path / "nasc_processed.csv"
+if not NASC_processed_path.exists():
+    # Create an empty dataframe to store processed NASC filenames
+    df_NASC_processed = pd.DataFrame(columns="filename")
+    df_NASC_processed.to_csv(NASC_processed_path, index=False)
+
 
 # Create boundary GeoDataFrame with UTM projection
 gdf_boundary, gdf_boundary_utm, utm_num = create_boundary_gdf(
@@ -200,7 +211,7 @@ def get_weight_mean_stratum(
     ).reset_index()
 
 
-
+@flow(log_prints=True)
 def ingest_biological_data(
     bio_path: str = csv_path,
     date_prefix: str = "202407",
@@ -235,6 +246,11 @@ def ingest_biological_data(
         print(f"No hauls to process for {date_prefix} with species code {species_code}.")
         return
     else:
+        print(
+            f"Processing {len(hauls_to_process)} hauls for "
+            f"{date_prefix} with species code {species_code}:\n",
+            hauls_to_process
+        )
         # Load dataframes from all hauls to process
         df_length = []
         df_specimen = []
@@ -320,19 +336,25 @@ def ingest_biological_data(
         df_stratum.to_csv(stratum_mean_path)
 
 
-def combine_NASC_dataset_to_dataframe(NASC_filenames: list) -> pd.DataFrame:
+def combine_NASC_dataset_to_dataframe(
+    NASC_path: Path,
+    NASC_filenames: list
+) -> pd.DataFrame:
     """
-    Combine NASC from multiple datasets into a single DataFrame.
+    Combine multiple NASC datasets into a single DataFrame.
     """
     df_NASC_list = []
     for nascf in NASC_filenames:
-        ds_NASC = xr.open_zarr(nascf)
+        ds_NASC = xr.open_zarr(NASC_path / nascf)
         ds_NASC = ep.consolidate.swap_dims_channel_frequency(ds_NASC)
-        df_NASC_list.append(ds_NASC.sum("depth").sel(frequency_nominal=38000).to_dataframe())
+        df_NASC = ds_NASC.sum("depth").sel(frequency_nominal=38000).to_dataframe()
+        df_NASC["filename"] = nascf
+        df_NASC_list.append(df_NASC)
 
     return pd.concat(df_NASC_list, ignore_index=True)
 
 
+@task(log_prints=True)
 def griddify_NASC(
     df_NASC: pd.DataFrame,
     utm_num: int,
@@ -380,6 +402,7 @@ def griddify_NASC(
     return gdf_NASC
 
 
+@task(log_prints=True)
 def update_grid(
     gdf_grid_cells: gpd.GeoDataFrame,
     gdf_NASC: gpd.GeoDataFrame,
@@ -420,3 +443,44 @@ def update_grid(
     gdf_grid_cells["biomass"] = gdf_grid_cells["biomass_density"] * gdf_grid_cells["area"]
 
     # Save to csv
+
+
+@flow(log_prints=True)
+def ingest_NASC_data(
+    NASC_path: str = NASC_path,
+    NASC_processed_path: str = NASC_processed_path,
+    NASC_all_path: str = data_path / "NASC_all.csv",
+    num_NASC_ignore: int = 3,
+):
+    """
+    Ingest NASC data from zarr files and combine into a single DataFrame.
+    """
+    # Get NASC filenames to process
+    NASC_all = list(NASC_path.glob("*.zarr"))
+    NASC_all = sorted([f.name for f in NASC_all])
+    NASC_ignore = NASC_all[-num_NASC_ignore:]  # NASC files to reprocess
+    NASC_all = set(NASC_all[:-num_NASC_ignore])
+    NASC_processed = set(
+        pd.read_csv(NASC_processed_path, index_col=0).reset_index()["filename"]
+    )
+    NASC_to_process = list(NASC_all.difference(NASC_processed))
+
+    if NASC_to_process is None:
+        print("No new NASC files to process.")
+        return
+    else:
+        # Combine all unprocessed NASC datasets into a single DataFrame
+        df_NASC = combine_NASC_dataset_to_dataframe(NASC_path, NASC_to_process)
+
+        # Load exising NASC data and remove entries from files that will be reprocessed
+        if not NASC_all_path.exists():
+            df_NASC_all = pd.DataFrame()
+        else:
+            df_NASC_all = pd.read_csv(NASC_all_path, index_col=0)
+            df_NASC_all = df_NASC_all[~df_NASC_all["filename"].isin(NASC_ignore)]
+        
+        # Append new NASC data to existing data
+        df_NASC_all = pd.concat([df_NASC_all, df_NASC], ignore_index=True)
+
+        # Save to CSV
+        df_NASC.to_csv(NASC_all_path, index=False)
