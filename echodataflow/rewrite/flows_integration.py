@@ -32,16 +32,6 @@ gdf_boundary, gdf_boundary_utm, utm_num = create_boundary_gdf(
     projection=GRID_PARAMS["projection"]
 )
 
-# Create the full grid
-gdf_grid_cells, gdf_coastline, _ = create_grid_from_bounds(
-    bounds=GRID_PARAMS["bounds"], 
-    resolution=GRID_PARAMS["resolution"],
-    projection=GRID_PARAMS["projection"],
-    coastline_resolution="10m",
-    area_threshold=5
-)
-gdf_grid_cells.set_index(["grid_x", "grid_y"], inplace=True)
-
 
 
 @task()
@@ -201,7 +191,6 @@ def flow_update_grid(
     path_NASC_all_grid: str = "NASC_all_griddify.geojson",
     path_stratum_mean: str = "stratum_mean.csv",
     path_grid_cells: str = "grid_cells.geojson",
-    gdf_grid_cells: gpd.GeoDataFrame = gdf_grid_cells,
 ):
     """
     Update the grid with the latest NASC data and stratum means from hauls.
@@ -216,6 +205,16 @@ def flow_update_grid(
 
     # Load stratum means
     df_stratum = pd.read_csv(path_stratum_mean, index_col=0)
+
+    # Create gdf_grid_cells
+    gdf_grid_cells, _, _ = create_grid_from_bounds(
+        bounds=GRID_PARAMS["bounds"], 
+        resolution=GRID_PARAMS["resolution"],
+        projection=GRID_PARAMS["projection"],
+        coastline_resolution="10m",
+        area_threshold=5
+    )
+    gdf_grid_cells.set_index(["grid_x", "grid_y"], inplace=True)
 
     # Merge on stratum 
     gdf_NASC = gdf_NASC.merge(
