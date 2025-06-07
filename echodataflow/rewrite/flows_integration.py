@@ -112,54 +112,13 @@ def task_griddify_NASC(
     return gdf_NASC
 
 
-# @task(log_prints=True)
-def update_grid(
-    gdf_grid_cells: gpd.GeoDataFrame,
-    gdf_NASC: gpd.GeoDataFrame,
-    df_stratum: pd.DataFrame,
-):
-    """
-    Update the grid with the latest NASC data.
-    """
-    # Merge on stratum 
-    gdf_NASC = gdf_NASC.merge(
-        df_stratum[["stratum", "sigma_bs_mean", "weight_mean"]],
-        on="stratum",  # merge on stratum 
-        how="left"
-    )
-
-    # Compute stratified number density from NASC
-    gdf_NASC["number_density"] = gdf_NASC["NASC"] / gdf_NASC["sigma_bs_mean"]
-
-    # Compute biomass density from number density
-    gdf_NASC["biomass_density"] = gdf_NASC["number_density"] * gdf_NASC["weight_mean"]
-
-    # Merge with grid cells
-    gdf_grid_cells = pd.merge(
-        gdf_grid_cells,
-        gdf_NASC.groupby(["grid_x", "grid_y"])["number_density"].mean(),
-        on=["grid_x", "grid_y"],
-        how="left"
-    )
-    gdf_grid_cells = pd.merge(
-        gdf_grid_cells,
-        gdf_NASC.groupby(["grid_x", "grid_y"])["biomass_density"].mean(),
-        on=["grid_x", "grid_y"],
-        how="left"
-    )
-
-    # Compute abundance and biomass
-    gdf_grid_cells["abundance"] = gdf_grid_cells["number_density"] * gdf_grid_cells["area"]
-    gdf_grid_cells["biomass"] = gdf_grid_cells["biomass_density"] * gdf_grid_cells["area"]
-
-
 @flow(log_prints=True)
 def flow_ingest_NASC(
     path_main: str = data_main,
     path_NASC_files: str = "nasc_zarr",
     path_NASC_all: str = "NASC_all.csv",
     path_stratum_mean: str = "stratum_mean.csv",
-    path_NASC_all_grid: str = "NASC_all_grid.csv",
+    path_NASC_all_grid: str = "NASC_all_griddify.geojson",
     num_NASC_reprocess: int = 1,
 ):
     """
@@ -233,4 +192,61 @@ def flow_ingest_NASC(
             utm_num=utm_num,
             boundary_gdf_utm=gdf_boundary_utm
         )
-        gdf_NASC.to_csv(Path(path_main) / path_NASC_all_grid)
+        gdf_NASC.to_file(Path(path_main) / path_NASC_all_grid, driver="GeoJSON")
+
+
+@flow(log_prints=True)
+def flow_update_grid(
+    path_main: str = data_main,
+    path_NASC_all_grid: str = "NASC_all_griddify.geojson",
+    path_stratum_mean: str = "stratum_mean.csv",
+    path_grid_cells: str = "grid_cells.geojson",
+    gdf_grid_cells: gpd.GeoDataFrame = gdf_grid_cells,
+):
+    """
+    Update the grid with the latest NASC data and stratum means from hauls.
+    """
+    # Assemble full paths
+    path_NASC_all_grid = Path(path_main) / path_NASC_all_grid
+    path_grid_cells = Path(path_main) / path_grid_cells
+    path_stratum_mean = Path(path_main) / path_stratum_mean
+
+    # Load griddified NASC and grid cells
+    gdf_NASC = gpd.read_file(Path(path_main) / path_NASC_all_grid)
+
+    # Load stratum means
+    df_stratum = pd.read_csv(path_stratum_mean, index_col=0)
+
+    # Merge on stratum 
+    gdf_NASC = gdf_NASC.merge(
+        df_stratum[["stratum", "sigma_bs_mean", "weight_mean"]],
+        on="stratum",  # merge on stratum 
+        how="left"
+    )
+
+    # Compute stratified number density from NASC
+    gdf_NASC["number_density"] = gdf_NASC["NASC"] / gdf_NASC["sigma_bs_mean"]
+
+    # Compute biomass density from number density
+    gdf_NASC["biomass_density"] = gdf_NASC["number_density"] * gdf_NASC["weight_mean"]
+
+    # Merge with grid cells
+    gdf_grid_cells = pd.merge(
+        gdf_grid_cells,
+        gdf_NASC.groupby(["grid_x", "grid_y"])["number_density"].mean(),
+        on=["grid_x", "grid_y"],
+        how="left"
+    )
+    gdf_grid_cells = pd.merge(
+        gdf_grid_cells,
+        gdf_NASC.groupby(["grid_x", "grid_y"])["biomass_density"].mean(),
+        on=["grid_x", "grid_y"],
+        how="left"
+    )
+
+    # Compute abundance and biomass
+    gdf_grid_cells["abundance"] = gdf_grid_cells["number_density"] * gdf_grid_cells["area"]
+    gdf_grid_cells["biomass"] = gdf_grid_cells["biomass_density"] * gdf_grid_cells["area"]
+
+    # Save updated grid cells
+    gdf_grid_cells.to_file(Path(path_main) / "grid_cells.geojson", driver="GeoJSON")

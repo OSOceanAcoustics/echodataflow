@@ -10,9 +10,10 @@ import pandas as pd
 
 from prefect import deploy
 from prefect.variables import Variable
+from prefect.events import DeploymentEventTrigger
 
 from flows_biology import flow_ingest_haul
-from flows_integration import flow_ingest_NASC
+from flows_integration import flow_ingest_NASC, flow_update_grid
 
 
 if __name__ == "__main__":
@@ -57,6 +58,24 @@ if __name__ == "__main__":
             name="ingest_NASC",
             parameters=config["ingest_NASC"],
             # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+        ),
+        flow_update_grid.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_integration.py:flow_update_grid"
+        ).to_deployment(
+            name="update_grid",
+            parameters=config["update_grid"],
+            # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+            triggers=[
+                DeploymentEventTrigger(
+                    expect={"prefect.flow-run.Completed"},
+                    match_related={"prefect.resource.name": "ingest_haul"},
+                ),
+                DeploymentEventTrigger(
+                    expect={"prefect.flow-run.Completed"},
+                    match_related={"prefect.resource.name": "ingest_NASC"},
+                ),
+            ]
         ),
         work_pool_name="local",
     )

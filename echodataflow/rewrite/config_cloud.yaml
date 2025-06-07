@@ -17,6 +17,11 @@ ingest_NASC:
   path_main: "/Users/wujung/code_git/echodataflow/temp_bio"
   path_NASC_files: "nasc_zarr"
   path_NASC_all: NASC_all.csv
-  num_NASC_reprocess: 1
   path_stratum_mean: stratum_mean.csv
-  path_NASC_all_grid: NASC_all_grid.csv
+  path_NASC_all_grid: NASC_all_griddify.geojson
+  num_NASC_reprocess: 1
+update_grid:
+  path_main: "/Users/wujung/code_git/echodataflow/temp_bio"
+  path_NASC_all_grid: NASC_all_griddify.geojson
+  path_stratum_mean: stratum_mean.csv
+  path_grid_cells: grid_cells.geojson
