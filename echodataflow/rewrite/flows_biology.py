@@ -4,68 +4,35 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from core import GRID_PARAMS
-from geopy.distance import distance
-import geopandas as gpd
-from shapely.geometry import box
-
-import echopype as ep
-
 from core import TS_L_PARAMS, INFO_DATAFRAME_MAPPING
-from grid import create_boundary_gdf, create_grid_from_bounds
 
 from prefect import task, flow
 
 
-data_path = Path("/Users/wujung/code_git/echodataflow/temp_bio")
-csv_path = data_path / "bio_csv"
-NASC_path = data_path / "nasc_zarr"
+# # Set up paths
+# data_path = Path("/Users/wujung/code_git/echodataflow/temp_bio")
+# csv_path = data_path / "bio_csv"
 
-# Initialize dataframes
-df_haul_info_all = pd.DataFrame(
-    columns=["operation_number", "timestamp", "latitude", "longitude"]
-)
-df_specimen_all = pd.DataFrame(
-    columns=["operation_number", "partition", "species", "sex", "rounded_length", "frequency"]
-)
-df_length_all = pd.DataFrame(
-    columns=[
-        "operation_number", "partition", "species",
-        "length_type", "length", "sex", "organism_weight", "barcode"
-    ]
-)
-df_length_count_all = pd.DataFrame(
-    columns=["sex", "rounded_length", "frequency", "operation_number"]
-)
-df_haul_info_all.to_csv(data_path / "haul_info_all.csv")
-df_specimen_all.to_csv(data_path / "specimen_all.csv")
-df_length_all.to_csv(data_path / "length_all.csv")
-df_length_count_all.to_csv(data_path / "length_count_all.csv")
-
-
-# Path to dataframe containing processed NASC filenames
-NASC_processed_path = data_path / "nasc_processed.csv"
-if not NASC_processed_path.exists():
-    # Create an empty dataframe to store processed NASC filenames
-    df_NASC_processed = pd.DataFrame(columns="filename")
-    df_NASC_processed.to_csv(NASC_processed_path, index=False)
-
-
-# Create boundary GeoDataFrame with UTM projection
-gdf_boundary, gdf_boundary_utm, utm_num = create_boundary_gdf(
-    bounds=GRID_PARAMS["bounds"], 
-    projection=GRID_PARAMS["projection"]
-)
-
-# Create the full grid
-gdf_grid_cells, gdf_coastline, _ = create_grid_from_bounds(
-    bounds=GRID_PARAMS["bounds"], 
-    resolution=GRID_PARAMS["resolution"],
-    projection=GRID_PARAMS["projection"],
-    coastline_resolution="10m",
-    area_threshold=5
-)
-gdf_grid_cells.set_index(["grid_x", "grid_y"], inplace=True)
+# # Initialize dataframes
+# df_haul_info_all = pd.DataFrame(
+#     columns=["operation_number", "timestamp", "latitude", "longitude"]
+# )
+# df_specimen_all = pd.DataFrame(
+#     columns=["operation_number", "partition", "species", "sex", "rounded_length", "frequency"]
+# )
+# df_length_all = pd.DataFrame(
+#     columns=[
+#         "operation_number", "partition", "species",
+#         "length_type", "length", "sex", "organism_weight", "barcode"
+#     ]
+# )
+# df_length_count_all = pd.DataFrame(
+#     columns=["sex", "rounded_length", "frequency", "operation_number"]
+# )
+# df_haul_info_all.to_csv(data_path / "haul_info_all.csv")
+# df_specimen_all.to_csv(data_path / "specimen_all.csv")
+# df_length_all.to_csv(data_path / "length_all.csv")
+# df_length_count_all.to_csv(data_path / "length_count_all.csv")
 
 
 
@@ -211,37 +178,55 @@ def get_weight_mean_stratum(
     ).reset_index()
 
 
-@flow(log_prints=True)
-def ingest_biological_data(
-    bio_path: str = csv_path,
+# @flow(log_prints=True)
+def flow_ingest_haul(
+    path_main: str,# = data_path,
+    path_bio_files: str,# = csv_path,
+    path_haul_info_all: str,# = data_path / "haul_info_all.csv",
+    path_specimen_all: str,# = data_path / "specimen_all.csv",
+    path_length_all: str,# = data_path / "length_all.csv",
+    path_length_count_all: str,# = data_path / "length_count_all.csv",
+    path_stratum_mean: str,# = data_path / "stratum_mean.csv",
     date_prefix: str = "202407",
     species_code: int = 22500,
-    haul_info_all_path: str = data_path / "haul_info_all.csv",
-    specimen_all_path: str = data_path / "specimen_all.csv",
-    length_all_path: str = data_path / "length_all.csv",
-    length_count_all_path: str = data_path / "length_count_all.csv",
-    stratum_mean_path: str = data_path / "stratum_mean.csv",
 ):
+
+    # Assemble full paths
+    path_main: Path = Path(path_main)
+    path_bio_files: Path = path_main / path_bio_files
+    path_haul_info_all: Path = path_main / path_haul_info_all
+    path_specimen_all: Path = path_main / path_specimen_all
+    path_length_all: Path = path_main / path_length_all
+    path_length_count_all: Path = path_main / path_length_count_all
+    path_stratum_mean: Path = path_main / path_stratum_mean
 
     # Get all filenames
     bio_filenames = {
-        "length": list(bio_path.glob(f"{date_prefix}_{species_code}_*_lf.csv")),
-        "specimen": list(bio_path.glob(f"{date_prefix}_{species_code}_*_spec.csv")),
-        "catch": list(bio_path.glob(f"{date_prefix}_*_catch_perc.csv")),
-        "info": list(bio_path.glob(f"{date_prefix}_*_operation_info.csv")),
+        "length": list(path_bio_files.glob(f"{date_prefix}_{species_code}_*_lf.csv")),
+        "specimen": list(path_bio_files.glob(f"{date_prefix}_{species_code}_*_spec.csv")),
+        "catch": list(path_bio_files.glob(f"{date_prefix}_*_catch_perc.csv")),
+        "info": list(path_bio_files.glob(f"{date_prefix}_*_operation_info.csv")),
     }
+
+    # Exist if no file present
+    if not any(bio_filenames.values()):
+        print(
+            f"No biology files found for {date_prefix} with species code {species_code}. "
+        )
+        return
 
     # Get valid haul numbers (those with 4 files)
     hauls_valid = get_valid_hauls(date_prefix, species_code, bio_filenames)
 
     # Get hauls to process
-    df_haul_info_all = pd.read_csv(haul_info_all_path, index_col=0)
-    if df_haul_info_all.empty:
+    if not path_haul_info_all.exists():
+        df_haul_info_all = pd.DataFrame()
         hauls_processed = set()
-    else:
+    else:            
+        df_haul_info_all = pd.read_csv(path_haul_info_all, index_col=0)
         hauls_processed = set(df_haul_info_all["operation_number"].unique())
     hauls_to_process = list(hauls_valid.difference(hauls_processed))
-    
+
     if not hauls_to_process:  # if there are hauls to process
         print(f"No hauls to process for {date_prefix} with species code {species_code}.")
         return
@@ -258,17 +243,17 @@ def ingest_biological_data(
         for haul_num in hauls_to_process:
             df_length.append(
                 pd.read_csv(
-                    csv_path / f"{date_prefix}_{species_code}_{haul_num:03d}_lf.csv", index_col=0
+                    path_bio_files / f"{date_prefix}_{species_code}_{haul_num:03d}_lf.csv", index_col=0
                 ).reset_index()
             )
             df_specimen.append(
                 pd.read_csv(
-                    csv_path / f"{date_prefix}_{species_code}_{haul_num:03d}_spec.csv", index_col=0
+                    path_bio_files / f"{date_prefix}_{species_code}_{haul_num:03d}_spec.csv", index_col=0
                 ).reset_index()
             )
             df_info.append(
                 pd.read_csv(
-                    csv_path / f"{date_prefix}_{haul_num:03d}_operation_info.csv", index_col=0
+                    path_bio_files / f"{date_prefix}_{haul_num:03d}_operation_info.csv", index_col=0
                 ).rename(columns=INFO_DATAFRAME_MAPPING).reset_index()  # reset index to get operation_number into a column
             )
         df_length = pd.concat(df_length, ignore_index=True)
@@ -285,6 +270,12 @@ def ingest_biological_data(
             on="operation_number",
             how="left"
         )
+        df_length = pd.merge(
+            df_length,
+            df_info,
+            on="operation_number",
+            how="left"
+        )
         df_length_count = pd.merge(
             df_length_count,
             df_info,
@@ -293,27 +284,30 @@ def ingest_biological_data(
         )
 
         # Update df_haul_info_all, df_specimen_all, df_length_all
-        df_specimen_all = pd.read_csv(specimen_all_path, index_col=0)
-        df_length_all = pd.read_csv(length_all_path, index_col=0)
-        df_length_count_all = pd.read_csv(length_count_all_path, index_col=0)
-        df_haul_info_all = pd.read_csv(haul_info_all_path, index_col=0)
+        df_specimen_all = pd.read_csv(path_specimen_all, index_col=0) if path_specimen_all.exists() else pd.DataFrame()
+        df_length_all = pd.read_csv(path_length_all, index_col=0) if path_length_all.exists() else pd.DataFrame()
+        df_length_count_all = pd.read_csv(path_length_count_all, index_col=0) if path_length_count_all.exists() else pd.DataFrame()
+        df_haul_info_all = pd.read_csv(path_haul_info_all, index_col=0) if path_haul_info_all.exists() else pd.DataFrame()
 
         df_specimen_all = pd.concat([df_specimen_all, df_specimen], ignore_index=True)
         df_length_all = pd.concat([df_length_all, df_length], ignore_index=True)
         df_length_count_all = pd.concat([df_length_count_all, df_length_count], ignore_index=True)
         df_haul_info_all = pd.concat([df_haul_info_all, df_info], ignore_index=True)
 
-        df_specimen_all.to_csv(specimen_all_path)
-        df_length_all.to_csv(length_all_path)
-        df_length_count_all.to_csv(length_count_all_path)
-        df_haul_info_all.to_csv(haul_info_all_path)
-
         # Add stratrum info to df_specimen and df_length_count based on latitude
-        df_stratum = pd.read_csv(data_path / "inpfc_def.csv", index_col=0).reset_index().rename(
-            columns={"stratum_num": "stratum"}
-        )
+        df_stratum = pd.read_csv(
+            Path(__file__).parent / "inpfc_def.csv", index_col=0
+        ).reset_index().rename(columns={"stratum_num": "stratum"})
         df_specimen_all = add_stratum(df_specimen_all, df_stratum)
+        df_length_all = add_stratum(df_length_all, df_stratum)
         df_length_count_all = add_stratum(df_length_count_all, df_stratum)
+        df_haul_info_all = add_stratum(df_haul_info_all, df_stratum)
+
+        # Save updated dataframes
+        df_specimen_all.to_csv(path_specimen_all)
+        df_length_all.to_csv(path_length_all)
+        df_length_count_all.to_csv(path_length_count_all)
+        df_haul_info_all.to_csv(path_haul_info_all)
 
         # Compute length-weight relationship for each stratum
         # Separately for: male, female, all fish combined
@@ -333,154 +327,4 @@ def ingest_biological_data(
             on="stratum",
             how="outer"
         )
-        df_stratum.to_csv(stratum_mean_path)
-
-
-def combine_NASC_dataset_to_dataframe(
-    NASC_path: Path,
-    NASC_filenames: list
-) -> pd.DataFrame:
-    """
-    Combine multiple NASC datasets into a single DataFrame.
-    """
-    df_NASC_list = []
-    for nascf in NASC_filenames:
-        ds_NASC = xr.open_zarr(NASC_path / nascf)
-        ds_NASC = ep.consolidate.swap_dims_channel_frequency(ds_NASC)
-        df_NASC = ds_NASC.sum("depth").sel(frequency_nominal=38000).to_dataframe()
-        df_NASC["filename"] = nascf
-        df_NASC_list.append(df_NASC)
-
-    return pd.concat(df_NASC_list, ignore_index=True)
-
-
-@task(log_prints=True)
-def griddify_NASC(
-    df_NASC: pd.DataFrame,
-    utm_num: int,
-    boundary_gdf_utm: gpd.GeoDataFrame,
-    df_stratum: pd.DataFrame,
-) -> gpd.GeoDataFrame:
-    """
-    Generate geodataframe with grid x/y containing NASC values.
-    """
-    # Convert to GeoDataFrame
-    gdf_NASC = gpd.GeoDataFrame(
-        data=df_NASC,
-        geometry=gpd.points_from_xy(df_NASC["longitude"], df_NASC["latitude"]),
-        crs=GRID_PARAMS["projection"],
-    ).to_crs(f"epsg:{utm_num}")
-
-    # Extract x y coordinate for pd.cut below
-    gdf_NASC["utm_x"] = gdf_NASC["geometry"].x
-    gdf_NASC["utm_y"] = gdf_NASC["geometry"].y
-
-    # Get grid step sizes and boundary x/y
-    x_step = distance(nautical=GRID_PARAMS["resolution"]["x_distance"]).meters
-    y_step = distance(nautical=GRID_PARAMS["resolution"]["y_distance"]).meters
-    xmin, ymin, xmax, ymax = boundary_gdf_utm.total_bounds
-
-    # Bin longitude and latitude into grids
-    gdf_NASC["grid_x"] = pd.cut(
-        gdf_NASC["utm_x"],
-        np.arange(xmin, xmax + x_step, x_step),
-        right=False,
-        labels=np.arange(1, len(np.arange(xmin, xmax + x_step, x_step))),
-    ).astype(int)
-
-    # Bin the latitude data
-    gdf_NASC["grid_y"] = pd.cut(
-        gdf_NASC["utm_y"],
-        np.arange(ymin, ymax + y_step, y_step),
-        right=True,
-        labels=np.arange(1, len(np.arange(ymin, ymax + y_step, y_step))),
-    ).astype(int)
-
-    # Add stratum info
-    gdf_NASC = add_stratum(gdf_NASC, df_stratum)
-
-    return gdf_NASC
-
-
-@task(log_prints=True)
-def update_grid(
-    gdf_grid_cells: gpd.GeoDataFrame,
-    gdf_NASC: gpd.GeoDataFrame,
-    df_stratum: pd.DataFrame,
-):
-    """
-    Update the grid with the latest NASC data.
-    """
-    # Merge on stratum 
-    gdf_NASC = gdf_NASC.merge(
-        df_stratum[["stratum", "sigma_bs_mean", "weight_mean"]],
-        on="stratum",  # merge on stratum 
-        how="left"
-    )
-
-    # Compute stratified number density from NASC
-    gdf_NASC["number_density"] = gdf_NASC["NASC"] / gdf_NASC["sigma_bs_mean"]
-
-    # Compute biomass density from number density
-    gdf_NASC["biomass_density"] = gdf_NASC["number_density"] * gdf_NASC["weight_mean"]
-
-    # Merge with grid cells
-    gdf_grid_cells = pd.merge(
-        gdf_grid_cells,
-        gdf_NASC.groupby(["grid_x", "grid_y"])["number_density"].mean(),
-        on=["grid_x", "grid_y"],
-        how="left"
-    )
-    gdf_grid_cells = pd.merge(
-        gdf_grid_cells,
-        gdf_NASC.groupby(["grid_x", "grid_y"])["biomass_density"].mean(),
-        on=["grid_x", "grid_y"],
-        how="left"
-    )
-
-    # Compute abundance and biomass
-    gdf_grid_cells["abundance"] = gdf_grid_cells["number_density"] * gdf_grid_cells["area"]
-    gdf_grid_cells["biomass"] = gdf_grid_cells["biomass_density"] * gdf_grid_cells["area"]
-
-    # Save to csv
-
-
-@flow(log_prints=True)
-def ingest_NASC_data(
-    NASC_path: str = NASC_path,
-    NASC_processed_path: str = NASC_processed_path,
-    NASC_all_path: str = data_path / "NASC_all.csv",
-    num_NASC_ignore: int = 3,
-):
-    """
-    Ingest NASC data from zarr files and combine into a single DataFrame.
-    """
-    # Get NASC filenames to process
-    NASC_all = list(NASC_path.glob("*.zarr"))
-    NASC_all = sorted([f.name for f in NASC_all])
-    NASC_ignore = NASC_all[-num_NASC_ignore:]  # NASC files to reprocess
-    NASC_all = set(NASC_all[:-num_NASC_ignore])
-    NASC_processed = set(
-        pd.read_csv(NASC_processed_path, index_col=0).reset_index()["filename"]
-    )
-    NASC_to_process = list(NASC_all.difference(NASC_processed))
-
-    if NASC_to_process is None:
-        print("No new NASC files to process.")
-        return
-    else:
-        # Combine all unprocessed NASC datasets into a single DataFrame
-        df_NASC = combine_NASC_dataset_to_dataframe(NASC_path, NASC_to_process)
-
-        # Load exising NASC data and remove entries from files that will be reprocessed
-        if not NASC_all_path.exists():
-            df_NASC_all = pd.DataFrame()
-        else:
-            df_NASC_all = pd.read_csv(NASC_all_path, index_col=0)
-            df_NASC_all = df_NASC_all[~df_NASC_all["filename"].isin(NASC_ignore)]
-        
-        # Append new NASC data to existing data
-        df_NASC_all = pd.concat([df_NASC_all, df_NASC], ignore_index=True)
-
-        # Save to CSV
-        df_NASC.to_csv(NASC_all_path, index=False)
+        df_stratum.to_csv(path_stratum_mean)

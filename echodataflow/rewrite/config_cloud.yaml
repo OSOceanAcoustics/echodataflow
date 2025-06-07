@@ -1,0 +1,14 @@
+init:
+  counter_raw_copy: 0
+  flow_start_time: "20230804T155000"
+ingest_haul:
+  interval: 5
+  date_prefix: "202407"
+  species_code: 22500
+  path_main: "/Users/wujung/code_git/echodataflow/temp_bio"
+  path_bio_files: "bio_csv"
+  path_haul_info_all: haul_info_all.csv
+  path_specimen_all: specimen_all.csv
+  path_length_all: length_all.csv
+  path_length_count_all: length_count_all.csv
+  path_stratum_mean: stratum_mean.csv
