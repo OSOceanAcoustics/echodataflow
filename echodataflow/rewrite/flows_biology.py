@@ -6,6 +6,7 @@ import pandas as pd
 from core import TS_L_PARAMS, INFO_DATAFRAME_MAPPING
 
 from prefect import task, flow
+from prefect.events import emit_event
 
 
 # Set up paths
@@ -327,3 +328,9 @@ def flow_ingest_haul(
             how="outer"
         )
         df_stratum.to_csv(path_stratum_mean)
+
+        # Emit custom event when new hauls are processed
+        emit_event(
+            event="haul.ingested",
+            resource={"prefect.resource.id": "ingest_haul"}
+        )

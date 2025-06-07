@@ -14,6 +14,7 @@ from prefect.events import DeploymentEventTrigger
 
 from flows_biology import flow_ingest_haul
 from flows_integration import flow_ingest_NASC, flow_update_grid
+# from flows_integration import flow_test_trigger, flow_to_be_trigger
 
 
 if __name__ == "__main__":
@@ -68,14 +69,32 @@ if __name__ == "__main__":
             # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
             triggers=[
                 DeploymentEventTrigger(
-                    expect={"prefect.flow-run.Completed"},
+                    expect={"haul.ingested"},  # trigger on custom event
                     match_related={"prefect.resource.name": "ingest_haul"},
                 ),
                 DeploymentEventTrigger(
-                    expect={"prefect.flow-run.Completed"},
+                    expect={"nasc.ingested"},  # trigger on custom event
                     match_related={"prefect.resource.name": "ingest_NASC"},
                 ),
             ]
         ),
+        # flow_test_trigger.from_source(
+        #     source=str(Path(__file__).parent),
+        #     entrypoint="flows_integration.py:flow_test_trigger"
+        # ).to_deployment(
+        #     name="test_trigger",
+        # ),
+        # flow_to_be_trigger.from_source(
+        #     source=str(Path(__file__).parent),
+        #     entrypoint="flows_integration.py:flow_to_be_trigger"
+        # ).to_deployment(
+        #     name="to_be_trigger",
+        #     triggers=[
+        #         DeploymentEventTrigger(
+        #             expect={"test.processed"},
+        #             match_related={"prefect.resource.name": "test_trigger"},
+        #         ),
+        #     ]
+        # ),
         work_pool_name="local",
     )

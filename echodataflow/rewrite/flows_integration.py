@@ -14,6 +14,7 @@ from grid import create_boundary_gdf, create_grid_from_bounds
 from flows_biology import add_stratum
 
 from prefect import task, flow, get_run_logger
+from prefect.events import emit_event
 
 
 # Turn on verbose logging for echopype
@@ -184,6 +185,12 @@ def flow_ingest_NASC(
         )
         gdf_NASC.to_file(Path(path_main) / path_NASC_all_grid, driver="GeoJSON")
 
+        # Emit custom event when new NASC files are processed
+        emit_event(
+            event="nasc.ingested",
+            resource={"prefect.resource.id": "ingest_NASC"}
+        )
+
 
 @flow(log_prints=True)
 def flow_update_grid(
@@ -249,3 +256,22 @@ def flow_update_grid(
 
     # Save updated grid cells
     gdf_grid_cells.to_file(Path(path_main) / "grid_cells.geojson", driver="GeoJSON")
+
+
+
+# @flow(log_prints=True)
+# def flow_test_trigger(trigger = True):
+#     if not trigger:
+#         return
+#     else:
+#         # Emit event when new NASC files are processed
+#         emit_event(
+#             event="test.processed",
+#             resource={"prefect.resource.id": "test_trigger"}
+#         )    
+
+# @flow(log_prints=True)
+# def flow_to_be_trigger():
+#     # Emit event when new NASC files are processed
+#     logger = get_run_logger()
+#     logger.info("This flow is triggered by an event emission.")
