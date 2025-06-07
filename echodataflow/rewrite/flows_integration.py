@@ -13,20 +13,17 @@ from core import GRID_PARAMS
 from grid import create_boundary_gdf, create_grid_from_bounds
 from flows_biology import add_stratum
 
-from prefect import task, flow
+from prefect import task, flow, get_run_logger
+
+
+# Turn on verbose logging for echopype
+# otherwise all logging will be muted
+ep.utils.log.verbose()
 
 
 # Set up paths
-data_path = Path("/Users/wujung/code_git/echodataflow/temp_bio")
-NASC_path = data_path / "nasc_zarr"
-
-
-# Path to dataframe containing processed NASC filenames
-NASC_processed_path = data_path / "nasc_processed.csv"
-if not NASC_processed_path.exists():
-    # Create an empty dataframe to store processed NASC filenames
-    df_NASC_processed = pd.DataFrame(columns="filename")
-    df_NASC_processed.to_csv(NASC_processed_path, index=False)
+data_main = "/Users/wujung/code_git/echodataflow/temp_bio"
+NASC_path = "nasc_zarr"
 
 
 # Create boundary GeoDataFrame with UTM projection
@@ -47,9 +44,9 @@ gdf_grid_cells.set_index(["grid_x", "grid_y"], inplace=True)
 
 
 
-
+@task()
 def combine_NASC_dataset_to_dataframe(
-    NASC_path: Path,
+    path_NASC_files: str,
     NASC_filenames: list
 ) -> pd.DataFrame:
     """
@@ -57,21 +54,22 @@ def combine_NASC_dataset_to_dataframe(
     """
     df_NASC_list = []
     for nascf in NASC_filenames:
-        ds_NASC = xr.open_zarr(NASC_path / nascf)
+        nascf = path_NASC_files / nascf
+        ds_NASC = xr.open_zarr(nascf)
         ds_NASC = ep.consolidate.swap_dims_channel_frequency(ds_NASC)
         df_NASC = ds_NASC.sum("depth").sel(frequency_nominal=38000).to_dataframe()
-        df_NASC["filename"] = nascf
+        df_NASC["filename"] = nascf.name
         df_NASC_list.append(df_NASC)
 
     return pd.concat(df_NASC_list, ignore_index=True)
 
 
-@task(log_prints=True)
+# @task(log_prints=True)
 def griddify_NASC(
-    df_NASC: pd.DataFrame,
-    utm_num: int,
-    boundary_gdf_utm: gpd.GeoDataFrame,
     df_stratum: pd.DataFrame,
+    df_NASC: str = "nasc_zarr",
+    utm_num: int = utm_num,
+    boundary_gdf_utm: gpd.GeoDataFrame = gdf_boundary_utm,
 ) -> gpd.GeoDataFrame:
     """
     Generate geodataframe with grid x/y containing NASC values.
@@ -114,7 +112,7 @@ def griddify_NASC(
     return gdf_NASC
 
 
-@task(log_prints=True)
+# @task(log_prints=True)
 def update_grid(
     gdf_grid_cells: gpd.GeoDataFrame,
     gdf_NASC: gpd.GeoDataFrame,
@@ -158,41 +156,71 @@ def update_grid(
 
 
 @flow(log_prints=True)
-def ingest_NASC_data(
-    NASC_path: str = NASC_path,
-    NASC_processed_path: str = NASC_processed_path,
-    NASC_all_path: str = data_path / "NASC_all.csv",
-    num_NASC_ignore: int = 3,
+def flow_ingest_NASC(
+    path_main: str = data_main,
+    path_NASC_files: str = "nasc_zarr",
+    path_NASC_all: str = "NASC_all.csv",
+    num_NASC_reprocess: int = 1,
 ):
     """
     Ingest NASC data from zarr files and combine into a single DataFrame.
     """
-    # Get NASC filenames to process
-    NASC_all = list(NASC_path.glob("*.zarr"))
-    NASC_all = sorted([f.name for f in NASC_all])
-    NASC_ignore = NASC_all[-num_NASC_ignore:]  # NASC files to reprocess
-    NASC_all = set(NASC_all[:-num_NASC_ignore])
-    NASC_processed = set(
-        pd.read_csv(NASC_processed_path, index_col=0).reset_index()["filename"]
-    )
-    NASC_to_process = list(NASC_all.difference(NASC_processed))
+    logger = get_run_logger()
 
-    if NASC_to_process is None:
-        print("No new NASC files to process.")
+    # Ensure num_NASC_reprocess is at least 1
+    if num_NASC_reprocess < 1:
+        num_NASC_reprocess = 1
+        raise Warning("num_NASC_ignore must be at least 1, setting it to 1.")
+
+    # Assemble full paths
+    path_NASC_files = Path(path_main) / path_NASC_files
+    path_NASC_all = Path(path_main) / path_NASC_all
+
+    # Get NASC files already processed
+    df_NASC_all = (
+        pd.read_csv(path_NASC_all, index_col=0)
+        if path_NASC_all.exists() else pd.DataFrame()
+    )
+    NASC_processed = (
+        sorted(df_NASC_all["filename"].unique().tolist())
+        if not df_NASC_all.empty else []
+    )
+    logger.info(f"NASC files already processed: {NASC_processed}")
+
+    # Reprocess the last num_NASC_reprocess files
+    NASC_to_reprocess = NASC_processed[-num_NASC_reprocess:]
+    NASC_processed = NASC_processed[:-num_NASC_reprocess]
+    logger.info(f"NASC files to reprocess: {NASC_to_reprocess}")
+
+    # Remove df_NASC_all entries that match files to reprocess
+    if not df_NASC_all.empty:
+        df_NASC_all = df_NASC_all[~df_NASC_all["filename"].isin(NASC_to_reprocess)]
+
+    # Get all NASC files in the directory
+    NASC_all = list(path_NASC_files.glob("*.zarr"))
+    NASC_all = sorted([f.name for f in NASC_all])
+    logger.info(f"All NASC files: {NASC_all}")
+
+    # Determine which files to process
+    NASC_to_process = sorted(list(set(NASC_all).difference(set(NASC_processed))))
+    logger.info(f"NASC files to process: {NASC_to_process}")
+
+    if len(NASC_to_process) == 0:
+        logger.info("No new NASC files to process.")
         return
     else:
-        # Combine all unprocessed NASC datasets into a single DataFrame
-        df_NASC = combine_NASC_dataset_to_dataframe(NASC_path, NASC_to_process)
+        files_to_process = ""
+        for nascf in NASC_to_process:
+            files_to_process += f"- {nascf}\n"
+        logger.info(f"Files to process:\n{files_to_process}")
 
-        # Load exising NASC data and remove entries from files that will be reprocessed
-        if not NASC_all_path.exists():
-            df_NASC_all = pd.DataFrame()
-        else:
-            df_NASC_all = pd.read_csv(NASC_all_path, index_col=0)
-            df_NASC_all = df_NASC_all[~df_NASC_all["filename"].isin(NASC_ignore)]
-        
+        # Combine all unprocessed NASC datasets into a single DataFrame
+        df_NASC = combine_NASC_dataset_to_dataframe(path_NASC_files, NASC_to_process)
+        logger.info(f"df_NASC contains: {list(df_NASC["filename"].unique())}")
+
         # Append new NASC data to existing data
         df_NASC_all = pd.concat([df_NASC_all, df_NASC], ignore_index=True)
+        logger.info(f"after run df_NASC_all contains: {list(df_NASC_all["filename"].unique())}")
 
-        # Save to CSV
-        df_NASC.to_csv(NASC_all_path, index=False)
+        # Save to combined NASC data to csv
+        df_NASC_all.to_csv(path_NASC_all)

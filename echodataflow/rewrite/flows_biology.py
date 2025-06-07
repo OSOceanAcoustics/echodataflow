@@ -9,7 +9,7 @@ from prefect import task, flow
 
 
 # Set up paths
-data_path = Path("/Users/wujung/code_git/echodataflow/temp_bio")
+data_path = "/Users/wujung/code_git/echodataflow/temp_bio"
 # csv_path = data_path / "bio_csv"
 
 # # Initialize dataframes

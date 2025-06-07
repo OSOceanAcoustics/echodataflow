@@ -12,3 +12,9 @@ ingest_haul:
   path_length_all: length_all.csv
   path_length_count_all: length_count_all.csv
   path_stratum_mean: stratum_mean.csv
+ingest_NASC:
+  interval: 5
+  path_main: "/Users/wujung/code_git/echodataflow/temp_bio"
+  path_NASC_files: "nasc_zarr"
+  path_NASC_all: NASC_all.csv
+  num_NASC_reprocess: 1

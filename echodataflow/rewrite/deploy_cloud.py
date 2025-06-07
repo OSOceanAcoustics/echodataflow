@@ -12,6 +12,7 @@ from prefect import deploy
 from prefect.variables import Variable
 
 from flows_biology import flow_ingest_haul
+from flows_integration import flow_ingest_NASC
 
 
 if __name__ == "__main__":
@@ -47,6 +48,14 @@ if __name__ == "__main__":
         ).to_deployment(
             name="ingest_haul",
             parameters=config["ingest_haul"],
+            # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+        ),
+        flow_ingest_NASC.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_integration.py:flow_ingest_NASC"
+        ).to_deployment(
+            name="ingest_NASC",
+            parameters=config["ingest_NASC"],
             # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
         ),
         work_pool_name="local",
