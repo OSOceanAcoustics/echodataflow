@@ -205,7 +205,7 @@ def ingest_biological_data(
     bio_path: str = csv_path,
     date_prefix: str = "202407",
     species_code: int = 22500,
-    haul_info_path: str = data_path / "haul_info.csv",
+    haul_info_all_path: str = data_path / "haul_info_all.csv",
     specimen_all_path: str = data_path / "specimen_all.csv",
     length_all_path: str = data_path / "length_all.csv",
     length_count_all_path: str = data_path / "length_count_all.csv",
@@ -224,7 +224,7 @@ def ingest_biological_data(
     hauls_valid = get_valid_hauls(date_prefix, species_code, bio_filenames)
 
     # Get hauls to process
-    df_haul_info_all = pd.read_csv(haul_info_path, index_col=0)
+    df_haul_info_all = pd.read_csv(haul_info_all_path, index_col=0)
     if df_haul_info_all.empty:
         hauls_processed = set()
     else:
@@ -280,7 +280,7 @@ def ingest_biological_data(
         df_specimen_all = pd.read_csv(specimen_all_path, index_col=0)
         df_length_all = pd.read_csv(length_all_path, index_col=0)
         df_length_count_all = pd.read_csv(length_count_all_path, index_col=0)
-        df_haul_info_all = pd.read_csv(haul_info_path, index_col=0)
+        df_haul_info_all = pd.read_csv(haul_info_all_path, index_col=0)
 
         df_specimen_all = pd.concat([df_specimen_all, df_specimen], ignore_index=True)
         df_length_all = pd.concat([df_length_all, df_length], ignore_index=True)
@@ -290,7 +290,7 @@ def ingest_biological_data(
         df_specimen_all.to_csv(specimen_all_path)
         df_length_all.to_csv(length_all_path)
         df_length_count_all.to_csv(length_count_all_path)
-        df_haul_info_all.to_csv(haul_info_path)
+        df_haul_info_all.to_csv(haul_info_all_path)
 
         # Add stratrum info to df_specimen and df_length_count based on latitude
         df_stratum = pd.read_csv(data_path / "inpfc_def.csv", index_col=0).reset_index().rename(
