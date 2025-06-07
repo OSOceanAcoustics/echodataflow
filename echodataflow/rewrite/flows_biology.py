@@ -2,15 +2,14 @@ import re
 from pathlib import Path
 import numpy as np
 import pandas as pd
-import xarray as xr
 
 from core import TS_L_PARAMS, INFO_DATAFRAME_MAPPING
 
 from prefect import task, flow
 
 
-# # Set up paths
-# data_path = Path("/Users/wujung/code_git/echodataflow/temp_bio")
+# Set up paths
+data_path = Path("/Users/wujung/code_git/echodataflow/temp_bio")
 # csv_path = data_path / "bio_csv"
 
 # # Initialize dataframes
@@ -178,15 +177,15 @@ def get_weight_mean_stratum(
     ).reset_index()
 
 
-# @flow(log_prints=True)
+@flow(log_prints=True)
 def flow_ingest_haul(
-    path_main: str,# = data_path,
-    path_bio_files: str,# = csv_path,
-    path_haul_info_all: str,# = data_path / "haul_info_all.csv",
-    path_specimen_all: str,# = data_path / "specimen_all.csv",
-    path_length_all: str,# = data_path / "length_all.csv",
-    path_length_count_all: str,# = data_path / "length_count_all.csv",
-    path_stratum_mean: str,# = data_path / "stratum_mean.csv",
+    path_main: str = data_path,
+    path_bio_files: str = "bio_csv",
+    path_haul_info_all: str = "haul_info_all.csv",
+    path_specimen_all: str = "specimen_all.csv",
+    path_length_all: str = "length_all.csv",
+    path_length_count_all: str = "length_count_all.csv",
+    path_stratum_mean: str = "stratum_mean.csv",
     date_prefix: str = "202407",
     species_code: int = 22500,
 ):

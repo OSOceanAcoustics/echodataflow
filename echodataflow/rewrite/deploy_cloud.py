@@ -17,7 +17,7 @@ from flows_biology import flow_ingest_haul
 if __name__ == "__main__":
 
     # Load variables from config
-    with open(Path(__file__).parent / "config.yaml", "r") as file:
+    with open(Path(__file__).parent / "config_cloud.yaml", "r") as file:
         config = safe_load(file)
 
     # Set init variables
@@ -40,15 +40,6 @@ if __name__ == "__main__":
         if flow_name != "init":
             interval_dict[flow_name] = config[flow_name].pop("interval", None)
 
-    # # Inititalize empty bio dataframes if not already exist
-    # path_main = Path(config["ingest_haul"]["path_main"])
-    # csv_filename_keys = [k for k in config["ingest_haul"].keys() if re.match(r"path_\w+_all", k)]
-    # for csv_k in csv_filename_keys:
-    #     csvf = (path_main / config["ingest_haul"][csv_k]).with_suffix(".csv")
-    #     if not csvf.exists():
-    #         df = pd.DataFrame()
-    #         df.to_csv(csvf, index=False)
-
     deploy(
         flow_ingest_haul.from_source(
             source=str(Path(__file__).parent),
@@ -56,7 +47,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="ingest_haul",
             parameters=config["ingest_haul"],
-            cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+            # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
         ),
         work_pool_name="local",
     )
