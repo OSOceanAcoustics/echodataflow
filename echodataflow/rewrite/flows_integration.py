@@ -45,7 +45,7 @@ gdf_grid_cells.set_index(["grid_x", "grid_y"], inplace=True)
 
 
 @task()
-def combine_NASC_dataset_to_dataframe(
+def task_combine_NASC_to_dataframe(
     path_NASC_files: str,
     NASC_filenames: list
 ) -> pd.DataFrame:
@@ -64,8 +64,8 @@ def combine_NASC_dataset_to_dataframe(
     return pd.concat(df_NASC_list, ignore_index=True)
 
 
-@task(log_prints=True)
-def griddify_NASC(
+@task()
+def task_griddify_NASC(
     df_stratum: pd.DataFrame,
     df_NASC: pd.DataFrame,
     utm_num: int = utm_num,
@@ -215,7 +215,7 @@ def flow_ingest_NASC(
         logger.info(f"Files to process:\n{files_to_process}")
 
         # Combine all unprocessed NASC datasets into a single DataFrame
-        df_NASC = combine_NASC_dataset_to_dataframe(path_NASC_files, NASC_to_process)
+        df_NASC = task_combine_NASC_to_dataframe(path_NASC_files, NASC_to_process)
         logger.info(f"df_NASC contains: {list(df_NASC["filename"].unique())}")
 
         # Append new NASC data to existing data
@@ -227,7 +227,7 @@ def flow_ingest_NASC(
 
         # Grifdify the NASC data
         df_stratum = pd.read_csv(Path(path_main) / path_stratum_mean, index_col=0)
-        gdf_NASC = griddify_NASC(
+        gdf_NASC = task_griddify_NASC(
             df_stratum=df_stratum,
             df_NASC=df_NASC_all,
             utm_num=utm_num,
