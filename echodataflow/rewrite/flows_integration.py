@@ -64,10 +64,10 @@ def combine_NASC_dataset_to_dataframe(
     return pd.concat(df_NASC_list, ignore_index=True)
 
 
-# @task(log_prints=True)
+@task(log_prints=True)
 def griddify_NASC(
     df_stratum: pd.DataFrame,
-    df_NASC: str = "nasc_zarr",
+    df_NASC: pd.DataFrame,
     utm_num: int = utm_num,
     boundary_gdf_utm: gpd.GeoDataFrame = gdf_boundary_utm,
 ) -> gpd.GeoDataFrame:
@@ -152,14 +152,14 @@ def update_grid(
     gdf_grid_cells["abundance"] = gdf_grid_cells["number_density"] * gdf_grid_cells["area"]
     gdf_grid_cells["biomass"] = gdf_grid_cells["biomass_density"] * gdf_grid_cells["area"]
 
-    # Save to csv
-
 
 @flow(log_prints=True)
 def flow_ingest_NASC(
     path_main: str = data_main,
     path_NASC_files: str = "nasc_zarr",
     path_NASC_all: str = "NASC_all.csv",
+    path_stratum_mean: str = "stratum_mean.csv",
+    path_NASC_all_grid: str = "NASC_all_grid.csv",
     num_NASC_reprocess: int = 1,
 ):
     """
@@ -224,3 +224,13 @@ def flow_ingest_NASC(
 
         # Save to combined NASC data to csv
         df_NASC_all.to_csv(path_NASC_all)
+
+        # Grifdify the NASC data
+        df_stratum = pd.read_csv(Path(path_main) / path_stratum_mean, index_col=0)
+        gdf_NASC = griddify_NASC(
+            df_stratum=df_stratum,
+            df_NASC=df_NASC_all,
+            utm_num=utm_num,
+            boundary_gdf_utm=gdf_boundary_utm
+        )
+        gdf_NASC.to_csv(Path(path_main) / path_NASC_all_grid)

@@ -18,3 +18,5 @@ ingest_NASC:
   path_NASC_files: "nasc_zarr"
   path_NASC_all: NASC_all.csv
   num_NASC_reprocess: 1
+  path_stratum_mean: stratum_mean.csv
+  path_NASC_all_grid: NASC_all_grid.csv
