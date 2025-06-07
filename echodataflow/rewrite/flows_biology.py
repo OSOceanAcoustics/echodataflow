@@ -2,12 +2,22 @@ import re
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import xarray as xr
+
+from core import GRID_PARAMS
+from geopy.distance import distance
+import geopandas as gpd
+from shapely.geometry import box
+
+import echopype as ep
 
 from core import TS_L_PARAMS
+from grid import create_boundary_gdf, create_grid_from_bounds
 
 
 data_path = Path("/Users/wujung/code_git/echodataflow/temp_bio")
 csv_path = data_path / "bio_csv"
+NASC_path = data_path / "nasc_zarr"
 
 # Initialize haul sigma_bs dataframe
 df_haul_sigma_bs = pd.DataFrame(
@@ -21,6 +31,25 @@ df_haul_sigma_bs = pd.DataFrame(
     ]
 )
 df_haul_sigma_bs.to_csv(csv_path / "haul_sigma_bs.csv")
+
+
+# Create boundary GeoDataFrame with UTM projection
+gdf_boundary, gdf_boundary_utm, utm_num = create_boundary_gdf(
+    bounds=GRID_PARAMS["bounds"], 
+    projection=GRID_PARAMS["projection"]
+)
+
+# Create the full grid
+gdf_grid_cells, gdf_coastline, _ = create_grid_from_bounds(
+    bounds=GRID_PARAMS["bounds"], 
+    resolution=GRID_PARAMS["resolution"],
+    projection=GRID_PARAMS["projection"],
+    coastline_resolution="10m",
+    area_threshold=5
+)
+gdf_grid_cells.set_index(["grid_x", "grid_y"], inplace=True)
+
+
 
 
 def get_valid_hauls(
@@ -105,11 +134,11 @@ def get_length_weight_regression(df_specimen: pd.DataFrame) -> pd.DataFrame:
 def add_stratum(df, df_stratum):
     # Create latitude bins from the stratum definitions
     lat_bins = [-90.0] + df_stratum["latitude_northern_limit"].tolist() + [90.0]
-    lat_labels = df_stratum.index.tolist() + [max(df_stratum.index) + 1]
+    lat_labels = df_stratum["stratum"].tolist() + [max(df_stratum["stratum"]) + 1]
 
-    # Add stratum column based on td_latitude
+    # Add stratum column based on latitude
     df["stratum"] = pd.cut(
-        df["td_latitude"],
+        df["latitude"],
         bins=lat_bins,
         labels=lat_labels,
         include_lowest=True
@@ -219,7 +248,9 @@ def ingest_biological_data(
         )
 
         # Add stratrum info to df_specimen and df_length_count based on latitude
-        df_stratum = pd.read_csv(data_path / "inpfc_def.csv", index_col=0)
+        df_stratum = pd.read_csv(data_path / "inpfc_def.csv", index_col=0).reset_index().rename(
+            columns={"stratum_num": "stratum"}
+        )
         df_specimen = add_stratum(df_specimen, df_stratum)
         df_length_count = add_stratum(df_length_count, df_stratum)
 
@@ -229,7 +260,117 @@ def ingest_biological_data(
 
         # Compute mean sigma_bs and mean weight for each stratum
         # columns: stratum, sigma_bs_mean, weight_mean
-        df_stratum = get_sigma_bs_mean_stratum(df_length_count)
-        df_weight_mean = get_weight_mean_stratum(df_length_count, df_length_weight_regression)
-        df_stratum = df_stratum.merge(df_weight_mean, on="stratum", how="outer")
-        
+        df_stratum = pd.merge(
+            df_stratum,
+            get_sigma_bs_mean_stratum(df_length_count),
+            on="stratum",
+            how="outer"
+        )
+        df_stratum = pd.merge(
+            df_stratum,
+            get_weight_mean_stratum(df_length_count, df_length_weight_regression),
+            on="stratum",
+            how="outer"
+        )        
+
+
+def combine_NASC_dataset_to_dataframe(NASC_filenames: list) -> pd.DataFrame:
+    """
+    Combine NASC from multiple datasets into a single DataFrame.
+    """
+    df_NASC_list = []
+    for nascf in NASC_filenames:
+        ds_NASC = xr.open_zarr(nascf)
+        ds_NASC = ep.consolidate.swap_dims_channel_frequency(ds_NASC)
+        df_NASC_list.append(ds_NASC.sum("depth").sel(frequency_nominal=38000).to_dataframe())
+
+    return pd.concat(df_NASC_list, ignore_index=True)
+
+
+def griddify_NASC(
+    df_NASC: pd.DataFrame,
+    utm_num: int,
+    boundary_gdf_utm: gpd.GeoDataFrame,
+    df_stratum: pd.DataFrame,
+) -> gpd.GeoDataFrame:
+    """
+    Generate geodataframe with grid x/y containing NASC values.
+    """
+    # Convert to GeoDataFrame
+    gdf_NASC = gpd.GeoDataFrame(
+        data=df_NASC,
+        geometry=gpd.points_from_xy(df_NASC["longitude"], df_NASC["latitude"]),
+        crs=GRID_PARAMS["projection"],
+    ).to_crs(f"epsg:{utm_num}")
+
+    # Extract x y coordinate for pd.cut below
+    gdf_NASC["utm_x"] = gdf_NASC["geometry"].x
+    gdf_NASC["utm_y"] = gdf_NASC["geometry"].y
+
+    # Get grid step sizes and boundary x/y
+    x_step = distance(nautical=GRID_PARAMS["resolution"]["x_distance"]).meters
+    y_step = distance(nautical=GRID_PARAMS["resolution"]["y_distance"]).meters
+    xmin, ymin, xmax, ymax = boundary_gdf_utm.total_bounds
+
+    # Bin longitude and latitude into grids
+    gdf_NASC["grid_x"] = pd.cut(
+        gdf_NASC["utm_x"],
+        np.arange(xmin, xmax + x_step, x_step),
+        right=False,
+        labels=np.arange(1, len(np.arange(xmin, xmax + x_step, x_step))),
+    ).astype(int)
+
+    # Bin the latitude data
+    gdf_NASC["grid_y"] = pd.cut(
+        gdf_NASC["utm_y"],
+        np.arange(ymin, ymax + y_step, y_step),
+        right=True,
+        labels=np.arange(1, len(np.arange(ymin, ymax + y_step, y_step))),
+    ).astype(int)
+
+    # Add stratum info
+    gdf_NASC = add_stratum(gdf_NASC, df_stratum)
+
+    return gdf_NASC
+
+
+def update_grid(
+    gdf_grid_cells: gpd.GeoDataFrame,
+    gdf_NASC: gpd.GeoDataFrame,
+    df_stratum: pd.DataFrame,
+):
+    """
+    Update the grid with the latest NASC data.
+    """
+    # Merge on stratum 
+    gdf_NASC = gdf_NASC.merge(
+        df_stratum[["stratum", "sigma_bs_mean", "weight_mean"]],
+        on="stratum",  # merge on stratum 
+        how="left"
+    )
+
+    # Compute stratified number density from NASC
+    gdf_NASC["number_density"] = gdf_NASC["NASC"] / gdf_NASC["sigma_bs_mean"]
+
+    # Compute biomass density from number density
+    gdf_NASC["biomass_density"] = gdf_NASC["number_density"] * gdf_NASC["weight_mean"]
+
+    # Merge with grid cells
+    gdf_grid_cells = pd.merge(
+        gdf_grid_cells,
+        gdf_NASC.groupby(["grid_x", "grid_y"])["number_density"].mean(),
+        on=["grid_x", "grid_y"],
+        how="left"
+    )
+    gdf_grid_cells = pd.merge(
+        gdf_grid_cells,
+        gdf_NASC.groupby(["grid_x", "grid_y"])["biomass_density"].mean(),
+        on=["grid_x", "grid_y"],
+        how="left"
+    )
+
+    # Compute abundance and biomass
+    gdf_grid_cells["abundance"] = gdf_grid_cells["number_density"] * gdf_grid_cells["area"]
+    gdf_grid_cells["biomass"] = gdf_grid_cells["biomass_density"] * gdf_grid_cells["area"]
+
+    # Save to csv

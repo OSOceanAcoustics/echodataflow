@@ -4,11 +4,15 @@ channels:
   - defaults
 dependencies:
   - boto3
+  - cartopy
   - echopype
   - ipykernel
+  - geopandas
+  - geopy
   - opencv  # this should be specified in hakeML
   - prefect
   - python=3.12
+  - shapely
   - pip:
     - prefect[shell]
     - prefect[dask]
