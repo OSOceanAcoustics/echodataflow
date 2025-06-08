@@ -457,6 +457,7 @@ async def flow_predict_hake(
     slice_mins: int = 10,
     num_slices: int = 3,
     temperature: float = 0.5,
+    softmax_threshold: float = 0.5,
 ):
     """
     Predict on MVBS files of specified length.
@@ -530,10 +531,21 @@ async def flow_predict_hake(
             logger.info(f"No MVBS files found for slice {snum+1}, skipping")
             continue        
 
-        # Predict on the MVBS files
+        # Predict on the MVBS files and compute NASC
         try:
             predict_filename_postfix=f"{start_time[snum].strftime("%Y%m%dT%H%M%S")}"
-            score_filename, softmax_filename, first_ping_time, last_ping_time = task_predict_hake.with_options(
+
+            # predict hake on the MVBS files
+            (
+                # used for task_compute_NASC_direct
+                ds_MVBS_combine,
+                da_score_softmax,
+                # used for book keeping
+                score_filename,
+                softmax_filename,
+                first_ping_time,
+                last_ping_time
+            ) = task_predict_hake.with_options(
                 task_run_name=f"predict_{predict_filename_postfix}",
                 name=f"predict_{predict_filename_postfix}",
             )(
@@ -545,7 +557,19 @@ async def flow_predict_hake(
                 temperature=temperature
             )
 
+            # Compute NASC directly from the prediction
+            task_compute_NASC_direct.with_options(
+                task_run_name=f"NASC_{predict_filename_postfix}",
+                name=f"NASC_{predict_filename_postfix}",                
+            )(
+                NASC_filename=f"NASC_{predict_filename_postfix}.zarr",
+                ds_MVBS_combine=ds_MVBS_combine,
+                da_score_softmax=da_score_softmax,
+                softmax_threshold=softmax_threshold,
+            )
+
             # Add prediction slice info to dataframe
+            # Only add if NASC is also computed
             if predict_filename_postfix in df_prediction["prediction_filename_postfix"].values:
                 logger.info(f"Prediction file {predict_filename_postfix} already exists, updating first and last ping times")
                 idx_to_add = df_prediction.index[df_prediction["prediction_filename_postfix"] == predict_filename_postfix]
@@ -583,6 +607,9 @@ def task_predict_hake(
     """
     Predict on a single MVBS file.
 
+    This function combines multiple MVBS files into a single dataset,
+    convert it to the input tensor, and feed it into the model for prediction.
+
     Parameters
     ----------
     predict_filename_postfix : str
@@ -609,7 +636,8 @@ def task_predict_hake(
         engine="zarr",  # use zarr engine for reading
     ).sel(
         # slice start/end, end exclusive
-        ping_time=slice(start_time, end_time-pd.to_timedelta("10milliseconds"))
+        ping_time=slice(start_time, end_time-pd.to_timedelta("10milliseconds")),
+        depth=slice(None, 590)  # slice to what the model expects
     )
 
     # Prepare input tensor: slice depth and ensure order of coordinates
@@ -624,7 +652,7 @@ def task_predict_hake(
         score_tensor,
         coords={
             "scatterer_class": ["background", "hake"],
-            "depth": ds_MVBS_combine["depth"].sel(depth=slice(None, 590)).values,
+            "depth": ds_MVBS_combine["depth"].values,
             "ping_time": ds_MVBS_combine["ping_time"].values,
         },
         name="score",
@@ -633,7 +661,7 @@ def task_predict_hake(
         score_tensor_softmax,
         coords={
             "scatterer_class": ["background", "hake"],
-            "depth": ds_MVBS_combine["depth"].sel(depth=slice(None, 590)).values,
+            "depth": ds_MVBS_combine["depth"].values,
             "ping_time": ds_MVBS_combine["ping_time"].values,
         },
         name="softmax_score",
@@ -654,10 +682,53 @@ def task_predict_hake(
     )
 
     return (
+        ds_MVBS_combine,
+        da_score_softmax,
         score_filename,
         softmax_filename,
         pd.to_datetime(ds_MVBS_combine["ping_time"][0].values),
         pd.to_datetime(ds_MVBS_combine["ping_time"][-1].values)
+    )
+
+
+@task(log_prints=True)
+def task_compute_NASC_direct(
+    NASC_filename: str,
+    ds_MVBS_combine: xr.Dataset,
+    da_score_softmax: xr.DataArray,
+    softmax_threshold: float = 0.5,
+):
+    logger = get_run_logger()
+
+    # Prepare softmax score dimensions for apply_mask
+    da_score_softmax = (
+        da_score_softmax
+        .sel(scatterer_class="hake")  # only need hake class
+        .transpose("ping_time", "depth")  # TODO: remove once update echopype to 0.10.2
+        .drop_vars("scatterer_class")
+    )
+
+    # Apply mask based on threshold
+    ds_MVBS_combine_masked = ep.mask.apply_mask(
+        source_ds=ds_MVBS_combine,
+        mask=da_score_softmax > softmax_threshold,
+        var_name="Sv",
+        fill_value=np.nan,
+    )
+
+    # Compute NASC from MVBS and hake prediction
+    ds_NASC = ep.commongrid.compute_NASC(
+        ds_Sv=ds_MVBS_combine_masked,
+        range_bin="10m",
+        dist_bin="0.5nmi"
+    )
+
+    # Save to zarr
+    logger.info(f"Saving NASC to zarr: {NASC_filename}")
+    ds_NASC.to_zarr(
+        store=NASC_path / NASC_filename,
+        mode="w",
+        consolidated=True,
     )
 
 

@@ -16,6 +16,7 @@ predict_hake:
   slice_mins: 10
   num_slices: 3
   temperature: 0.5
+  softmax_threshold: 0.5
 compute_NASC:
   interval: 10
   slice_mins: 10
