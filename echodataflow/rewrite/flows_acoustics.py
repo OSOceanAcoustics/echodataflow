@@ -558,7 +558,7 @@ async def flow_predict_hake(
             )
 
             # Compute NASC directly from the prediction
-            task_compute_NASC_direct.with_options(
+            task_compute_NASC.with_options(
                 task_run_name=f"NASC_{predict_filename_postfix}",
                 name=f"NASC_{predict_filename_postfix}",                
             )(
@@ -692,7 +692,7 @@ def task_predict_hake(
 
 
 @task(log_prints=True)
-def task_compute_NASC_direct(
+def task_compute_NASC(
     NASC_filename: str,
     ds_MVBS_combine: xr.Dataset,
     da_score_softmax: xr.DataArray,
@@ -803,7 +803,7 @@ async def flow_compute_NASC(
         # Compute NASC for this slice
         try:
             NASC_filename = f"NASC_{start_time[snum].strftime('%Y%m%dT%H%M%S')}.zarr"
-            task_compute_NASC.with_options(
+            task_compute_NASC_load_file.with_options(
                 task_run_name=NASC_filename,
                 name=NASC_filename,
             )(
@@ -831,7 +831,7 @@ async def flow_compute_NASC(
 
 
 @task(log_prints=True)
-def task_compute_NASC(
+def task_compute_NASC_load_file(
     NASC_filename: str,
     MVBS_filenames: list[str],
     softmax_filenames: list[str],
