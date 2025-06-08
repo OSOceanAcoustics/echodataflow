@@ -17,6 +17,7 @@ ingest_NASC:
   interval: 5
   path_main: "/Users/wujung/code_git/echodataflow/temp_bio"
   path_NASC_files: "agr230002-bucket01/prefect_test/temp_bio/nasc_zarr"
+  cred_file: "/Users/wujung/.config/rclone/rclone.conf"
   path_NASC_all: NASC_all.csv
   path_stratum_mean: stratum_mean.csv
   path_NASC_all_grid: NASC_all_griddify.geojson

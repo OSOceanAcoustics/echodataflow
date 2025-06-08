@@ -1,9 +1,10 @@
-
 from pathlib import Path
 import numpy as np
 import pandas as pd
 import xarray as xr
 
+import s3fs
+import configparser
 from geopy.distance import distance
 import geopandas as gpd
 
@@ -37,19 +38,28 @@ gdf_boundary, gdf_boundary_utm, utm_num = create_boundary_gdf(
 
 @task()
 def task_combine_NASC_to_dataframe(
+    fs: s3fs.S3FileSystem,
     path_NASC_files: str,
-    NASC_filenames: list
+    NASC_filenames: list,
 ) -> pd.DataFrame:
     """
     Combine multiple NASC datasets into a single DataFrame.
+
+    Parameters
+    ----------
+    path_NASC_files : str
+        Path to the directory containing NASC zarr files.
+    NASC_filenames : list
+        List of NASC zarr filenames to process.
+        Not the full path, just the filenames.
     """
     df_NASC_list = []
     for nascf in NASC_filenames:
-        nascf = path_NASC_files / nascf
-        ds_NASC = xr.open_zarr(nascf)
+        mapper = fs.get_mapper(str(Path(path_NASC_files) / nascf))
+        ds_NASC = xr.open_zarr(mapper, consolidated=True)
         ds_NASC = ep.consolidate.swap_dims_channel_frequency(ds_NASC)
         df_NASC = ds_NASC.sum("depth").sel(frequency_nominal=38000).to_dataframe()
-        df_NASC["filename"] = nascf.name
+        df_NASC["filename"] = nascf
         df_NASC_list.append(df_NASC)
 
     return pd.concat(df_NASC_list, ignore_index=True)
@@ -106,7 +116,8 @@ def task_griddify_NASC(
 @flow(log_prints=True)
 def flow_ingest_NASC(
     path_main: str = data_main,
-    path_NASC_files: str = "nasc_zarr",
+    path_NASC_files: str = "NASC_ZARR_CLOUD_LOCATION",
+    cred_file: str = "CREDENTIAL_FILE",
     path_NASC_all: str = "NASC_all.csv",
     path_stratum_mean: str = "stratum_mean.csv",
     path_NASC_all_grid: str = "NASC_all_griddify.geojson",
@@ -122,11 +133,8 @@ def flow_ingest_NASC(
         num_NASC_reprocess = 1
         raise Warning("num_NASC_ignore must be at least 1, setting it to 1.")
 
-    # Assemble full paths
-    path_NASC_files = Path(path_main) / path_NASC_files
-    path_NASC_all = Path(path_main) / path_NASC_all
-
     # Get NASC files already processed
+    path_NASC_all = Path(path_main) / path_NASC_all
     df_NASC_all = (
         pd.read_csv(path_NASC_all, index_col=0)
         if path_NASC_all.exists() else pd.DataFrame()
@@ -146,9 +154,18 @@ def flow_ingest_NASC(
     if not df_NASC_all.empty:
         df_NASC_all = df_NASC_all[~df_NASC_all["filename"].isin(NASC_to_reprocess)]
 
+    # Get cloud bucket
+    config = configparser.ConfigParser()
+    config.read(cred_file)
+    fs = s3fs.S3FileSystem(
+        key=config["osn_sdsc_hake"]["access_key_id"],
+        secret=config["osn_sdsc_hake"]["secret_access_key"],
+        endpoint_url=config["osn_sdsc_hake"]["endpoint"],
+    )
+
     # Get all NASC files in the directory
-    NASC_all = list(path_NASC_files.glob("*.zarr"))
-    NASC_all = sorted([f.name for f in NASC_all])
+    NASC_all = fs.glob(f"{path_NASC_files}/*.zarr")
+    NASC_all = sorted([Path(f).name for f in NASC_all])
     logger.info(f"All NASC files: {NASC_all}")
 
     # Determine which files to process
@@ -165,7 +182,7 @@ def flow_ingest_NASC(
         logger.info(f"Files to process:\n{files_to_process}")
 
         # Combine all unprocessed NASC datasets into a single DataFrame
-        df_NASC = task_combine_NASC_to_dataframe(path_NASC_files, NASC_to_process)
+        df_NASC = task_combine_NASC_to_dataframe(fs, path_NASC_files, NASC_to_process)
         logger.info(f"df_NASC contains: {list(df_NASC["filename"].unique())}")
 
         # Append new NASC data to existing data
