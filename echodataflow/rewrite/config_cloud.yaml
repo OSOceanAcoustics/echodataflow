@@ -6,7 +6,8 @@ ingest_haul:
   date_prefix: "202407"
   species_code: 22500
   path_main: "/Users/wujung/code_git/echodataflow/temp_bio"
-  path_bio_files: "bio_csv"
+  path_bio_files: "agr230002-bucket01/prefect_test/temp_bio/bio_csv"
+  cred_file: "/Users/wujung/.config/rclone/rclone.conf"
   path_haul_info_all: haul_info_all.csv
   path_specimen_all: specimen_all.csv
   path_length_all: length_all.csv
@@ -15,7 +16,7 @@ ingest_haul:
 ingest_NASC:
   interval: 5
   path_main: "/Users/wujung/code_git/echodataflow/temp_bio"
-  path_NASC_files: "nasc_zarr"
+  path_NASC_files: "agr230002-bucket01/prefect_test/temp_bio/nasc_zarr"
   path_NASC_all: NASC_all.csv
   path_stratum_mean: stratum_mean.csv
   path_NASC_all_grid: NASC_all_griddify.geojson

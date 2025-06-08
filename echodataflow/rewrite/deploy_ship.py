@@ -23,7 +23,7 @@ from helpers import flow_file_upload
 if __name__ == "__main__":
 
     # Load variables from config
-    with open(Path(__file__).parent / "config.yaml", "r") as file:
+    with open(Path(__file__).parent / "config_ship.yaml", "r") as file:
         config = safe_load(file)
 
     # Set init variables
@@ -56,7 +56,7 @@ if __name__ == "__main__":
             entrypoint="flows_acoustics.py:flow_copy_raw"
         ).to_deployment(
             name="copy-raw",
-            cron=f"*/{interval_dict["copy_raw"]} * * * *",
+            # cron=f"*/{interval_dict["copy_raw"]} * * * *",
         ),
         flow_raw2Sv.from_source(
             source=str(Path(__file__).parent),
@@ -64,7 +64,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="raw2Sv",
             parameters=config["raw2Sv"],
-            cron=f"*/{interval_dict["raw2Sv"]} * * * *",
+            # cron=f"*/{interval_dict["raw2Sv"]} * * * *",
         ),
         flow_create_MVBS.from_source(
             source=str(Path(__file__).parent),
@@ -72,7 +72,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="create-MVBS",
             parameters=config["create_MVBS"],
-            cron=f"*/{interval_dict["create_MVBS"]} * * * *",
+            # cron=f"*/{interval_dict["create_MVBS"]} * * * *",
         ),
         flow_predict_hake.from_source(
             source=str(Path(__file__).parent),
@@ -80,7 +80,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="predict-hake",
             parameters=config["predict_hake"],
-            cron=f"*/{interval_dict["predict_hake"]} * * * *",
+            # cron=f"*/{interval_dict["predict_hake"]} * * * *",
         ),
         flow_compute_NASC.from_source(
             source=str(Path(__file__).parent),
@@ -88,7 +88,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="compute-NASC",
             parameters=config["compute_NASC"],
-            cron=f"*/{interval_dict["compute_NASC"]} * * * *",
+            # cron=f"*/{interval_dict["compute_NASC"]} * * * *",
         ),
         flow_file_upload.from_source(
             source=str(Path(__file__).parent),

@@ -7,6 +7,8 @@ import datetime
 from pathlib import Path
 
 import pandas as pd
+import configparser
+import s3fs
 
 from prefect import deploy
 from prefect.variables import Variable

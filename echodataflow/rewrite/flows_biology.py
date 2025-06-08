@@ -3,6 +3,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+import configparser, s3fs
+
 from core import TS_L_PARAMS, INFO_DATAFRAME_MAPPING
 
 from prefect import task, flow
@@ -47,7 +49,7 @@ def get_valid_hauls(
     haul_num_all = {k: set() for k in bio_filenames.keys()}
     for file_type in bio_filenames.keys():
         for fname in bio_filenames[file_type]:
-            haul_num_all[file_type].add(int(re.match(HAUL_NUM_PATTERN, fname.name)["haul_num"]))
+            haul_num_all[file_type].add(int(re.match(HAUL_NUM_PATTERN, Path(fname).name)["haul_num"]))
 
     # Each haul number should have 4 files as defined above
     valid_hauls = set.union(*haul_num_all.values())
@@ -181,7 +183,8 @@ def get_weight_mean_stratum(
 @flow(log_prints=True)
 def flow_ingest_haul(
     path_main: str = data_path,
-    path_bio_files: str = "bio_csv",
+    path_bio_files: str = "BIO_CSV_CLOUD_LOCATION",
+    cred_file: str = "CREDENTIAL_FILE",
     path_haul_info_all: str = "haul_info_all.csv",
     path_specimen_all: str = "specimen_all.csv",
     path_length_all: str = "length_all.csv",
@@ -193,19 +196,33 @@ def flow_ingest_haul(
 
     # Assemble full paths
     path_main: Path = Path(path_main)
-    path_bio_files: Path = path_main / path_bio_files
     path_haul_info_all: Path = path_main / path_haul_info_all
     path_specimen_all: Path = path_main / path_specimen_all
     path_length_all: Path = path_main / path_length_all
     path_length_count_all: Path = path_main / path_length_count_all
     path_stratum_mean: Path = path_main / path_stratum_mean
 
+    # Get cloud bucket
+    config = configparser.ConfigParser()
+    config.read(cred_file)
+    fs = s3fs.S3FileSystem(
+        key=config["osn_sdsc_hake"]["access_key_id"],
+        secret=config["osn_sdsc_hake"]["secret_access_key"],
+        endpoint_url=config["osn_sdsc_hake"]["endpoint"],
+    )
+
     # Get all filenames
+    # bio_filenames = {
+    #     "length": list(path_bio_files.glob(f"{date_prefix}_{species_code}_*_lf.csv")),
+    #     "specimen": list(path_bio_files.glob(f"{date_prefix}_{species_code}_*_spec.csv")),
+    #     "catch": list(path_bio_files.glob(f"{date_prefix}_*_catch_perc.csv")),
+    #     "info": list(path_bio_files.glob(f"{date_prefix}_*_operation_info.csv")),
+    # }
     bio_filenames = {
-        "length": list(path_bio_files.glob(f"{date_prefix}_{species_code}_*_lf.csv")),
-        "specimen": list(path_bio_files.glob(f"{date_prefix}_{species_code}_*_spec.csv")),
-        "catch": list(path_bio_files.glob(f"{date_prefix}_*_catch_perc.csv")),
-        "info": list(path_bio_files.glob(f"{date_prefix}_*_operation_info.csv")),
+        "length": fs.glob(f"{path_bio_files}/{date_prefix}_{species_code}_*_lf.csv"),
+        "specimen": fs.glob(f"{path_bio_files}/{date_prefix}_{species_code}_*_spec.csv"),
+        "catch": fs.glob(f"{path_bio_files}/{date_prefix}_*_catch_perc.csv"),
+        "info": fs.glob(f"{path_bio_files}/{date_prefix}_*_operation_info.csv"),
     }
 
     # Exist if no file present
@@ -241,21 +258,16 @@ def flow_ingest_haul(
         df_specimen = []
         df_info = []
         for haul_num in hauls_to_process:
-            df_length.append(
-                pd.read_csv(
-                    path_bio_files / f"{date_prefix}_{species_code}_{haul_num:03d}_lf.csv", index_col=0
-                ).reset_index()
-            )
-            df_specimen.append(
-                pd.read_csv(
-                    path_bio_files / f"{date_prefix}_{species_code}_{haul_num:03d}_spec.csv", index_col=0
-                ).reset_index()
-            )
-            df_info.append(
-                pd.read_csv(
-                    path_bio_files / f"{date_prefix}_{haul_num:03d}_operation_info.csv", index_col=0
-                ).rename(columns=INFO_DATAFRAME_MAPPING).reset_index()  # reset index to get operation_number into a column
-            )
+            with fs.open(f"{path_bio_files}/{date_prefix}_{species_code}_{haul_num:03d}_lf.csv") as f:
+                df_length.append(pd.read_csv(f, index_col=0).reset_index())
+            with fs.open(f"{path_bio_files}/{date_prefix}_{species_code}_{haul_num:03d}_spec.csv") as f:
+                df_specimen.append(pd.read_csv(f, index_col=0).reset_index())
+            with fs.open(f"{path_bio_files}/{date_prefix}_{haul_num:03d}_operation_info.csv") as f:
+                df_info.append(
+                    # reset index to get operation_number into a column
+                    pd.read_csv(f, index_col=0).reset_index()
+                    .rename(columns=INFO_DATAFRAME_MAPPING).reset_index()
+                )
         df_length = pd.concat(df_length, ignore_index=True)
         df_specimen = pd.concat(df_specimen, ignore_index=True)
         df_info = pd.concat(df_info, ignore_index=True)
