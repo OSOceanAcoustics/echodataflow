@@ -185,22 +185,22 @@ def flow_ingest_haul(
     path_main: str = data_path,
     path_bio_files: str = "BIO_CSV_CLOUD_LOCATION",
     cred_file: str = "CREDENTIAL_FILE",
-    path_haul_info_all: str = "haul_info_all.csv",
-    path_specimen_all: str = "specimen_all.csv",
-    path_length_all: str = "length_all.csv",
-    path_length_count_all: str = "length_count_all.csv",
-    path_stratum_mean: str = "stratum_mean.csv",
+    file_haul_info_all: str = "haul_info_all.csv",
+    file_specimen_all: str = "specimen_all.csv",
+    file_length_all: str = "length_all.csv",
+    file_length_count_all: str = "length_count_all.csv",
+    file_stratum_mean: str = "stratum_mean.csv",
     date_prefix: str = "202407",
     species_code: int = 22500,
 ):
 
     # Assemble full paths
     path_main: Path = Path(path_main)
-    path_haul_info_all: Path = path_main / path_haul_info_all
-    path_specimen_all: Path = path_main / path_specimen_all
-    path_length_all: Path = path_main / path_length_all
-    path_length_count_all: Path = path_main / path_length_count_all
-    path_stratum_mean: Path = path_main / path_stratum_mean
+    file_haul_info_all: Path = path_main / file_haul_info_all
+    file_specimen_all: Path = path_main / file_specimen_all
+    file_length_all: Path = path_main / file_length_all
+    file_length_count_all: Path = path_main / file_length_count_all
+    file_stratum_mean: Path = path_main / file_stratum_mean
 
     # Get cloud bucket
     config = configparser.ConfigParser()
@@ -236,11 +236,11 @@ def flow_ingest_haul(
     hauls_valid = get_valid_hauls(date_prefix, species_code, bio_filenames)
 
     # Get hauls to process
-    if not path_haul_info_all.exists():
+    if not file_haul_info_all.exists():
         df_haul_info_all = pd.DataFrame()
         hauls_processed = set()
     else:            
-        df_haul_info_all = pd.read_csv(path_haul_info_all, index_col=0)
+        df_haul_info_all = pd.read_csv(file_haul_info_all, index_col=0)
         hauls_processed = set(df_haul_info_all["operation_number"].unique())
     hauls_to_process = list(hauls_valid.difference(hauls_processed))
 
@@ -296,10 +296,10 @@ def flow_ingest_haul(
         )
 
         # Update df_haul_info_all, df_specimen_all, df_length_all
-        df_specimen_all = pd.read_csv(path_specimen_all, index_col=0) if path_specimen_all.exists() else pd.DataFrame()
-        df_length_all = pd.read_csv(path_length_all, index_col=0) if path_length_all.exists() else pd.DataFrame()
-        df_length_count_all = pd.read_csv(path_length_count_all, index_col=0) if path_length_count_all.exists() else pd.DataFrame()
-        df_haul_info_all = pd.read_csv(path_haul_info_all, index_col=0) if path_haul_info_all.exists() else pd.DataFrame()
+        df_specimen_all = pd.read_csv(file_specimen_all, index_col=0) if file_specimen_all.exists() else pd.DataFrame()
+        df_length_all = pd.read_csv(file_length_all, index_col=0) if file_length_all.exists() else pd.DataFrame()
+        df_length_count_all = pd.read_csv(file_length_count_all, index_col=0) if file_length_count_all.exists() else pd.DataFrame()
+        df_haul_info_all = pd.read_csv(file_haul_info_all, index_col=0) if file_haul_info_all.exists() else pd.DataFrame()
 
         df_specimen_all = pd.concat([df_specimen_all, df_specimen], ignore_index=True)
         df_length_all = pd.concat([df_length_all, df_length], ignore_index=True)
@@ -316,10 +316,10 @@ def flow_ingest_haul(
         df_haul_info_all = add_stratum(df_haul_info_all, df_stratum)
 
         # Save updated dataframes
-        df_specimen_all.to_csv(path_specimen_all)
-        df_length_all.to_csv(path_length_all)
-        df_length_count_all.to_csv(path_length_count_all)
-        df_haul_info_all.to_csv(path_haul_info_all)
+        df_specimen_all.to_csv(file_specimen_all)
+        df_length_all.to_csv(file_length_all)
+        df_length_count_all.to_csv(file_length_count_all)
+        df_haul_info_all.to_csv(file_haul_info_all)
 
         # Compute length-weight relationship for each stratum
         # Separately for: male, female, all fish combined
@@ -339,7 +339,7 @@ def flow_ingest_haul(
             on="stratum",
             how="outer"
         )
-        df_stratum.to_csv(path_stratum_mean)
+        df_stratum.to_csv(file_stratum_mean)
 
         # Emit custom event when new hauls are processed
         emit_event(

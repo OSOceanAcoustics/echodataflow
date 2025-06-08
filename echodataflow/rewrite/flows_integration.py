@@ -118,9 +118,9 @@ def flow_ingest_NASC(
     path_main: str = data_main,
     path_NASC_files: str = "NASC_ZARR_CLOUD_LOCATION",
     cred_file: str = "CREDENTIAL_FILE",
-    path_NASC_all: str = "NASC_all.csv",
-    path_stratum_mean: str = "stratum_mean.csv",
-    path_NASC_all_grid: str = "NASC_all_griddify.geojson",
+    file_NASC_all: str = "NASC_all.csv",
+    file_stratum_mean: str = "stratum_mean.csv",
+    file_NASC_all_grid: str = "NASC_all_griddify.geojson",
     num_NASC_reprocess: int = 1,
 ):
     """
@@ -134,10 +134,10 @@ def flow_ingest_NASC(
         raise Warning("num_NASC_ignore must be at least 1, setting it to 1.")
 
     # Get NASC files already processed
-    path_NASC_all = Path(path_main) / path_NASC_all
+    file_NASC_all = Path(path_main) / file_NASC_all
     df_NASC_all = (
-        pd.read_csv(path_NASC_all, index_col=0)
-        if path_NASC_all.exists() else pd.DataFrame()
+        pd.read_csv(file_NASC_all, index_col=0)
+        if file_NASC_all.exists() else pd.DataFrame()
     )
     NASC_processed = (
         sorted(df_NASC_all["filename"].unique().tolist())
@@ -190,17 +190,17 @@ def flow_ingest_NASC(
         logger.info(f"after run df_NASC_all contains: {list(df_NASC_all["filename"].unique())}")
 
         # Save to combined NASC data to csv
-        df_NASC_all.to_csv(path_NASC_all)
+        df_NASC_all.to_csv(file_NASC_all)
 
         # Grifdify the NASC data
-        df_stratum = pd.read_csv(Path(path_main) / path_stratum_mean, index_col=0)
+        df_stratum = pd.read_csv(Path(path_main) / file_stratum_mean, index_col=0)
         gdf_NASC = task_griddify_NASC(
             df_stratum=df_stratum,
             df_NASC=df_NASC_all,
             utm_num=utm_num,
             boundary_gdf_utm=gdf_boundary_utm
         )
-        gdf_NASC.to_file(Path(path_main) / path_NASC_all_grid, driver="GeoJSON")
+        gdf_NASC.to_file(Path(path_main) / file_NASC_all_grid, driver="GeoJSON")
 
         # Emit custom event when new NASC files are processed
         emit_event(
@@ -212,23 +212,23 @@ def flow_ingest_NASC(
 @flow(log_prints=True)
 def flow_update_grid(
     path_main: str = data_main,
-    path_NASC_all_grid: str = "NASC_all_griddify.geojson",
-    path_stratum_mean: str = "stratum_mean.csv",
-    path_grid_cells: str = "grid_cells.geojson",
+    file_NASC_all_grid: str = "NASC_all_griddify.geojson",
+    file_stratum_mean: str = "stratum_mean.csv",
+    file_grid_cells: str = "grid_cells.geojson",
 ):
     """
     Update the grid with the latest NASC data and stratum means from hauls.
     """
     # Assemble full paths
-    path_NASC_all_grid = Path(path_main) / path_NASC_all_grid
-    path_grid_cells = Path(path_main) / path_grid_cells
-    path_stratum_mean = Path(path_main) / path_stratum_mean
+    file_NASC_all_grid = Path(path_main) / file_NASC_all_grid
+    file_grid_cells = Path(path_main) / file_grid_cells
+    file_stratum_mean = Path(path_main) / file_stratum_mean
 
     # Load griddified NASC and grid cells
-    gdf_NASC = gpd.read_file(Path(path_main) / path_NASC_all_grid)
+    gdf_NASC = gpd.read_file(Path(path_main) / file_NASC_all_grid)
 
     # Load stratum means
-    df_stratum = pd.read_csv(path_stratum_mean, index_col=0)
+    df_stratum = pd.read_csv(file_stratum_mean, index_col=0)
 
     # Create gdf_grid_cells
     gdf_grid_cells, _, _ = create_grid_from_bounds(
