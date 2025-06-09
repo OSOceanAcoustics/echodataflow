@@ -48,14 +48,14 @@ ep.utils.log.verbose()
 context = "SH2306"
 
 if context == "SH2306":
-    data_path = Path("/Users/wujung/code_git/echodataflow/temp_data")  # SH2306
+    data_path = Path("/Users/feresa/code_git/echodataflow/temp_data")  # SH2306
     raw_path = data_path / "raw"  # SH2306
     Sv_csv_filename = "SH2306_Sv_files.csv"
     MVBS_csv_filename = "SH2306_MVBS_files.csv"
     prediction_csv_filename = "SH2306_prediction_files.csv"
 else:
-    data_path = Path("/Users/wujung/code_git/echodataflow/temp_data_replay")  # gear trial replay
-    raw_path = Path("/Users/wujung/code_git/echodataflow/temp_data_replay/raw")  # gear trial replay
+    data_path = Path("/Users/feresa/code_git/echodataflow/temp_data_replay")  # gear trial replay
+    raw_path = Path("/Users/feresa/code_git/echodataflow/temp_data_replay/raw")  # gear trial replay
     Sv_csv_filename = "gear_trial_replay_Sv_files.csv"
     MVBS_csv_filename = "gear_trial_replay_MVBS_files.csv"
     prediction_csv_filename = "gear_trial_replay_prediction_files.csv"
@@ -477,7 +477,7 @@ async def flow_predict_hake(
 
     # Load binary hake models with weights
     model_epoch = 85
-    model_folder = "/Users/wujung/code_git/echodataflow/temp_model/model_160_epochs/model_weights"
+    model_folder = "/Users/feresa/code_git/echodataflow/temp_model/model_160_epochs/model_weights"
     model_path = f"{model_folder}/binary_hake_model_1.0m_bottom_offset_1.0m_depth_2017_2019_epoch_{model_epoch:03d}.ckpt"
     model = get_hake_model(model_path)
 

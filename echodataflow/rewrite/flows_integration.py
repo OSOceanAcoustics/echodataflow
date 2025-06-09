@@ -24,7 +24,7 @@ ep.utils.log.verbose()
 
 
 # Set up paths
-data_main = "/Users/wujung/code_git/echodataflow/temp_bio"
+data_main = "/Users/feresa/code_git/echodataflow/temp_bio"
 NASC_path = "nasc_zarr"
 
 

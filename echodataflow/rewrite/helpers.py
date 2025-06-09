@@ -8,7 +8,7 @@ from prefect.client.schemas.filters import FlowRunFilter
 
 @flow(timeout_seconds=600, log_prints=True)
 def flow_file_upload(
-    src_dir: str = "/Users/wujung/code_git/echodataflow/temp_upload_test",
+    src_dir: str = "/Users/feresa/code_git/echodataflow/temp_upload_test",
     dest_dir: str = "osn_sdsc_hake:/agr230002-bucket01/prefect_test",
     exclude_subdirs: list = ["test5"],
 ):
