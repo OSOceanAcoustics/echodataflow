@@ -24,8 +24,9 @@ compute_NASC:
   softmax_threshold: 0.5
 file_upload:
   interval: 10
-  src_dir: "/Users/wujung/code_git/echodataflow/temp_upload_test"
-  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_test"
+  src_dir: "/Users/wujung/code_git/echodataflow/temp_bio"
+  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_test/temp_bio"
   exclude_subdirs:
-    - test1
-    - test2
+    - bio_csv_stage
+    - nasc_zarr_stage
+    - nasc_zarr_stage_fake
