@@ -23,20 +23,12 @@ def flow_test() -> list[str]:
 
 if __name__ == "__main__":
 
-    # flow_test.deploy(
-    #     name="flow_test",
-    #     # cron="*/3 * * * *",
-    #     work_pool_name="local",
-    # )
-    # flow_test.from_source(
-    #     source=str(Path(__file__).parent),
-    #     entrypoint="flow_cloud_test.py:flow_test",
-    # ).serve('flow_test_serve')
-
-    flow_test.from_source(
-        source=str(Path(__file__).parent),
-        entrypoint="flow_cloud_test.py:flow_test",
-    ).to_deployment(
-        name="flow_test_deploy",
+    deploy(
+        flow_test.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flow_cloud_test.py:flow_test",
+        ).to_deployment(
+            name="flow_test_deploy1",
+        ),
         work_pool_name="local",
     )
