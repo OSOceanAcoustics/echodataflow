@@ -1,6 +1,6 @@
 init:
   counter_raw_copy: 0
-  flow_start_time: "20230804T155000"  # "20250308T001256"
+  flow_start_time: # "20230804T155000"  # "20250308T001256"
 copy_raw:
   interval: 2
 raw2Sv:
@@ -11,16 +11,23 @@ raw2Sv:
   depth_offset: 9.5
   sonar_model: EK80
   nmea_sentence: GGA
+  path_raw: "/Users/feresa/mnt_qnap/Acoustics/EK80_raw/WJ"
+  path_main: "/Volumes/sh2506_ext1/WJ_test"
+  file_Sv_csv: Sv_files.csv
 create_MVBS:
   interval: 10
   slice_mins: 10
   num_slices: 3
+  path_main: "/Volumes/sh2506_ext1/WJ_test"
+  file_MVBS_csv: MVBS_files.csv
 predict_hake:
   interval: 10
   slice_mins: 10
   num_slices: 3
   temperature: 0.5
   softmax_threshold: 0.5
+  path_main: "/Volumes/sh2506_ext1/WJ_test"
+  file_prediction_csv: prediction_files.csv
 compute_NASC:
   interval: 10
   slice_mins: 10
