@@ -13,7 +13,7 @@ from flows_acoustics import (
     # flow_copy_raw,
     flow_raw2Sv,
     flow_create_MVBS,
-    # flow_predict_hake,
+    flow_predict_hake,
     # flow_compute_NASC,
 )
 from helpers import flow_file_upload
@@ -47,7 +47,7 @@ if __name__ == "__main__":
             interval_dict[flow_name] = config[flow_name].pop("interval", None)
 
     # Add time_offset_seconds to create_MVBS and predict_hake config dict
-    for flow_name in ["create_MVBS", "predict_hake", "compute_NASC"]:
+    for flow_name in ["create_MVBS", "predict_hake"]:
         config[flow_name]["time_offset_seconds"] = curr_time_offset.total_seconds()
 
     deploy(
@@ -74,14 +74,14 @@ if __name__ == "__main__":
             parameters=config["create_MVBS"],
             # cron=f"*/{interval_dict["create_MVBS"]} * * * *",
         ),
-        # flow_predict_hake.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_acoustics.py:flow_predict_hake",
-        # ).to_deployment(
-        #     name="predict-hake",
-        #     parameters=config["predict_hake"],
-        #     # cron=f"*/{interval_dict["predict_hake"]} * * * *",
-        # ),
+        flow_predict_hake.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_acoustics.py:flow_predict_hake",
+        ).to_deployment(
+            name="predict-hake_test",
+            parameters=config["predict_hake"],
+            # cron=f"*/{interval_dict["predict_hake"]} * * * *",
+        ),
         # flow_compute_NASC.from_source(
         #     source=str(Path(__file__).parent),
         #     entrypoint="flows_acoustics.py:flow_compute_NASC",

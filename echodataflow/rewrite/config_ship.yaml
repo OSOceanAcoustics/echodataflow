@@ -28,12 +28,13 @@ predict_hake:
   temperature: 0.5
   softmax_threshold: 0.5
   path_main: "/Volumes/sh2506_ext1/WJ_test"
+  file_MVBS_csv: MVBS_files.csv
   file_prediction_csv: prediction_files.csv
-compute_NASC:
-  interval: 10
-  slice_mins: 10
-  num_slices: 3
-  softmax_threshold: 0.5
+# compute_NASC:
+#   interval: 10
+#   slice_mins: 10
+#   num_slices: 3
+#   softmax_threshold: 0.5
 file_upload:
   interval: 10
   src_dir: "/Users/feresa/code_git/echodataflow/temp_upload_test"
