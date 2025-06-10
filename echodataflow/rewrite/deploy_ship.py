@@ -12,7 +12,7 @@ from prefect.variables import Variable
 from flows_acoustics import (
     # flow_copy_raw,
     flow_raw2Sv,
-    # flow_create_MVBS,
+    flow_create_MVBS,
     # flow_predict_hake,
     # flow_compute_NASC,
 )
@@ -66,14 +66,14 @@ if __name__ == "__main__":
             parameters=config["raw2Sv"],
             # cron=f"*/{interval_dict["raw2Sv"]} * * * *",
         ),
-        # flow_create_MVBS.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_acoustics.py:flow_create_MVBS",
-        # ).to_deployment(
-        #     name="create-MVBS",
-        #     parameters=config["create_MVBS"],
-        #     # cron=f"*/{interval_dict["create_MVBS"]} * * * *",
-        # ),
+        flow_create_MVBS.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_acoustics.py:flow_create_MVBS",
+        ).to_deployment(
+            name="create-MVBS_test",
+            parameters=config["create_MVBS"],
+            # cron=f"*/{interval_dict["create_MVBS"]} * * * *",
+        ),
         # flow_predict_hake.from_source(
         #     source=str(Path(__file__).parent),
         #     entrypoint="flows_acoustics.py:flow_predict_hake",
