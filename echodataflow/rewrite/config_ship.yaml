@@ -37,8 +37,7 @@ predict_hake:
 #   softmax_threshold: 0.5
 file_upload:
   interval: 10
-  src_dir: "/Users/feresa/code_git/echodataflow/temp_upload_test"
-  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_test"
+  src_dir: "/Volumes/sh2506_ext1/WJ_test"
+  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506/leg1"
   exclude_subdirs:
-    - test1
-    - test2
+    - Sv

@@ -82,7 +82,7 @@ if __name__ == "__main__":
             parameters=config["predict_hake"],
             # cron=f"*/{interval_dict["predict_hake"]} * * * *",
         ),
-        # flow_compute_NASC.from_source(
+        # flow_compugit te_NASC.from_source(
         #     source=str(Path(__file__).parent),
         #     entrypoint="flows_acoustics.py:flow_compute_NASC",
         # ).to_deployment(
@@ -90,12 +90,12 @@ if __name__ == "__main__":
         #     parameters=config["compute_NASC"],
         #     # cron=f"*/{interval_dict["compute_NASC"]} * * * *",
         # ),
-        # flow_file_upload.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="helpers.py:flow_file_upload",
-        # ).to_deployment(
-        #     name="file-upload",
-        #     parameters=config["file_upload"],
-        # ),
+        flow_file_upload.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="helpers.py:flow_file_upload",
+        ).to_deployment(
+            name="file-upload_test",
+            parameters=config["file_upload"],
+        ),
         work_pool_name="local",
     )
