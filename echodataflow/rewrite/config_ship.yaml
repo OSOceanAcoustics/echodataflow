@@ -9,6 +9,8 @@ raw2Sv:
   encode_mode: power
   waveform_mode: CW
   depth_offset: 9.5
+  sonar_model: EK80
+  nmea_sentence: GGA
 create_MVBS:
   interval: 10
   slice_mins: 10

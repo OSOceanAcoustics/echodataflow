@@ -145,6 +145,8 @@ async def flow_raw2Sv(
     encode_mode: str = "power",
     waveform_mode: str = "CW",
     depth_offset: float = 9.5,
+    sonar_model: str = "EK80",
+    nmea_sentence: str = "GGA",
 ):
 
     # Check if the deployment is already running
@@ -188,6 +190,8 @@ async def flow_raw2Sv(
         encode_mode=encode_mode,
         waveform_mode=waveform_mode,
         depth_offset=depth_offset,
+        sonar_model=sonar_model,
+        nmea_sentence=nmea_sentence,
     )
 
     if parallel:
@@ -261,6 +265,8 @@ def task_raw2Sv(
     encode_mode: str = "power",
     waveform_mode: str = "CW",
     depth_offset: float = 9.5,  # in meters
+    sonar_model: str = "EK80",
+    nmea_sentence: str = "GGA",
 ):
     """
     Convert raw sonar data to Sv and save to zarr format.
@@ -268,7 +274,7 @@ def task_raw2Sv(
     # Convert raw file, consolidate Sv and save to zarr
     ed = ep.open_raw(
         raw_file=raw_path,
-        sonar_model="EK80",  # can be raw_kwargs
+        sonar_model=sonar_model,
     )
 
     # Compute Sv and consolidate depth and location
@@ -285,7 +291,7 @@ def task_raw2Sv(
     ds_Sv = ep.consolidate.add_location(
         ds=ds_Sv,
         echodata=ed,
-        nmea_sentence="GGA",  # can be location_kwargs
+        nmea_sentence=nmea_sentence,
     )
     
     # Save to zarr
