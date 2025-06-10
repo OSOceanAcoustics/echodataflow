@@ -174,7 +174,10 @@ async def flow_raw2Sv(
 
     # Load info dataframe containing raw to Sv correspondence
     if not file_Sv_csv.exists():
-        df_Sv = pd.DataFrame()
+        df_Sv = pd.DataFrame(
+            columns=["raw_filename", "Sv_filename", "first_ping_time", "last_ping_time"]
+        )
+        df_Sv.to_csv(file_Sv_csv)
     else:
         df_Sv = pd.read_csv(
             file_Sv_csv,
