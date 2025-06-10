@@ -16,7 +16,7 @@ from flows_acoustics import (
     flow_predict_hake,
     # flow_compute_NASC,
 )
-from helpers import flow_file_upload
+from helpers import flow_file_upload, flow_double_deploy_test
 
 
 
@@ -82,21 +82,6 @@ if __name__ == "__main__":
             parameters=config["predict_hake"],
             # cron=f"*/{interval_dict["predict_hake"]} * * * *",
         ),
-        # flow_compugit te_NASC.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_acoustics.py:flow_compute_NASC",
-        # ).to_deployment(
-        #     name="compute-NASC",
-        #     parameters=config["compute_NASC"],
-        #     # cron=f"*/{interval_dict["compute_NASC"]} * * * *",
-        # ),
-        # flow_file_upload.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="helpers.py:flow_file_upload",
-        # ).to_deployment(
-        #     name="file-upload-acoustics_test",
-        #     parameters=config["file_upload_acoustics"],
-        # ),
         work_pool_name="local",
     )
     flow_file_upload.from_source(
