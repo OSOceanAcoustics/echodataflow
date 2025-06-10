@@ -94,8 +94,15 @@ if __name__ == "__main__":
             source=str(Path(__file__).parent),
             entrypoint="helpers.py:flow_file_upload",
         ).to_deployment(
-            name="file-upload_test",
-            parameters=config["file_upload"],
+            name="file-upload-acoustics_test",
+            parameters=config["file_upload_acoustics"],
+        ),
+        flow_file_upload.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="helpers.py:flow_file_upload",
+        ).to_deployment(
+            name="file-upload-trawl_test",
+            parameters=config["file_upload_trawl"],
         ),
         work_pool_name="local",
     )

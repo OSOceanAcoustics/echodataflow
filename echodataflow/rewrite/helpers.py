@@ -1,4 +1,5 @@
 from pathlib import Path
+import datetime
 
 from prefect import flow, task, get_client
 from prefect_shell import ShellOperation
@@ -8,9 +9,9 @@ from prefect.client.schemas.filters import FlowRunFilter
 
 @flow(timeout_seconds=600, log_prints=True)
 def flow_file_upload(
-    src_dir: str = "/Users/feresa/code_git/echodataflow/temp_upload_test",
-    dest_dir: str = "osn_sdsc_hake:/agr230002-bucket01/prefect_test",
-    exclude_subdirs: list = ["test5"],
+    src_dir: str,
+    dest_dir: str,
+    exclude_subdirs: list[str],
 ):
     """
     Upload files via rlcone.
@@ -27,7 +28,7 @@ def flow_file_upload(
     print("test")
 
     # Generate upload_exclude_folders.txt
-    exclude_filename = "upload_exclude_folders.txt"
+    exclude_filename = f"upload_exclude_folders_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
     with open(exclude_filename, "w") as f:
         for subdir in exclude_subdirs:
             f.write(f"{subdir}/**\n")
@@ -45,6 +46,9 @@ def flow_file_upload(
 
         # Print results
         file_upload_process.fetch_result()
+
+    # Remove the exclude list file after upload
+    Path(exclude_filename).unlink(missing_ok=True)
 
 
 @task(log_prints=True)

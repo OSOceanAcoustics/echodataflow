@@ -35,9 +35,17 @@ predict_hake:
 #   slice_mins: 10
 #   num_slices: 3
 #   softmax_threshold: 0.5
-file_upload:
+file_upload_acoustics:
   interval: 10
   src_dir: "/Volumes/sh2506_ext1/WJ_test"
-  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506/leg1"
+  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506/acoustics"
   exclude_subdirs:
     - Sv
+file_upload_trawl:
+  interval: 10
+  src_dir: "/Volumes/sh2506_ext1/WJ_test"
+  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506/trawl"
+  exclude_subdirs:
+    - Sv
+    - MVBS
+    - prediction
