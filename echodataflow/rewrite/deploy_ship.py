@@ -90,19 +90,30 @@ if __name__ == "__main__":
         #     parameters=config["compute_NASC"],
         #     # cron=f"*/{interval_dict["compute_NASC"]} * * * *",
         # ),
-        flow_file_upload.from_source(
-            source=str(Path(__file__).parent),
-            entrypoint="helpers.py:flow_file_upload",
-        ).to_deployment(
-            name="file-upload-acoustics_test",
-            parameters=config["file_upload_acoustics"],
-        ),
-        flow_file_upload.from_source(
-            source=str(Path(__file__).parent),
-            entrypoint="helpers.py:flow_file_upload",
-        ).to_deployment(
-            name="file-upload-trawl_test",
-            parameters=config["file_upload_trawl"],
-        ),
+        # flow_file_upload.from_source(
+        #     source=str(Path(__file__).parent),
+        #     entrypoint="helpers.py:flow_file_upload",
+        # ).to_deployment(
+        #     name="file-upload-acoustics_test",
+        #     parameters=config["file_upload_acoustics"],
+        # ),
         work_pool_name="local",
     )
+    flow_file_upload.from_source(
+        source=str(Path(__file__).parent),
+        entrypoint="helpers.py:flow_file_upload",
+    ).to_deployment(
+        name="file-upload-acoustics_test",
+        parameters=config["file_upload_acoustics"],
+        work_pool_name="local",
+        cron=f"*/{interval_dict["file_upload_acoustics"]} * * * *",
+    ).apply()
+    flow_file_upload.from_source(
+        source=str(Path(__file__).parent),
+        entrypoint="helpers.py:flow_file_upload",
+    ).to_deployment(
+        name="file-upload-trawl_test",
+        parameters=config["file_upload_trawl"],
+        cron=f"*/{interval_dict["file_upload_trawl"]} * * * *",
+        work_pool_name="local",
+    ).apply()
