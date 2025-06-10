@@ -7,6 +7,8 @@ raw2Sv:
   interval: 5
   parallel: False
   encode_mode: power
+  waveform_mode: CW
+  depth_offset: 9.5
 create_MVBS:
   interval: 10
   slice_mins: 10

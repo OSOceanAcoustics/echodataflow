@@ -140,7 +140,12 @@ def flow_copy_raw(
     log_prints=True,
     task_runner=DaskTaskRunner(address="tcp://127.0.0.1:52476")
 )
-async def flow_raw2Sv(parallel: bool = False, encode_mode: str = "power"):
+async def flow_raw2Sv(
+    parallel: bool = False,
+    encode_mode: str = "power",
+    waveform_mode: str = "CW",
+    depth_offset: float = 9.5,
+):
 
     # Check if the deployment is already running
     already_running = await deployment_already_running()
@@ -178,6 +183,13 @@ async def flow_raw2Sv(parallel: bool = False, encode_mode: str = "power"):
         print(f"Reprocess {last_raw_filename}")
         new_files.add(last_raw_filename)
 
+    # Bundle up task_raw2Sv parameters
+    task_kwargs = dict(
+        encode_mode=encode_mode,
+        waveform_mode=waveform_mode,
+        depth_offset=depth_offset,
+    )
+
     if parallel:
         # Convert raw files to Sv in parallel
         print("Processing raw files in parallel")
@@ -204,8 +216,7 @@ async def flow_raw2Sv(parallel: bool = False, encode_mode: str = "power"):
                 Sv_filename, first_ping_time, last_ping_time = task_raw2Sv.with_options(
                     task_run_name=nf, name=nf, retries=3
                 )(
-                    raw_path=raw_path / nf,
-                    encode_mode=encode_mode
+                    raw_path=raw_path / nf, **task_kwargs
                 )
                 results.append([nf, Sv_filename, first_ping_time, last_ping_time])
             except Exception as e:
@@ -245,7 +256,12 @@ async def flow_raw2Sv(parallel: bool = False, encode_mode: str = "power"):
     log_prints=True,
     tags=["raw2Sv"],
 )
-def task_raw2Sv(raw_path: str, encode_mode: str = "power"):
+def task_raw2Sv(
+    raw_path: str,
+    encode_mode: str = "power",
+    waveform_mode: str = "CW",
+    depth_offset: float = 9.5,  # in meters
+):
     """
     Convert raw sonar data to Sv and save to zarr format.
     """
@@ -258,12 +274,12 @@ def task_raw2Sv(raw_path: str, encode_mode: str = "power"):
     # Compute Sv and consolidate depth and location
     ds_Sv = ep.calibrate.compute_Sv(
         echodata=ed,
-        waveform_mode="CW",  # can be Sv_kwargs
+        waveform_mode=waveform_mode,
         encode_mode=encode_mode,
     )
     ds_Sv = ep.consolidate.add_depth(
         ds=ds_Sv,
-        depth_offset=9.5,  # can be depth_kwargs
+        depth_offset=depth_offset,
     )
     ed["Platform"] = ed["Platform"].drop_duplicates("time1")
     ds_Sv = ep.consolidate.add_location(
