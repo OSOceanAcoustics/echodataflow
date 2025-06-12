@@ -226,7 +226,7 @@ async def flow_raw2Sv(
             new_processed_raw = task_raw2Sv.with_options(
                 task_run_name=nf, name=nf, retries=3
             )
-            future = new_processed_raw.submit(path_raw / nf)
+            future = new_processed_raw.submit(path_raw / nf, **task_kwargs)
             future_all.append(future)
 
         results = []
