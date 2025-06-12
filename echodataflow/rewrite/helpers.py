@@ -7,14 +7,6 @@ from prefect import runtime
 from prefect.client.schemas.filters import FlowRunFilter
 
 
-@flow(log_prints=True)
-def flow_double_deploy_test(
-    print_string: str = "",
-):
-    print(print_string)
-
-
-
 @flow(timeout_seconds=600, log_prints=True)
 def flow_file_upload(
     src_dir: str,
