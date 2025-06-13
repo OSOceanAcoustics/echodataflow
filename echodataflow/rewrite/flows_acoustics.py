@@ -400,6 +400,12 @@ async def flow_create_MVBS(
         date_format="ISO8601",
         parse_dates=["first_ping_time", "last_ping_time"]
     )
+    # Convert last_ping_time and first_ping_time to UTC
+    if df_Sv["last_ping_time"].dt.tz is None:
+        df_Sv["last_ping_time"] = df_Sv["last_ping_time"].dt.tz_localize("UTC")
+    if df_Sv["first_ping_time"].dt.tz is None:
+        df_Sv["first_ping_time"] = df_Sv["first_ping_time"].dt.tz_localize("UTC")
+
     if not file_MVBS_csv.exists():
         df_MVBS = pd.DataFrame(
             columns=["MVBS_filename", "first_ping_time", "last_ping_time"]
@@ -419,11 +425,16 @@ async def flow_create_MVBS(
         logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
 
         # Get Sv files in the specified time range
-        Sv_filenames = df_Sv[
-            (pd.to_datetime(df_Sv["last_ping_time"]) >= start_time[snum]) &
-            (pd.to_datetime(df_Sv["first_ping_time"]) <= end_time[snum])
-        ]["Sv_filename"].tolist()
-        logger.info(f"Found {len(Sv_filenames)} Sv files in the specified time range")
+        Sv_filenames = sorted(
+        df_Sv[
+                (pd.to_datetime(df_Sv["last_ping_time"]) >= start_time[snum]) &
+                (pd.to_datetime(df_Sv["first_ping_time"]) <= end_time[snum])
+            ]["Sv_filename"].tolist()
+        )
+        logger.info(
+            f"Found {len(Sv_filenames)} Sv files in the specified time range: \n"
+            + "".join([f"- {svf}\n" for svf in Sv_filenames])
+        )
 
         # If no Sv files found, skip this slice
         if len(Sv_filenames) == 0:
@@ -493,6 +504,10 @@ def task_create_MVBS(
         The end time for the MVBS slice.
     """
     logger = get_run_logger()
+
+    # Remove timezone info for slicing
+    start_time = start_time.replace(tzinfo=None)
+    end_time = end_time.replace(tzinfo=None)
 
     # Combine Sv files into a single dataset
     ds_Sv = xr.open_mfdataset(
@@ -586,10 +601,6 @@ async def flow_predict_hake(
         end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
     )
 
-    # Print slice start and end times
-    for snum in range(num_slices):
-        logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
-
     # Assemble paths
     file_MVBS_csv = Path(path_main) / file_MVBS_csv
     file_prediction_csv = Path(path_main) / file_prediction_csv
@@ -616,6 +627,12 @@ async def flow_predict_hake(
         date_format="ISO8601",
         parse_dates=["first_ping_time", "last_ping_time"]
     )
+    # Convert last_ping_time and first_ping_time to UTC
+    if df_MVBS["last_ping_time"].dt.tz is None:
+        df_MVBS["last_ping_time"] = df_MVBS["last_ping_time"].dt.tz_localize("UTC")
+    if df_MVBS["first_ping_time"].dt.tz is None:
+        df_MVBS["first_ping_time"] = df_MVBS["first_ping_time"].dt.tz_localize("UTC")
+
     if not file_prediction_csv.exists():
         df_prediction = pd.DataFrame(
             columns=["prediction_filename_postfix", "score_filename", "softmax_filename", "first_ping_time", "last_ping_time"]
@@ -628,6 +645,11 @@ async def flow_predict_hake(
             date_format="ISO8601",
             parse_dates=["first_ping_time", "last_ping_time"]
         )
+    # Convert last_ping_time and first_ping_time to UTC
+    if df_prediction["last_ping_time"].dt.tz is None:
+        df_prediction["last_ping_time"] = df_prediction["last_ping_time"].dt.tz_localize("UTC")
+    if df_prediction["first_ping_time"].dt.tz is None:
+        df_prediction["first_ping_time"] = df_prediction["first_ping_time"].dt.tz_localize("UTC")
 
     # Sequentially predict over combined MVBS slices
     errors = []
@@ -635,11 +657,16 @@ async def flow_predict_hake(
         logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
 
         # Get MVBS files in the specified time range
-        MVBS_filenames = df_MVBS[
-            (pd.to_datetime(df_MVBS["last_ping_time"]) >= start_time[snum]) &
-            (pd.to_datetime(df_MVBS["first_ping_time"]) <= end_time[snum])
-        ]["MVBS_filename"].tolist()
-        logger.info(f"Found {len(MVBS_filenames)} MVBS files in the specified time range")
+        MVBS_filenames = sorted(
+            df_MVBS[
+                (pd.to_datetime(df_MVBS["last_ping_time"]) >= start_time[snum]) &
+                (pd.to_datetime(df_MVBS["first_ping_time"]) <= end_time[snum])
+            ]["MVBS_filename"].tolist()
+        )
+        logger.info(
+            f"Found {len(MVBS_filenames)} MVBS files in the specified time range: \n"
+            + "".join([f"- {mvbsf}\n" for mvbsf in MVBS_filenames])
+        )
 
         # Skip prediction if no MVBS files found
         if len(MVBS_filenames) == 0:
@@ -745,6 +772,10 @@ def task_predict_hake(
     temperature : float
         Temperature parameter for softmax scaling in prediction.
     """
+    # Remove timezone info for slicing
+    start_time = start_time.replace(tzinfo=None)
+    end_time = end_time.replace(tzinfo=None)
+
     # Combine MVBS files into a single dataset
     ds_MVBS_combine = xr.open_mfdataset(
         [Path(path_MVBS_zarr) / mvbsf for mvbsf in MVBS_filenames],

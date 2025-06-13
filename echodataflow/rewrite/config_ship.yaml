@@ -25,7 +25,7 @@ create_MVBS:
   file_MVBS_csv: MVBS_files.csv
 predict_hake:
   interval: 20
-  slice_mins: 40
+  slice_mins: 20
   num_slices: 3
   temperature: 0.5
   softmax_threshold: 0.5
