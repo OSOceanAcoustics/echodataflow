@@ -7,13 +7,14 @@ copy_raw:
   interval: 2
 raw2Sv:
   interval: 5
+  exclude_before: "2025-06-13T10:00:00+00:00"  # use ISO8601 format: if UTC use +00:00 or Z
   parallel: False
   encode_mode: power
   waveform_mode: CW
   depth_offset: 9.5
   sonar_model: EK80
   nmea_sentence: GGA
-  path_raw: "/Users/feresa/mnt_qnap/Acoustics/EK80_raw/Leg 1"
+  path_raw: "/Users/feresa/mnt_qnap/Leg 1"
   path_main: "/Volumes/sh2506_ext1/leg1_test"
   file_Sv_csv: Sv_files.csv
 create_MVBS:
@@ -25,7 +26,7 @@ create_MVBS:
   file_MVBS_csv: MVBS_files.csv
 predict_hake:
   interval: 20
-  slice_mins: 20
+  slice_mins: 40
   num_slices: 3
   temperature: 0.5
   softmax_threshold: 0.5

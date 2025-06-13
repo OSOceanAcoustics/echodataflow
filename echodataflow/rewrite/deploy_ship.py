@@ -59,14 +59,14 @@ if __name__ == "__main__":
         #     name="copy-raw",
         #     # cron=f"*/{interval_dict["copy_raw"]} * * * *",
         # ),
-        # flow_raw2Sv.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_acoustics.py:flow_raw2Sv",
-        # ).to_deployment(
-        #     name="raw2Sv_test",
-        #     parameters=config["raw2Sv"],
-        #     cron=f"*/{interval_dict["raw2Sv"]} * * * *",
-        # ),
+        flow_raw2Sv.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_acoustics.py:flow_raw2Sv",
+        ).to_deployment(
+            name="raw2Sv_test",
+            parameters=config["raw2Sv"],
+            # cron=f"*/{interval_dict["raw2Sv"]} * * * *",
+        ),
         flow_create_MVBS.from_source(
             source=str(Path(__file__).parent),
             entrypoint="flows_acoustics.py:flow_create_MVBS",

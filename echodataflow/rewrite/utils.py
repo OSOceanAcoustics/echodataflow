@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 import datetime
 import numpy as np
@@ -95,3 +96,16 @@ def get_slice_start_end_times(
     end_time = [st + slice_mins for st in start_time]
     
     return start_time, end_time
+
+
+# Extract datetime objects from filenames
+def extract_datetime_from_filename(filename):
+    """
+    Extracts a datetime object from a filename that contains a date and time in the format DYYYYMMDD-THHMMSS.
+    """
+    match = re.search(r'D(\d{8})-T(\d{6})', filename)
+    if match:
+        date_str = match.group(1)
+        time_str = match.group(2)
+        return datetime.datetime.strptime(f"{date_str} {time_str}", "%Y%m%d %H%M%S").replace(tzinfo=datetime.timezone.utc)
+    return None

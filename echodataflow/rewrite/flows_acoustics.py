@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 import datetime
 import asyncio
@@ -25,6 +26,7 @@ from utils import (
     get_hake_model,
     round_up_mins,
     get_slice_start_end_times,
+    extract_datetime_from_filename,
 )
 
 import torch
@@ -141,6 +143,7 @@ ep.utils.log.verbose()
     task_runner=DaskTaskRunner()
 )
 async def flow_raw2Sv(
+    exclude_before: str = None,
     parallel: bool = False,
     encode_mode: str = "power",
     waveform_mode: str = "CW",
@@ -192,7 +195,15 @@ async def flow_raw2Sv(
         )
     print(df_Sv)
 
-    raw_files_in_folder = set([ff.name for ff in path_raw.glob("*.raw")])
+    # Exclude raw files befoe exclude_before datetime
+    if exclude_before is None:
+        raw_files_in_folder = set([filename.name for filename in path_raw.glob("*.raw")])
+    else:
+        raw_files_in_folder = set([
+            filename.name for filename in path_raw.glob("*.raw")
+            if extract_datetime_from_filename(filename.name) >= datetime.datetime.fromisoformat(exclude_before)
+        ])
+
     if df_Sv.empty:
         raw_files_in_df = set()
     else:
@@ -207,6 +218,11 @@ async def flow_raw2Sv(
     if last_raw_filename:
         print(f"Reprocess {last_raw_filename}")
         new_files.add(last_raw_filename)
+    new_files = sorted(list(new_files))
+    print(
+        f"New files to process: \n"
+        + "".join([f"- {nf}\n" for nf in new_files])
+    )
 
     # Bundle up task_raw2Sv parameters
     task_kwargs = dict(
