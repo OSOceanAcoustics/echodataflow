@@ -412,7 +412,12 @@ async def flow_create_MVBS(
     start_time, end_time = get_slice_start_end_times(
         end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
     )
-    
+
+    # Compute slice time range
+    start_time, end_time = get_slice_start_end_times(
+        end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
+    )
+
     # Sequentially create MVBS slices
     errors = []
     for snum in range(num_slices):
