@@ -7,9 +7,6 @@ from prefect import runtime
 from prefect.client.schemas.filters import FlowRunFilter
 
 
-
-
-
 @flow(timeout_seconds=600, log_prints=True)
 def flow_file_upload(
     src_dir: str,

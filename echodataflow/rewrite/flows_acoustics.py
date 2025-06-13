@@ -226,7 +226,7 @@ async def flow_raw2Sv(
             new_processed_raw = task_raw2Sv.with_options(
                 task_run_name=nf, name=nf, retries=3
             )
-            future = new_processed_raw.submit(path_raw / nf)
+            future = new_processed_raw.submit(path_raw / nf, **task_kwargs)
             future_all.append(future)
 
         results = []
@@ -363,7 +363,7 @@ async def flow_create_MVBS(
     end_time = round_up_mins(
         datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds),
         slice_mins=slice_mins,
-    )
+    ).astimezone(datetime.timezone.utc)  # convert to UTC
 
     logger.info(
         "flow started with parameters:\n"
@@ -571,7 +571,7 @@ async def flow_predict_hake(
     end_time = round_up_mins(
         datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds),
         slice_mins=slice_mins,
-    )
+    ).astimezone(datetime.timezone.utc)  # convert to UTC
 
     logger.info(
         "flow started with parameters:\n"
@@ -585,6 +585,10 @@ async def flow_predict_hake(
     start_time, end_time = get_slice_start_end_times(
         end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
     )
+
+    # Print slice start and end times
+    for snum in range(num_slices):
+        logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
 
     # Assemble paths
     file_MVBS_csv = Path(path_main) / file_MVBS_csv
