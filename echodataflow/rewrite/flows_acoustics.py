@@ -193,7 +193,6 @@ async def flow_raw2Sv(
             inplace=True,
             ignore_index=True
         )
-    print(df_Sv)
 
     # Exclude raw files befoe exclude_before datetime
     if exclude_before is None:
@@ -220,7 +219,7 @@ async def flow_raw2Sv(
         new_files.add(last_raw_filename)
     new_files = sorted(list(new_files))
     print(
-        f"New files to process: \n"
+        f"Files to process: \n"
         + "".join([f"- {nf}\n" for nf in new_files])
     )
 
@@ -417,10 +416,11 @@ async def flow_create_MVBS(
         parse_dates=["first_ping_time", "last_ping_time"]
     )
     # Convert last_ping_time and first_ping_time to UTC
-    if df_Sv["last_ping_time"].dt.tz is None:
-        df_Sv["last_ping_time"] = df_Sv["last_ping_time"].dt.tz_localize("UTC")
-    if df_Sv["first_ping_time"].dt.tz is None:
-        df_Sv["first_ping_time"] = df_Sv["first_ping_time"].dt.tz_localize("UTC")
+    if not df_Sv.empty:
+        if df_Sv["last_ping_time"].dt.tz is None:
+            df_Sv["last_ping_time"] = df_Sv["last_ping_time"].dt.tz_localize("UTC")
+        if df_Sv["first_ping_time"].dt.tz is None:
+            df_Sv["first_ping_time"] = df_Sv["first_ping_time"].dt.tz_localize("UTC")
 
     if not file_MVBS_csv.exists():
         df_MVBS = pd.DataFrame(
@@ -644,10 +644,11 @@ async def flow_predict_hake(
         parse_dates=["first_ping_time", "last_ping_time"]
     )
     # Convert last_ping_time and first_ping_time to UTC
-    if df_MVBS["last_ping_time"].dt.tz is None:
-        df_MVBS["last_ping_time"] = df_MVBS["last_ping_time"].dt.tz_localize("UTC")
-    if df_MVBS["first_ping_time"].dt.tz is None:
-        df_MVBS["first_ping_time"] = df_MVBS["first_ping_time"].dt.tz_localize("UTC")
+    if not df_MVBS.empty:
+        if df_MVBS["last_ping_time"].dt.tz is None:
+            df_MVBS["last_ping_time"] = df_MVBS["last_ping_time"].dt.tz_localize("UTC")
+        if df_MVBS["first_ping_time"].dt.tz is None:
+            df_MVBS["first_ping_time"] = df_MVBS["first_ping_time"].dt.tz_localize("UTC")
 
     if not file_prediction_csv.exists():
         df_prediction = pd.DataFrame(
@@ -661,11 +662,11 @@ async def flow_predict_hake(
             date_format="ISO8601",
             parse_dates=["first_ping_time", "last_ping_time"]
         )
-    # Convert last_ping_time and first_ping_time to UTC
-    if df_prediction["last_ping_time"].dt.tz is None:
-        df_prediction["last_ping_time"] = df_prediction["last_ping_time"].dt.tz_localize("UTC")
-    if df_prediction["first_ping_time"].dt.tz is None:
-        df_prediction["first_ping_time"] = df_prediction["first_ping_time"].dt.tz_localize("UTC")
+        # Convert last_ping_time and first_ping_time to UTC
+        if df_prediction["last_ping_time"].dt.tz is None:
+            df_prediction["last_ping_time"] = df_prediction["last_ping_time"].dt.tz_localize("UTC")
+        if df_prediction["first_ping_time"].dt.tz is None:
+            df_prediction["first_ping_time"] = df_prediction["first_ping_time"].dt.tz_localize("UTC")
 
     # Sequentially predict over combined MVBS slices
     errors = []

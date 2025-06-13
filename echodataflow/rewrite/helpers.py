@@ -5,6 +5,7 @@ from prefect import flow, task, get_client
 from prefect_shell import ShellOperation
 from prefect import runtime
 from prefect.client.schemas.filters import FlowRunFilter
+from prefect.states import Cancelled
 
 
 @flow(timeout_seconds=600, log_prints=True)
@@ -24,9 +25,7 @@ def flow_file_upload(
         Destination directory to upload files to, by default "osn_sdsc_hake:/agr230002-bucket01/prefect_test".
     exclude_subdirs : list, optional
         List of subdirectories to exclude from the upload, by default [].
-    """
-    print("test")
-
+    """ 
     # Generate upload_exclude_folders.txt
     exclude_filename = f"upload_exclude_folders_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
     with open(exclude_filename, "w") as f:
