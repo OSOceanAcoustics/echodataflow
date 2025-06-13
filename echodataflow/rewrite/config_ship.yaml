@@ -13,29 +13,29 @@ raw2Sv:
   depth_offset: 9.5
   sonar_model: EK80
   nmea_sentence: GGA
-  path_raw: "/Users/feresa/mnt_qnap/Acoustics/EK80_raw/WJ"
-  path_main: "/Volumes/sh2506_ext1/WJ_test"
+  path_raw: "/Users/feresa/mnt_qnap/Acoustics/EK80_raw/Leg 1"
+  path_main: "/Volumes/sh2506_ext1/leg1_test"
   file_Sv_csv: Sv_files.csv
 create_MVBS:
   interval: 10
   slice_mins: 10
   num_slices: 3
-  path_main: "/Volumes/sh2506_ext1/WJ_test"
+  path_main: "/Volumes/sh2506_ext1/leg1_test"
   file_Sv_csv: Sv_files.csv
   file_MVBS_csv: MVBS_files.csv
 predict_hake:
-  interval: 10
-  slice_mins: 10
+  interval: 20
+  slice_mins: 40
   num_slices: 3
   temperature: 0.5
   softmax_threshold: 0.5
-  path_main: "/Volumes/sh2506_ext1/WJ_test"
+  path_main: "/Volumes/sh2506_ext1/leg1_test"
   file_MVBS_csv: MVBS_files.csv
   file_prediction_csv: prediction_files.csv
 file_upload_acoustics:
   interval: 10
-  src_dir: "/Volumes/sh2506_ext1/WJ_test"
-  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506/acoustics"
+  src_dir: "/Volumes/sh2506_ext1/leg1_test"
+  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506_test/acoustics"
   exclude_subdirs:
     - Sv
 # file_upload_trawl:

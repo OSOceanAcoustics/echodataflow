@@ -59,30 +59,30 @@ if __name__ == "__main__":
         #     name="copy-raw",
         #     # cron=f"*/{interval_dict["copy_raw"]} * * * *",
         # ),
-        # flow_raw2Sv.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_acoustics.py:flow_raw2Sv",
-        # ).to_deployment(
-        #     name="raw2Sv_test",
-        #     parameters=config["raw2Sv"],
-        #     # cron=f"*/{interval_dict["raw2Sv"]} * * * *",
-        # ),
+        flow_raw2Sv.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_acoustics.py:flow_raw2Sv",
+        ).to_deployment(
+            name="raw2Sv_test",
+            parameters=config["raw2Sv"],
+            cron=f"*/{interval_dict["raw2Sv"]} * * * *",
+        ),
         flow_create_MVBS.from_source(
             source=str(Path(__file__).parent),
             entrypoint="flows_acoustics.py:flow_create_MVBS",
         ).to_deployment(
             name="create-MVBS_test",
             parameters=config["create_MVBS"],
-            # cron=f"*/{interval_dict["create_MVBS"]} * * * *",
+            cron=f"3-59/{interval_dict["create_MVBS"]} * * * *",
         ),
-        # flow_predict_hake.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_acoustics.py:flow_predict_hake",
-        # ).to_deployment(
-        #     name="predict-hake_test",
-        #     parameters=config["predict_hake"],
-        #     # cron=f"*/{interval_dict["predict_hake"]} * * * *",
-        # ),
+        flow_predict_hake.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_acoustics.py:flow_predict_hake",
+        ).to_deployment(
+            name="predict-hake_test",
+            parameters=config["predict_hake"],
+            cron=f"*/{interval_dict["predict_hake"]} * * * *",
+        ),
         work_pool_name="local",
     )
     flow_file_upload.from_source(
