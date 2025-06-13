@@ -372,6 +372,11 @@ async def flow_create_MVBS(
         f"- num_slices: {num_slices}\n"
     )
 
+    # Compute slice time range
+    start_time, end_time = get_slice_start_end_times(
+        end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
+    )
+
     # Assemble paths
     file_Sv_csv = Path(path_main) / file_Sv_csv
     file_MVBS_csv = Path(path_main) / file_MVBS_csv
@@ -408,11 +413,6 @@ async def flow_create_MVBS(
             parse_dates=["first_ping_time", "last_ping_time"]
         )
 
-    # Compute slice time range
-    start_time, end_time = get_slice_start_end_times(
-        end_time=end_time, slice_mins=slice_mins, num_slices=num_slices
-    )
-    
     # Sequentially create MVBS slices
     errors = []
     for snum in range(num_slices):
