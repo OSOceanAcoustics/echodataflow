@@ -33,7 +33,7 @@ def flow_file_upload(
         f.write(".DS_Store\n")
         # Add other subdirectories
         for subdir in exclude_subdirs:
-            f.write(f"{subdir}/**\n")
+            f.write(f"/{subdir}/**\n")
 
     # Potentially long running so using a context manager
     command = f"rclone sync -v {src_dir} {dest_dir} --exclude-from {str(Path(__file__).parent / exclude_filename)}" 
