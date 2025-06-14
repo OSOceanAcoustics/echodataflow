@@ -1,6 +1,6 @@
 init:
   counter_raw_copy: 0
-  flow_start_time: "2025-06-13T11:45:00+00:00"  # use ISO8601 format: if UTC use +00:00 or Z
+  flow_start_time: # "2025-06-13T11:45:00+00:00"  # use ISO8601 format: if UTC use +00:00 or Z
   # "20230804T155000"  # "20250308T001256"
 copy_raw:
   interval: 2

@@ -29,6 +29,9 @@ def flow_file_upload(
     # Generate upload_exclude_folders.txt
     exclude_filename = f"upload_exclude_folders_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
     with open(exclude_filename, "w") as f:
+        # Add .DS_Store to exclude list
+        f.write(".DS_Store\n")
+        # Add other subdirectories
         for subdir in exclude_subdirs:
             f.write(f"{subdir}/**\n")
 
