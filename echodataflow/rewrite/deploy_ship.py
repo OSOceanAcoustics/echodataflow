@@ -10,12 +10,11 @@ from prefect import deploy
 from prefect.variables import Variable
 
 from flows_acoustics import (
-    # flow_copy_raw,
     flow_raw2Sv,
     flow_create_MVBS,
     flow_predict_hake,
 )
-from helpers import flow_file_upload
+from helpers import flow_file_upload #, flow_copy_raw
 
 
 
@@ -41,7 +40,7 @@ if __name__ == "__main__":
             )
         )
 
-    # Set interval dict
+    # Set interval dict for all flows
     interval_dict = {}
     for flow_name in config.keys():
         if flow_name != "init":
@@ -54,10 +53,11 @@ if __name__ == "__main__":
     deploy(
         # flow_copy_raw.from_source(
         #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_acoustics.py:flow_copy_raw"
+        #     entrypoint="helpers.py:flow_copy_raw"
         # ).to_deployment(
         #     name="copy-raw",
-        #     # cron=f"*/{interval_dict["copy_raw"]} * * * *",
+        #     parameters=config["copy_raw"],
+        #     cron=f"*/{interval_dict["copy_raw"]} * * * *",
         # ),
         flow_raw2Sv.from_source(
             source=str(Path(__file__).parent),

@@ -1,11 +1,18 @@
 from pathlib import Path
 import datetime
 
+import pandas as pd
+
+import boto3
+from botocore import UNSIGNED
+from botocore.config import Config
+
 from prefect import flow, task, get_client
 from prefect_shell import ShellOperation
 from prefect import runtime
 from prefect.client.schemas.filters import FlowRunFilter
 from prefect.states import Cancelled
+from prefect.variables import Variable
 
 
 @flow(timeout_seconds=600, log_prints=True)
@@ -68,3 +75,36 @@ async def deployment_already_running() -> bool:
             return True
         else:
             return False
+
+
+@flow(log_prints=True)
+def flow_copy_raw(
+    path_raw_txt: str = "",
+    path_copy: str = "",
+    path_s3: str = "",
+):
+    print("Copy raw files to simulate data generation")
+    print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
+    counter = Variable.get("counter_raw_copy", default=None)
+
+    # Get filename from dataframe
+    df_raw = pd.read_csv(
+        path_raw_txt,
+        sep=r"\s+",  # multiple spaces as delimiter
+        header=None,  # no header
+        names=["date", "time", "size", "filename"]  # assign column names
+    )
+
+    filename = df_raw.iloc[counter]["filename"]
+    print(f"Copying file #{counter}: {filename}")
+
+    # Configure anonymous access
+    s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
+    
+    # Copy file
+    bucket = "noaa-wcsd-pds"
+    path_s3 = f"{path_s3}/{filename}"    
+    s3.download_file(bucket, path_s3, Path(path_copy) / f"{filename}")
+
+    # Increment ocunter
+    Variable.set("counter_raw_copy", value=counter+1, overwrite=True)

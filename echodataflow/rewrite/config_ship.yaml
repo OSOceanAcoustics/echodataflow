@@ -2,8 +2,11 @@ init:
   counter_raw_copy: 0
   flow_start_time: # "2025-06-13T11:45:00+00:00"  # use ISO8601 format: if UTC use +00:00 or Z
   # "20230804T155000"  # "20250308T001256"
-copy_raw:
-  interval: 2
+# copy_raw:
+#   interval: 2
+#   path_raw_txt: "/Users/wujung/code_git/echodataflow/temp_data/SH2306_raw_files.txt"  # list of raw files in S3
+#   path_s3: "data/raw/Bell_M._Shimada/SH2306/EK80"  # S3 path for raw files
+#   path_copy: "/Users/wujung/code_git/echodataflow/temp_data/raw"  # path to copy raw data to
 raw2Sv:
   interval: 5
   exclude_before: "2025-06-13T10:00:00+00:00"  # use ISO8601 format: if UTC use +00:00 or Z
