@@ -18,7 +18,7 @@ raw2Sv:
   file_Sv_csv: Sv_files.csv
 create_MVBS:
   interval: 10
-  slice_mins: 10
+  slice_mins: 20
   num_slices: 3
   path_main: "/Volumes/sh2506_ext1/leg1_test"
   file_Sv_csv: Sv_files.csv
