@@ -11,6 +11,9 @@ def get_MVBS_tensor(ds_in, freq_wanted=[120000, 38000, 18000]):
     # Find the right channel sequence
     ch_wanted = [int((np.abs(ds_in["frequency_nominal"]-freq)).argmin()) for freq in freq_wanted]
 
+    # Crucial for model prediction:
+    # - order of dimension (channel, depth, ping_time)
+    # - depth slice up to 590 m
     mvbs_tensor = torch.tensor(
         (
             ds_in["Sv"]
