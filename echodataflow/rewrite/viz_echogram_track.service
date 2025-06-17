@@ -1,0 +1,14 @@
+Description=Visualization of echogram and ship track
+After=network.target
+
+[Service]
+User=exouser
+WorkingDirectory=/home/exouser/code_git/echodataflow/echodataflow/rewrite
+ExecStart=/media/volume/shimada_202506_volume/miniforge3/envs/echodataflow_20250609/bin/python /home/exouser/code_git/echodataflow/echodataflow/rewrite/viz_echogram_track.py
+Restart=always
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=shimada_202506_echogram
+
+[Install]
+WantedBy=multi-user.target
