@@ -163,7 +163,7 @@ def flow_ingest_NASC(
         endpoint_url=config["osn_sdsc_hake"]["endpoint"],
     )
 
-    # Get all NASC files in the directory
+    # Get all NASC files in the bucket
     NASC_all = fs.glob(f"{path_NASC_files}/*.zarr")
     NASC_all = sorted([Path(f).name for f in NASC_all])
     logger.info(f"All NASC files: {NASC_all}")

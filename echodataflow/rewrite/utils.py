@@ -3,8 +3,8 @@ from pathlib import Path
 import datetime
 import numpy as np
 import pandas as pd
-import torch
-from src.model.BinaryHakeModel import BinaryHakeModel
+# import torch
+# from src.model.BinaryHakeModel import BinaryHakeModel
 
 
 def get_MVBS_tensor(ds_in, freq_wanted=[120000, 38000, 18000]):
@@ -41,13 +41,13 @@ def get_MVBS_tensor(ds_in, freq_wanted=[120000, 38000, 18000]):
     return mvbs_tensor_clip_normalized.unsqueeze(0).float()
 
 
-# Load binary hake models with weights
-def get_hake_model(model_path: str) -> BinaryHakeModel:
-    model = BinaryHakeModel("placeholder_experiment_name",
-                            Path("placeholder_score_tensor_dir"),
-                            "placeholder_tensor_log_dir", 0).eval()
-    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'))["state_dict"])
-    return model
+# # Load binary hake models with weights
+# def get_hake_model(model_path: str) -> BinaryHakeModel:
+#     model = BinaryHakeModel("placeholder_experiment_name",
+#                             Path("placeholder_score_tensor_dir"),
+#                             "placeholder_tensor_log_dir", 0).eval()
+#     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'))["state_dict"])
+#     return model
 
 
 def round_up_mins(dt: datetime.datetime, slice_mins: int) -> datetime.datetime:

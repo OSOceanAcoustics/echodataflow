@@ -23,7 +23,7 @@ from prefect.variables import Variable
 from helpers import deployment_already_running
 from utils import (
     get_MVBS_tensor,
-    get_hake_model,
+    # get_hake_model,
     round_up_mins,
     get_slice_start_end_times,
     extract_datetime_from_filename,
@@ -44,6 +44,15 @@ asyncio.run(set_concurrency_limit())
 # Turn on verbose logging for echopype
 # otherwise all logging will be muted
 ep.utils.log.verbose()
+
+
+# Load binary hake models with weights
+def get_hake_model(model_path: str) -> BinaryHakeModel:
+    model = BinaryHakeModel("placeholder_experiment_name",
+                            Path("placeholder_score_tensor_dir"),
+                            "placeholder_tensor_log_dir", 0).eval()
+    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'))["state_dict"])
+    return model
 
 
 @flow(

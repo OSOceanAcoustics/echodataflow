@@ -1,6 +1,6 @@
 init:
   counter_raw_copy: 0
-  flow_start_time: "20230804T155000"
+  flow_start_time: "2025-06-17T02:00:00+00:00" # "2025-06-13T11:45:00+00:00"  # use ISO8601 format: if UTC use +00:00 or Z
 ingest_haul:
   interval: 5
   date_prefix: "202407"
@@ -27,3 +27,10 @@ update_grid:
   file_NASC_all_grid: NASC_all_griddify.geojson
   file_stratum_mean: stratum_mean.csv
   file_grid_cells: grid_cells.geojson
+update_cache_MVBS:
+  slice_mins: 180
+  path_cache: "/media/volume/shimada_202506_volume/viz_data_cache"
+  path_MVBS: "agr230002-bucket01/prefect_sh2506_test/acoustics/MVBS"
+  file_MVBS_csv: MVBS_files.csv
+  file_MVBS_zarr: latest_MVBS.zarr
+  cred_file: "/home/exouser/.config/rclone/rclone.conf"

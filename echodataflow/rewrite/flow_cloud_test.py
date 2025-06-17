@@ -28,7 +28,7 @@ if __name__ == "__main__":
             source=str(Path(__file__).parent),
             entrypoint="flow_cloud_test.py:flow_test",
         ).to_deployment(
-            name="flow_test_deploy1",
+            name="flow_test_deploy2",
         ),
         work_pool_name="local",
     )

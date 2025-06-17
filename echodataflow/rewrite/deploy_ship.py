@@ -50,6 +50,7 @@ if __name__ == "__main__":
     for flow_name in ["create_MVBS", "predict_hake"]:
         config[flow_name]["time_offset_seconds"] = curr_time_offset.total_seconds()
 
+    # Deploy flows
     deploy(
         # flow_copy_raw.from_source(
         #     source=str(Path(__file__).parent),
