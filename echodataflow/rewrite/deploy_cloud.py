@@ -94,7 +94,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="update_cache_MVBS",
             parameters=config["update_cache_MVBS"],
-            # cron=f"*/{interval_dict['update_cache_MVBS']} * * * *",
+            cron=f"3-59/{interval_dict['update_cache_MVBS']} * * * *",
         ),
 
         # flow_test_trigger.from_source(
