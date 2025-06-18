@@ -13,7 +13,7 @@ raw2Sv:
   parallel: False
   encode_mode: power
   waveform_mode: CW
-  depth_offset: 9.5
+  depth_offset: 7
   sonar_model: EK80
   nmea_sentence: GGA
   path_raw: "/Users/feresa/mnt_qnap/Leg 1"
