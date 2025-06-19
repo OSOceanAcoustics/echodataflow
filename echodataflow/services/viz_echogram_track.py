@@ -9,8 +9,11 @@ pn.config.autoreload = False
 
 path_MVBS = Path("/media/volume/shimada_202506_volume/viz_data_cache")
 
-def update_cache_MVBS():
-    """Load latest MVBS data and create echogram"""
+
+def update_cache_multi_freq():
+    """
+    Load latest MVBS data and create multi-frequency echograms.
+    """
     ds_MVBS = xr.open_zarr(path_MVBS / "latest_MVBS.zarr")
     egram = ds_MVBS.eshader.echogram(
         channel=[
@@ -24,24 +27,25 @@ def update_cache_MVBS():
         vmax=-36,
         cmap="viridis",
         opts=opts.Image(
-            width=800, height=400,
+            width=1000, height=400,
             tools=["pan", "box_zoom", "wheel_zoom", "reset"],
         )
     )
     return egram
 
+
 def multi_freq_app():
     """
-    Plot multi-frequency echogram with regular updates.
+    Plot multi-frequency echograms with regular updates.
     """
     # Create initial plot
-    egram = update_cache_MVBS()
+    egram = update_cache_multi_freq()
     plot_pane = pn.pane.HoloViews(egram)
     
     # Simple update function that only runs every 10 minutes
     def scheduled_update():
         try:
-            new_egram = update_cache_MVBS()
+            new_egram = update_cache_multi_freq()
             plot_pane.object = new_egram
             print("Plot updated at scheduled interval")
         except Exception as e:
@@ -55,9 +59,62 @@ def multi_freq_app():
     
     return plot_pane
 
+
+def update_cache_tricolor():
+    """
+    Load latest MVBS data and create tricolor echogram.
+    """
+    ds_MVBS = xr.open_zarr(path_MVBS / "latest_MVBS.zarr")
+
+    tricolor = ds_MVBS.eshader.echogram(
+        channel=[
+            "WBT 400140-15 ES120-7C_ES",
+            "WBT 400143-15 ES38B_ES",
+            "WBT 400141-15 ES18_ES",
+        ],
+        vmin=-70,
+        vmax=-36,
+        rgb_composite=True,
+        opts=opts.RGB(
+            width=1000, height=400,
+            tools=["pan", "box_zoom", "wheel_zoom", "reset"],
+        )
+    )
+    return tricolor
+
+
+def tricolor_app():
+    """
+    Plot tricolor echogram with regular updates.
+    """
+    # Create initial plot
+    tricolor = update_cache_tricolor()
+    plot_pane = pn.pane.HoloViews(tricolor)
+    
+    # Simple update function that only runs every 10 minutes
+    def scheduled_update():
+        try:
+            new_tricolor = update_cache_tricolor()
+            plot_pane.object = new_tricolor
+            print("Plot updated at scheduled interval")
+        except Exception as e:
+            print(f"Error during scheduled update: {e}")
+    
+    # Add ONLY the 10-minute callback - no other automatic updates
+    pn.state.add_periodic_callback(
+        scheduled_update,
+        period=10*60*1000  # Update every 10 mins
+    )
+    
+    return plot_pane
+
+
 # Deploy the application with stable configuration
 test_server = pn.serve(
-    {"multi_freq_echogram": multi_freq_app},
+    {
+        "multi_freq_echogram": multi_freq_app,
+        "tricolor_echogram": tricolor_app,
+    },
     port=1802,
     websocket_origin="*",
     admin=True,
