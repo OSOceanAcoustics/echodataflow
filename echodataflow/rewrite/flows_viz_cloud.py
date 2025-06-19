@@ -24,10 +24,7 @@ def flow_update_cache_MVBS(
     logger = get_run_logger()
 
     # Set end_time to current time - time_offset_seconds
-    end_time = round_up_mins(
-        datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds),
-        slice_mins=slice_mins,
-    ).astimezone(datetime.timezone.utc)  # convert to UTC
+    end_time = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(seconds=time_offset_seconds)
 
     logger.info(
         "flow started with parameters:\n"
