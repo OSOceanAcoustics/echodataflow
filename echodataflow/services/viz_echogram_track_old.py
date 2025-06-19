@@ -10,10 +10,12 @@ import echoshader
 path_MVBS = Path("/media/volume/shimada_202506_volume/viz_data_cache")
 
 
-def update_cache_MVBS():
-    pn.state.cache.clear()
+def plot_multi_freq():
+    """
+    Plot multi-frequency echogram using echoshader.
+    """
+    ds_MVBS = xr.open_zarr(path_MVBS / "latest_MVBS.zarr", chunks={})
 
-    ds_MVBS = xr.open_zarr(path_MVBS / "latest_MVBS.zarr")
     egram = ds_MVBS.eshader.echogram(
         channel=[
             "WBT 400141-15 ES18_ES",
@@ -32,25 +34,31 @@ def update_cache_MVBS():
     )
     return egram
 
-def multi_freq_app():
-    """
-    Plot multi-frequency echogram using echoshader.
-    """
-    egram = update_cache_MVBS()
-    plot_pane = pn.pane.HoloViews(egram)
 
-    pn.state.add_periodic_callback(
-        lambda: setattr(plot_pane, 'object', update_cache_MVBS()),
-        period=10*60*1000  # Update every 10 mins
-    )
+def update_plot(event=None):
+    """
+    Update the multi-frequency echogram plot.
+    """
+    return(plot_multi_freq())
 
-    return plot_pane
+
+# Add an update button to refresh the plot
+update_button = pn.widgets.Button(name='Refresh data')
+
+
+# Assemble panel
+view_multi_freq = pn.Column(
+    update_button,
+    pn.panel(pn.bind(update_plot, update_button), loading_indicator=True),
+)
 
 # Deploy!
 test_server = pn.serve(
-    {"multi_freq_echogram": multi_freq_app},
+    {"multi_freq_echogram": view_multi_freq},
     port=1802,
     websocket_origin="*",
     admin=True,
     show=False,
 )
+
+# test_server.stop()
