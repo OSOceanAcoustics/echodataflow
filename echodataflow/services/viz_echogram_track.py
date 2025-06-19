@@ -1,18 +1,16 @@
 from pathlib import Path
-
-import xarray as xr
 import panel as pn
+import xarray as xr
 from holoviews import opts
-
 import echoshader
 
+# Configure Panel to prevent automatic refreshes
+pn.config.autoreload = False
 
 path_MVBS = Path("/media/volume/shimada_202506_volume/viz_data_cache")
 
-
 def update_cache_MVBS():
-    pn.state.cache.clear()
-
+    """Load latest MVBS data and create echogram"""
     ds_MVBS = xr.open_zarr(path_MVBS / "latest_MVBS.zarr")
     egram = ds_MVBS.eshader.echogram(
         channel=[
@@ -24,8 +22,8 @@ def update_cache_MVBS():
         ],
         vmin=-70,
         vmax=-36,
-        cmap = "viridis",
-        opts = opts.Image(
+        cmap="viridis",
+        opts=opts.Image(
             width=800, height=400,
             tools=["pan", "box_zoom", "wheel_zoom", "reset"],
         )
@@ -34,23 +32,41 @@ def update_cache_MVBS():
 
 def multi_freq_app():
     """
-    Plot multi-frequency echogram using echoshader.
+    Plot multi-frequency echogram with regular updates.
     """
+    # Create initial plot
     egram = update_cache_MVBS()
     plot_pane = pn.pane.HoloViews(egram)
-
+    
+    # Simple update function that only runs every 10 minutes
+    def scheduled_update():
+        try:
+            new_egram = update_cache_MVBS()
+            plot_pane.object = new_egram
+            print("Plot updated at scheduled interval")
+        except Exception as e:
+            print(f"Error during scheduled update: {e}")
+    
+    # Add ONLY the 10-minute callback - no other automatic updates
     pn.state.add_periodic_callback(
-        lambda: setattr(plot_pane, 'object', update_cache_MVBS()),
+        scheduled_update,
         period=10*60*1000  # Update every 10 mins
     )
-
+    
     return plot_pane
 
-# Deploy!
+# Deploy the application with stable configuration
 test_server = pn.serve(
     {"multi_freq_echogram": multi_freq_app},
     port=1802,
     websocket_origin="*",
     admin=True,
     show=False,
+    # Additional settings to prevent auto-refresh issues
+    autoreload=False,
+    # Keep WebSocket connection stable
+    keep_alive=40000,  # 40 seconds
+    check_unused_sessions_milliseconds=30000,  # 30 seconds
 )
+
+# test_server.stop()
