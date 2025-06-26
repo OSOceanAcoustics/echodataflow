@@ -43,7 +43,7 @@ def flow_file_upload(
             f.write(f"/{subdir}/**\n")
 
     # Potentially long running so using a context manager
-    command = f"rclone sync -v {src_dir} {dest_dir} --exclude-from {str(Path(__file__).parent / exclude_filename)}" 
+    command = f"rclone copy -v --max-age 2h --no-traverse {src_dir} {dest_dir} --exclude-from {str(Path(__file__).parent / exclude_filename)}" 
     print("command:", command)
     with ShellOperation(commands=[command], working_dir=src_dir) as file_upload_operation:
 

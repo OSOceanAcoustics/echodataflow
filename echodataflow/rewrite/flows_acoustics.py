@@ -59,8 +59,8 @@ def get_hake_model(model_path: str) -> BinaryHakeModel:
     log_prints=True,
     task_runner=DaskTaskRunner()
 )
-async def flow_raw2Sv(
-    exclude_before: str = None,
+def flow_raw2Sv(
+    exclude_before: str|None = None,
     parallel: bool = False,
     encode_mode: str = "power",
     waveform_mode: str = "CW",
@@ -73,14 +73,16 @@ async def flow_raw2Sv(
 ):
 
     # Check if the deployment is already running
-    already_running = await deployment_already_running()
+    already_running = asyncio.run(deployment_already_running())
     if already_running:
-        async with get_client() as client:
-            await client.set_flow_run_state(
-                flow_run_id=runtime.flow_run.id,
-                state=Cancelled(message="Another instance of this flow is already running")
-            )
-            return  # exit the flow early
+        async def cancel_run():
+            async with get_client() as client:
+                await client.set_flow_run_state(
+                    flow_run_id=runtime.flow_run.id,
+                    state=Cancelled(message="Another instance of this flow is already running")
+                )
+        asyncio.run(cancel_run())
+        return  # exit the flow early
 
     # Assemble paths
     path_Sv_zarr = Path(path_main) / "Sv"
@@ -111,7 +113,7 @@ async def flow_raw2Sv(
             ignore_index=True
         )
 
-    # Exclude raw files befoe exclude_before datetime
+    # Exclude raw files before exclude_before datetime
     if exclude_before is None:
         raw_files_in_folder = set([filename.name for filename in path_raw.glob("*.raw")])
     else:
@@ -173,6 +175,7 @@ async def flow_raw2Sv(
         results = []
         for nf in new_files:
             try:
+                print(f"Converting {nf}")
                 Sv_filename, first_ping_time, last_ping_time = task_raw2Sv.with_options(
                     task_run_name=nf, name=nf, retries=3
                 )(
@@ -204,11 +207,13 @@ async def flow_raw2Sv(
     # Set flow to Failed state if any errors occurred
     if len(errors) > 0:
         error_msg = f"{len(errors)} errors during raw to Sv conversion out of {len(new_files)} files"
-        async with get_client() as client:
-            await client.set_flow_run_state(
-                flow_run_id=runtime.flow_run.id,
-                state=Failed(message=error_msg)
-            )
+        async def set_failed_state():
+            async with get_client() as client:
+                await client.set_flow_run_state(
+                    flow_run_id=runtime.flow_run.id,
+                    state=Failed(message=error_msg)
+                )
+        asyncio.run(set_failed_state())
         raise Exception(error_msg)
 
 
