@@ -139,3 +139,4 @@ version.py
 # Local zarr files
 *.zarr
 *.DS_Store
+*upload_exclude_folders_*
