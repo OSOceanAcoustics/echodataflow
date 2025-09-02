@@ -64,7 +64,7 @@ if __name__ == "__main__":
             source=str(Path(__file__).parent),
             entrypoint="flows_acoustics.py:flow_raw2Sv",
         ).to_deployment(
-            name="raw2Sv_test",
+            name="raw2Sv_leg2",
             parameters=config["raw2Sv"],
             cron=f"*/{interval_dict["raw2Sv"]} * * * *",
         ),
@@ -72,7 +72,7 @@ if __name__ == "__main__":
             source=str(Path(__file__).parent),
             entrypoint="flows_acoustics.py:flow_create_MVBS",
         ).to_deployment(
-            name="create-MVBS_test",
+            name="create-MVBS_leg2",
             parameters=config["create_MVBS"],
             cron=f"3-59/{interval_dict["create_MVBS"]} * * * *",
         ),
@@ -80,7 +80,7 @@ if __name__ == "__main__":
             source=str(Path(__file__).parent),
             entrypoint="flows_acoustics.py:flow_predict_hake",
         ).to_deployment(
-            name="predict-hake_test",
+            name="predict-hake_leg2",
             parameters=config["predict_hake"],
             cron=f"*/{interval_dict["predict_hake"]} * * * *",
         ),
@@ -90,17 +90,17 @@ if __name__ == "__main__":
         source=str(Path(__file__).parent),
         entrypoint="helpers.py:flow_file_upload",
     ).to_deployment(
-        name="file-upload-acoustics_test",
+        name="file-upload-acoustics_leg2",
         parameters=config["file_upload_acoustics"],
         work_pool_name="local",
         cron=f"*/{interval_dict["file_upload_acoustics"]} * * * *",
     ).apply()
-    # flow_file_upload.from_source(
-    #     source=str(Path(__file__).parent),
-    #     entrypoint="helpers.py:flow_file_upload",
-    # ).to_deployment(
-    #     name="file-upload-trawl_test",
-    #     parameters=config["file_upload_trawl"],
-    #     cron=f"*/{interval_dict["file_upload_trawl"]} * * * *",
-    #     work_pool_name="local",
-    # ).apply()
+    flow_file_upload.from_source(
+        source=str(Path(__file__).parent),
+        entrypoint="helpers.py:flow_file_upload",
+    ).to_deployment(
+        name="file-upload-trawl_20250902",
+        parameters=config["file_upload_trawl"],
+        cron=f"*/{interval_dict["file_upload_trawl"]} * * * *",
+        work_pool_name="local",
+    ).apply()
