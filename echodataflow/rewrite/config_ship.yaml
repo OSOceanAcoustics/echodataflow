@@ -42,9 +42,13 @@ file_upload_acoustics:
   dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506_test/acoustics"
   exclude_subdirs:
     - Sv
+  max_age: 2
 file_upload_trawl:
   interval: 10
-  src_dir: "/Volumes/sh2506_ext1/bio_data_test"
+  src_dir: "/Users/feresa/mnt_qnap_clams/nwc"
   dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506_test/trawl"
   exclude_subdirs:
-    - Sv
+    - backups
+    - "temp AB stuff"
+    - "How to run CLAMS reports.docx"
+  max_age: -1

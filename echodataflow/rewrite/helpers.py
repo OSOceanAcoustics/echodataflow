@@ -20,9 +20,10 @@ def flow_file_upload(
     src_dir: str,
     dest_dir: str,
     exclude_subdirs: list[str],
+    max_age: int = -1,
 ):
     """
-    Upload files via rlcone.
+    Upload files via rclone.
 
     Parameters
     ----------
@@ -32,6 +33,8 @@ def flow_file_upload(
         Destination directory to upload files to, by default "osn_sdsc_hake:/agr230002-bucket01/prefect_test".
     exclude_subdirs : list, optional
         List of subdirectories to exclude from the upload, by default [].
+    max_age : int, optional
+        Maximum age of files to upload in hours, by default -1 (no limit).
     """ 
     # Generate upload_exclude_folders.txt
     exclude_filename = f"upload_exclude_folders_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
@@ -43,7 +46,10 @@ def flow_file_upload(
             f.write(f"/{subdir}/**\n")
 
     # Potentially long running so using a context manager
-    command = f"rclone copy -v --max-age 2h --no-traverse {src_dir} {dest_dir} --exclude-from {str(Path(__file__).parent / exclude_filename)}" 
+    if max_age == -1:
+        command = f"rclone copy -v --no-traverse {src_dir} {dest_dir} --exclude-from {str(Path(__file__).parent / exclude_filename)}" 
+    else:
+        command = f"rclone copy -v --max-age 2h --no-traverse {src_dir} {dest_dir} --exclude-from {str(Path(__file__).parent / exclude_filename)}" 
     print("command:", command)
     with ShellOperation(commands=[command], working_dir=src_dir) as file_upload_operation:
 
