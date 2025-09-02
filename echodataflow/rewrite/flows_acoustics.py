@@ -585,10 +585,12 @@ async def flow_predict_hake(
             parse_dates=["first_ping_time", "last_ping_time"]
         )
         # Convert last_ping_time and first_ping_time to UTC
-        if df_prediction["last_ping_time"].dt.tz is None:
-            df_prediction["last_ping_time"] = df_prediction["last_ping_time"].dt.tz_localize("UTC")
-        if df_prediction["first_ping_time"].dt.tz is None:
-            df_prediction["first_ping_time"] = df_prediction["first_ping_time"].dt.tz_localize("UTC")
+        # only allowable when dataframe is not empty
+        if len(df_prediction) != 0:
+            if df_prediction["last_ping_time"].dt.tz is None:
+                df_prediction["last_ping_time"] = df_prediction["last_ping_time"].dt.tz_localize("UTC")
+            if df_prediction["first_ping_time"].dt.tz is None:
+                df_prediction["first_ping_time"] = df_prediction["first_ping_time"].dt.tz_localize("UTC")
 
     # Sequentially predict over combined MVBS slices
     errors = []
