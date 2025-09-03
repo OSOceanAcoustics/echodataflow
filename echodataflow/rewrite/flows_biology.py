@@ -38,29 +38,6 @@ data_path = "/Users/feresa/code_git/echodataflow/temp_bio"
 
 
 
-def get_valid_hauls_2024(
-    date_prefix: str,
-    species_code: int,
-    bio_filenames: dict,
-):
-    # Pull out haul numbers (operation_number in csv)
-    HAUL_NUM_PATTERN = rf"{date_prefix}_({species_code}_)?(?P<haul_num>\d{{3}})_\w+\.csv"
-    haul_num_all = {k: set() for k in bio_filenames.keys()}
-    for file_type in bio_filenames.keys():
-        for fname in bio_filenames[file_type]:
-            haul_num_all[file_type].add(int(re.match(HAUL_NUM_PATTERN, Path(fname).name)["haul_num"]))
-
-    # Each haul number should have 4 files as defined above
-    valid_hauls = set.union(*haul_num_all.values())
-    haul_num_to_remove = set()
-    for file_type in bio_filenames.keys():
-        haul_num_diff = valid_hauls.difference(haul_num_all[file_type])
-        if haul_num_diff:
-            haul_num_to_remove.update(haul_num_diff)
-    valid_hauls.difference_update(haul_num_to_remove)
-    return valid_hauls
-
-
 def get_valid_hauls(
     bio_filenames: dict,
 ):
