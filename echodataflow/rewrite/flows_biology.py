@@ -38,8 +38,7 @@ data_path = "/Users/feresa/code_git/echodataflow/temp_bio"
 
 
 
-
-def get_valid_hauls(
+def get_valid_hauls_2024(
     date_prefix: str,
     species_code: int,
     bio_filenames: dict,
@@ -62,6 +61,29 @@ def get_valid_hauls(
     return valid_hauls
 
 
+def get_valid_hauls(
+    bio_filenames: dict,
+):
+    # Pull out haul numbers (operation_number in xlsx)
+    HAUL_NUM_PATTERN = rf"(\w+)?(?P<haul_num>\d{{3}})_\w+\.xlsx"
+    haul_num_all = {k: set() for k in bio_filenames.keys()}
+    for file_type in bio_filenames.keys():
+        for fname in bio_filenames[file_type]:
+            match_str = re.match(HAUL_NUM_PATTERN, Path(fname).name)
+            if match_str is not None:
+                haul_num_all[file_type].add(int(match_str["haul_num"]))
+
+    # Each haul number should have 4 files as defined above
+    valid_hauls = set.union(*haul_num_all.values())
+    haul_num_to_remove = set()
+    for file_type in bio_filenames.keys():
+        haul_num_diff = valid_hauls.difference(haul_num_all[file_type])
+        if haul_num_diff:
+            haul_num_to_remove.update(haul_num_diff)
+    valid_hauls.difference_update(haul_num_to_remove)
+    return valid_hauls
+
+
 def get_count_from_length_specimen(
     df_length: pd.DataFrame,
     df_specimen: pd.DataFrame,
@@ -70,21 +92,27 @@ def get_count_from_length_specimen(
     Get length count from length and specimen dataframes.
     """
     # Round fish length to nearest integer
-    df_specimen["rounded_length"] = df_specimen["length"].round(0)
+    df_specimen["length"] = df_specimen["fork_length"].round(0).astype(int)                
 
     # Get length count from both dataframes
-    specimen_counts = df_specimen.groupby(["sex", "rounded_length", "operation_number"]).size().reset_index(name="frequency")
-    length_counts = df_length.groupby(["sex", "rounded_length", "operation_number"]).agg({"frequency": "sum"}).reset_index()
+    specimen_counts = (
+        df_specimen.groupby(["sex", "length", "haul"]).size()
+        .reset_index(name="frequency")
+    )
+    length_counts = (
+        df_length.groupby(["sex", "length", "haul"])
+        .agg({"frequency": "sum"}).reset_index()
+    )
     
     df_combined = pd.merge(
         specimen_counts.reset_index(),
         length_counts.reset_index(),
-        on=["sex", "rounded_length", "operation_number"],
+        on=["sex", "length", "haul"],
         how="outer"
     ).fillna(0)
     df_combined["frequency"] = (df_combined["frequency_x"] + df_combined["frequency_y"]).astype(int)
 
-    return df_combined[["sex", "rounded_length", "frequency", "operation_number"]]
+    return df_combined[["sex", "length", "frequency", "haul"]]
 
 
 def get_length_weight_regression(df_specimen: pd.DataFrame) -> pd.DataFrame:
@@ -208,28 +236,19 @@ def flow_ingest_haul(
     fs = s3fs.S3FileSystem(
         key=config["osn_sdsc_hake"]["access_key_id"],
         secret=config["osn_sdsc_hake"]["secret_access_key"],
-        endpoint_url=config["osn_sdsc_hake"]["endpoint"],
+        client_kwargs={"endpoint_url": config["osn_sdsc_hake"]["endpoint"]},
     )
 
-    # Get all filenames
-    # bio_filenames = {
-    #     "length": list(path_bio_files.glob(f"{date_prefix}_{species_code}_*_lf.csv")),
-    #     "specimen": list(path_bio_files.glob(f"{date_prefix}_{species_code}_*_spec.csv")),
-    #     "catch": list(path_bio_files.glob(f"{date_prefix}_*_catch_perc.csv")),
-    #     "info": list(path_bio_files.glob(f"{date_prefix}_*_operation_info.csv")),
-    # }
     bio_filenames = {
-        "length": fs.glob(f"{path_bio_files}/{date_prefix}_{species_code}_*_lf.csv"),
-        "specimen": fs.glob(f"{path_bio_files}/{date_prefix}_{species_code}_*_spec.csv"),
-        "catch": fs.glob(f"{path_bio_files}/{date_prefix}_*_catch_perc.csv"),
-        "info": fs.glob(f"{path_bio_files}/{date_prefix}_*_operation_info.csv"),
+        "length": fs.glob(f"{path_bio_files}//*/*_LFdata.xlsx"),
+        "specimen": fs.glob(f"{path_bio_files}/*/*_specimens.xlsx"),
+        "catch": fs.glob(f"{path_bio_files}/*/*_CatchPerc.xlsx"),
+        "info": fs.glob(f"{path_bio_files}/*/*_NetConfig.xlsx"),
     }
 
     # Exist if no file present
     if not any(bio_filenames.values()):
-        print(
-            f"No biology files found for {date_prefix} with species code {species_code}. "
-        )
+        print(f"No biology files found.")
         return
 
     # Get valid haul numbers (those with 4 files)
@@ -258,15 +277,25 @@ def flow_ingest_haul(
         df_specimen = []
         df_info = []
         for haul_num in hauls_to_process:
-            with fs.open(f"{path_bio_files}/{date_prefix}_{species_code}_{haul_num:03d}_lf.csv") as f:
-                df_length.append(pd.read_csv(f, index_col=0).reset_index())
-            with fs.open(f"{path_bio_files}/{date_prefix}_{species_code}_{haul_num:03d}_spec.csv") as f:
-                df_specimen.append(pd.read_csv(f, index_col=0).reset_index())
-            with fs.open(f"{path_bio_files}/{date_prefix}_{haul_num:03d}_operation_info.csv") as f:
+            with fs.open(f"{path_bio_files}/LengthFreq/{haul_num:03d}_LFdata.xlsx") as f:
+                df_length_temp = pd.read_excel(f, index_col=0, sheet_name="Codend").reset_index().drop("Sum", axis=1)
+                df_length_temp = df_length_temp.melt(
+                    id_vars=["length"],
+                    var_name="sex", 
+                    value_name="frequency"
+                ).assign(haul=haul_num)
+                df_length_temp["frequency"] = df_length_temp["frequency"].fillna(0).astype(int)
+                df_length.append(df_length_temp)
+            with fs.open(f"{path_bio_files}/Specimens/{haul_num:03d}_specimens.xlsx") as f:
+                df_specimen.append(
+                    pd.read_excel(f, index_col=0, sheet_name="Codend")
+                    .reset_index().assign(haul=haul_num)
+                )
+            with fs.open(f"{path_bio_files}/NetConfig/202506_{haul_num:03d}_NetConfig.xlsx") as f:
+                df_info_temp = pd.read_excel(f, index_col=0, sheet_name="ButtonPresses").reset_index()
                 df_info.append(
-                    # reset index to get operation_number into a column
-                    pd.read_csv(f, index_col=0).reset_index()
-                    .rename(columns=INFO_DATAFRAME_MAPPING).reset_index()
+                    # reset index to get haul number into a column
+                    df_info_temp[df_info_temp["button"] == "NIW"][["haul", "time_stamp", "Latitude", "Longitude"]]
                 )
         df_length = pd.concat(df_length, ignore_index=True)
         df_specimen = pd.concat(df_specimen, ignore_index=True)
@@ -279,19 +308,19 @@ def flow_ingest_haul(
         df_specimen = pd.merge(
             df_specimen,
             df_info,
-            on="operation_number",
+            on="haul",
             how="left"
         )
         df_length = pd.merge(
             df_length,
             df_info,
-            on="operation_number",
+            on="haul",
             how="left"
         )
         df_length_count = pd.merge(
             df_length_count,
             df_info,
-            on="operation_number",
+            on="haul",
             how="left"
         )
 

@@ -10,6 +10,7 @@ dependencies:
   - geopandas
   - geopy
   - opencv  # this should be specified in hakeML
+  - openpyxl  # for reading xlsx
   - prefect
   - python=3.12
   - shapely
