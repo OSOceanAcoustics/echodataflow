@@ -5,9 +5,9 @@ ingest_haul:
   interval: 5
   date_prefix: "202407"
   species_code: 22500
-  path_main: "/Users/feresa/code_git/echodataflow/temp_bio"
-  path_bio_files: "agr230002-bucket01/prefect_test/temp_bio/bio_csv"
-  cred_file: "/Users/feresa/.config/rclone/rclone.conf"
+  path_main: "/media/volume/shimada_202506_volume/trawl" # path to local processed trawl info
+  path_bio_files: "agr230002-bucket01/prefect_sh2506_test/trawl" # path to cloud trawl data
+  cred_file: "/home/exouser/.config/rclone/rclone.conf"
   file_haul_info_all: haul_info_all.csv
   file_specimen_all: specimen_all.csv
   file_length_all: length_all.csv
