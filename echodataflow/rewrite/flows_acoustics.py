@@ -67,6 +67,7 @@ def flow_raw2Sv(
     depth_offset: float = 9.5,
     sonar_model: str = "EK80",
     nmea_sentence: str = "GGA",
+    filename_pattern: str = "*.raw",
     path_main: str = "",
     path_raw: str = "",
     file_Sv_csv: str = "Sv_files.csv",
@@ -115,10 +116,10 @@ def flow_raw2Sv(
 
     # Exclude raw files before exclude_before datetime
     if exclude_before is None:
-        raw_files_in_folder = set([filename.name for filename in path_raw.glob("*.raw")])
+        raw_files_in_folder = set([filename.name for filename in path_raw.glob(filename_pattern)])
     else:
         raw_files_in_folder = set([
-            filename.name for filename in path_raw.glob("*.raw")
+            filename.name for filename in path_raw.glob(filename_pattern)
             if extract_datetime_from_filename(filename.name) >= datetime.datetime.fromisoformat(exclude_before)
         ])
 
