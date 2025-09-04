@@ -227,12 +227,10 @@ def flow_ingest_haul(
     if not any(bio_filenames.values()):
         print(f"No biology files found.")
         return
-    else:
-        print(bio_filenames)
 
     # Get valid haul numbers (those with 4 files)
     hauls_valid = get_valid_hauls(bio_filenames)
-    print(hauls_valid)
+    print("Valid hauls:", hauls_valid)
 
     # Get hauls to process
     if not file_haul_info_all.exists():
@@ -242,15 +240,13 @@ def flow_ingest_haul(
         df_haul_info_all = pd.read_csv(file_haul_info_all, index_col=0)
         hauls_processed = set(df_haul_info_all["haul"].unique())
     hauls_to_process = list(hauls_valid.difference(hauls_processed))
-    print(hauls_to_process)
 
     if not hauls_to_process:  # if there are hauls to process
         print(f"No hauls to process.")
         return
     else:
         print(
-            f"Processing {len(hauls_to_process)} hauls for "
-            f"{date_prefix} with species code {species_code}:\n",
+            f"Processing {len(hauls_to_process)} hauls for :\n",
             hauls_to_process
         )
         # Load dataframes from all hauls to process
