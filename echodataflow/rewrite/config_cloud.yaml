@@ -15,9 +15,10 @@ ingest_haul:
   file_stratum_mean: stratum_mean.csv
 ingest_NASC:
   interval: 5
-  path_main: "/Users/feresa/code_git/echodataflow/temp_bio"
-  path_NASC_files: "agr230002-bucket01/prefect_test/temp_bio/nasc_zarr"
-  cred_file: "/Users/feresa/.config/rclone/rclone.conf"
+  path_main: "/media/volume/shimada_202506_volume/NASC" # path to local integrated data
+  path_trawl: "/media/volume/shimada_202506_volume/trawl" # path to local trawl info
+  path_NASC_files: "agr230002-bucket01/prefect_sh2506_test/acoustics/NASC" # path to cloud acoustic data
+  cred_file: "/home/exouser/.config/rclone/rclone.conf"
   file_NASC_all: NASC_all.csv
   file_stratum_mean: stratum_mean.csv
   file_NASC_all_grid: NASC_all_griddify.geojson
@@ -32,6 +33,6 @@ update_cache_MVBS:
   slice_mins: 180
   path_cache: "/media/volume/shimada_202506_volume/viz_data_cache"
   path_MVBS: "agr230002-bucket01/prefect_sh2506_test/acoustics/MVBS"
+  cred_file: "/home/exouser/.config/rclone/rclone.conf"
   file_MVBS_csv: MVBS_files.csv
   file_MVBS_zarr: latest_MVBS.zarr
-  cred_file: "/home/exouser/.config/rclone/rclone.conf"

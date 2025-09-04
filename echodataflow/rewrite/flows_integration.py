@@ -115,7 +115,8 @@ def task_griddify_NASC(
 
 @flow(log_prints=True)
 def flow_ingest_NASC(
-    path_main: str = data_main,
+    path_main: str = "LOCAL_PATH_TO_INTEGRATED_DATA",
+    path_trawl: str = "LOCAL_PATH_TO_TRAWL_INFO",
     path_NASC_files: str = "NASC_ZARR_CLOUD_LOCATION",
     cred_file: str = "CREDENTIAL_FILE",
     file_NASC_all: str = "NASC_all.csv",
@@ -160,7 +161,7 @@ def flow_ingest_NASC(
     fs = s3fs.S3FileSystem(
         key=config["osn_sdsc_hake"]["access_key_id"],
         secret=config["osn_sdsc_hake"]["secret_access_key"],
-        endpoint_url=config["osn_sdsc_hake"]["endpoint"],
+        client_kwargs={"endpoint_url": config["osn_sdsc_hake"]["endpoint"]},
     )
 
     # Get all NASC files in the bucket
@@ -193,7 +194,7 @@ def flow_ingest_NASC(
         df_NASC_all.to_csv(file_NASC_all)
 
         # Grifdify the NASC data
-        df_stratum = pd.read_csv(Path(path_main) / file_stratum_mean, index_col=0)
+        df_stratum = pd.read_csv(Path(path_trawl) / file_stratum_mean, index_col=0)
         gdf_NASC = task_griddify_NASC(
             df_stratum=df_stratum,
             df_NASC=df_NASC_all,
