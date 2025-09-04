@@ -21,7 +21,7 @@ GRID_PARAMS = {
 }
 
 INFO_DATAFRAME_MAPPING = {
-    "td_timestamp": "timestamp",
-    "td_latitude": "latitude",
-    "td_longitude": "longitude",
+    "time_stamp": "timestamp",
+    "Latitude": "latitude",
+    "Longitude": "longitude",
 }

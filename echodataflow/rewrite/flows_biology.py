@@ -41,7 +41,7 @@ data_path = "/Users/feresa/code_git/echodataflow/temp_bio"
 def get_valid_hauls(
     bio_filenames: dict,
 ):
-    # Pull out haul numbers (operation_number in xlsx)
+    # Pull out haul numbers
     HAUL_NUM_PATTERN = rf"(\w+)?(?P<haul_num>\d{{3}})_\w+\.xlsx"
     haul_num_all = {k: set() for k in bio_filenames.keys()}
     for file_type in bio_filenames.keys():
@@ -144,7 +144,7 @@ def get_sigma_bs_mean_stratum(
 ) -> pd.DataFrame:
     # Compute sigma_bs for each row
     df_length_count["sigma_bs"] = 10 ** ((
-        TS_L_PARAMS["slope"] * np.log10(df_length_count["rounded_length"])
+        TS_L_PARAMS["slope"] * np.log10(df_length_count["length"])
         + TS_L_PARAMS["intercept"]
     ) / 10)
 
@@ -172,7 +172,7 @@ def get_weight_mean_stratum(
 
     # Then compute weight using the length-weight relationship: W = 10^(p1 * log10(L) + p2)
     df_merged["weight"] = 10 ** (
-        df_merged["p1"] * np.log10(df_merged["rounded_length"]) + df_merged["p2"]
+        df_merged["p1"] * np.log10(df_merged["length"]) + df_merged["p2"]
     )
 
     # Get mean weight for each stratum
@@ -217,7 +217,7 @@ def flow_ingest_haul(
     )
 
     bio_filenames = {
-        "length": fs.glob(f"{path_bio_files}//*/*_LFdata.xlsx"),
+        "length": fs.glob(f"{path_bio_files}/*/*_LFdata.xlsx"),
         "specimen": fs.glob(f"{path_bio_files}/*/*_specimens.xlsx"),
         "catch": fs.glob(f"{path_bio_files}/*/*_CatchPerc.xlsx"),
         "info": fs.glob(f"{path_bio_files}/*/*_NetConfig.xlsx"),
@@ -227,9 +227,12 @@ def flow_ingest_haul(
     if not any(bio_filenames.values()):
         print(f"No biology files found.")
         return
+    else:
+        print(bio_filenames)
 
     # Get valid haul numbers (those with 4 files)
-    hauls_valid = get_valid_hauls(date_prefix, species_code, bio_filenames)
+    hauls_valid = get_valid_hauls(bio_filenames)
+    print(hauls_valid)
 
     # Get hauls to process
     if not file_haul_info_all.exists():
@@ -237,11 +240,12 @@ def flow_ingest_haul(
         hauls_processed = set()
     else:            
         df_haul_info_all = pd.read_csv(file_haul_info_all, index_col=0)
-        hauls_processed = set(df_haul_info_all["operation_number"].unique())
+        hauls_processed = set(df_haul_info_all["haul"].unique())
     hauls_to_process = list(hauls_valid.difference(hauls_processed))
+    print(hauls_to_process)
 
     if not hauls_to_process:  # if there are hauls to process
-        print(f"No hauls to process for {date_prefix} with species code {species_code}.")
+        print(f"No hauls to process.")
         return
     else:
         print(
@@ -269,10 +273,13 @@ def flow_ingest_haul(
                     .reset_index().assign(haul=haul_num)
                 )
             with fs.open(f"{path_bio_files}/NetConfig/202506_{haul_num:03d}_NetConfig.xlsx") as f:
-                df_info_temp = pd.read_excel(f, index_col=0, sheet_name="ButtonPresses").reset_index()
+                df_info_temp = (
+                    pd.read_excel(f, index_col=0, sheet_name="ButtonPresses").reset_index()
+                    .rename(columns=INFO_DATAFRAME_MAPPING)
+                )
                 df_info.append(
                     # reset index to get haul number into a column
-                    df_info_temp[df_info_temp["button"] == "NIW"][["haul", "time_stamp", "Latitude", "Longitude"]]
+                    df_info_temp[df_info_temp["button"] == "NIW"][["haul", "timestamp", "latitude", "longitude"]]
                 )
         df_length = pd.concat(df_length, ignore_index=True)
         df_specimen = pd.concat(df_specimen, ignore_index=True)

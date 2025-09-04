@@ -54,14 +54,14 @@ if __name__ == "__main__":
 
     # Deploy flows
     deploy(
-        # flow_ingest_haul.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_biology.py:flow_ingest_haul"
-        # ).to_deployment(
-        #     name="ingest_haul",
-        #     parameters=config["ingest_haul"],
-        #     # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
-        # ),
+        flow_ingest_haul.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_biology.py:flow_ingest_haul"
+        ).to_deployment(
+            name="ingest_haul",
+            parameters=config["ingest_haul"],
+            # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+        ),
         # flow_ingest_NASC.from_source(
         #     source=str(Path(__file__).parent),
         #     entrypoint="flows_integration.py:flow_ingest_NASC"

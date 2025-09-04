@@ -3,42 +3,42 @@ from pathlib import Path
 import datetime
 import numpy as np
 import pandas as pd
-import torch
+# import torch
 # from src.model.BinaryHakeModel import BinaryHakeModel
 
 
-def get_MVBS_tensor(ds_in, freq_wanted=[120000, 38000, 18000]):
-    # Find the right channel sequence
-    ch_wanted = [int((np.abs(ds_in["frequency_nominal"]-freq)).argmin()) for freq in freq_wanted]
+# def get_MVBS_tensor(ds_in, freq_wanted=[120000, 38000, 18000]):
+#     # Find the right channel sequence
+#     ch_wanted = [int((np.abs(ds_in["frequency_nominal"]-freq)).argmin()) for freq in freq_wanted]
 
-    # Crucial for model prediction:
-    # - order of dimension (channel, depth, ping_time)
-    # - depth slice up to 590 m
-    mvbs_tensor = torch.tensor(
-        (
-            ds_in["Sv"]
-            .transpose("channel", "depth", "ping_time")
-            .isel(channel=ch_wanted).sel(depth=slice(None, 590)).values
-        ),
-        dtype=torch.float32
-    )
+#     # Crucial for model prediction:
+#     # - order of dimension (channel, depth, ping_time)
+#     # - depth slice up to 590 m
+#     mvbs_tensor = torch.tensor(
+#         (
+#             ds_in["Sv"]
+#             .transpose("channel", "depth", "ping_time")
+#             .isel(channel=ch_wanted).sel(depth=slice(None, 590)).values
+#         ),
+#         dtype=torch.float32
+#     )
 
-    # Clip to Sv range
-    mvbs_tensor_clip = torch.clip(
-        mvbs_tensor.clone().detach().to(torch.float16),
-        min=-70,
-        max=-36,
-    )
+#     # Clip to Sv range
+#     mvbs_tensor_clip = torch.clip(
+#         mvbs_tensor.clone().detach().to(torch.float16),
+#         min=-70,
+#         max=-36,
+#     )
 
-    # Replace NaN values with min Sv
-    mvbs_tensor_clip[torch.isnan(mvbs_tensor_clip)] = -70
+#     # Replace NaN values with min Sv
+#     mvbs_tensor_clip[torch.isnan(mvbs_tensor_clip)] = -70
 
-    # Normalize and conver to float
-    mvbs_tensor_clip_normalized = (
-        (mvbs_tensor_clip - (-70.0)) / (-36.0 - (-70.0)) * 255.0
-    )
+#     # Normalize and conver to float
+#     mvbs_tensor_clip_normalized = (
+#         (mvbs_tensor_clip - (-70.0)) / (-36.0 - (-70.0)) * 255.0
+#     )
     
-    return mvbs_tensor_clip_normalized.unsqueeze(0).float()
+#     return mvbs_tensor_clip_normalized.unsqueeze(0).float()
 
 
 # # Load binary hake models with weights
