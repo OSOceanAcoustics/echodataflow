@@ -3,11 +3,10 @@ Description=Visualization of echogram and ship track
 After=network.target
 
 [Service]
-Type=exec
-User=exouser
+Type=simple
 WorkingDirectory=/home/exouser/code_git/echodataflow/echodataflow/services
-Environment=PATH=/media/volume/shimada_202506_volume/miniforge3/condabin:/usr/local/bin:/usr/bin:/bin
-ExecStart=/bin/bash -c "source /media/volume/shimada_202506_volume/miniforge3/etc/profile.d/conda.sh && conda activate echodataflow_20250609 && python viz_echogram_track.py"
+Environment=PATH=/home/exouser/miniforge3/condabin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/exouser/miniforge3/bin/mamba run -n echodataflow_20250609 python viz_echogram_track.py
 Restart=always
 RestartSec=30
 StartLimitInterval=300
