@@ -60,7 +60,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="ingest_haul",
             parameters=config["ingest_haul"],
-            # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+            cron=f"*/{interval_dict["ingest_haul"]} * * * *",
         ),
         flow_ingest_NASC.from_source(
             source=str(Path(__file__).parent),
@@ -68,7 +68,7 @@ if __name__ == "__main__":
         ).to_deployment(
             name="ingest_NASC",
             parameters=config["ingest_NASC"],
-            # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+            cron=f"*/{interval_dict["ingest_haul"]} * * * *",
         ),
         flow_update_grid.from_source(
             source=str(Path(__file__).parent),
