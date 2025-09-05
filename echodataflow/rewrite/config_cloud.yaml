@@ -15,7 +15,7 @@ ingest_haul:
   file_stratum_mean: stratum_mean.csv
 ingest_NASC:
   interval: 5
-  path_main: "/media/volume/shimada_202506_volume/NASC" # path to local integrated data
+  path_main: "/media/volume/shimada_202506_volume/integrated" # path to local integrated data
   path_trawl: "/media/volume/shimada_202506_volume/trawl" # path to local trawl info
   path_NASC_files: "agr230002-bucket01/prefect_sh2506_test/acoustics/NASC" # path to cloud acoustic data
   cred_file: "/home/exouser/.config/rclone/rclone.conf"

@@ -62,14 +62,14 @@ if __name__ == "__main__":
             parameters=config["ingest_haul"],
             # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
         ),
-        # flow_ingest_NASC.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_integration.py:flow_ingest_NASC"
-        # ).to_deployment(
-        #     name="ingest_NASC",
-        #     parameters=config["ingest_NASC"],
-        #     # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
-        # ),
+        flow_ingest_NASC.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_integration.py:flow_ingest_NASC"
+        ).to_deployment(
+            name="ingest_NASC",
+            parameters=config["ingest_NASC"],
+            # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+        ),
         # flow_update_grid.from_source(
         #     source=str(Path(__file__).parent),
         #     entrypoint="flows_integration.py:flow_update_grid"

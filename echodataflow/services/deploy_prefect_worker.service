@@ -3,10 +3,9 @@ Description=Deploy Prefect worker in work-pool local
 After=network.target
 
 [Service]
-Type=exec
-User=exouser
+Type=simple
 WorkingDirectory=/home/exouser
-Environment=PATH=/media/volume/shimada_202506_volume/miniforge3/condabin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=/home/exouser/miniforge3/condabin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/bin/bash /home/exouser/code_git/echodataflow/echodataflow/services/deploy_prefect_worker.sh
 Restart=always
 RestartSec=30
