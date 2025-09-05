@@ -70,24 +70,24 @@ if __name__ == "__main__":
             parameters=config["ingest_NASC"],
             # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
         ),
-        # flow_update_grid.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_integration.py:flow_update_grid"
-        # ).to_deployment(
-        #     name="update_grid",
-        #     parameters=config["update_grid"],
-        #     # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
-        #     triggers=[
-        #         DeploymentEventTrigger(
-        #             expect={"haul.ingested"},  # trigger on custom event
-        #             match_related={"prefect.resource.name": "ingest_haul"},
-        #         ),
-        #         DeploymentEventTrigger(
-        #             expect={"nasc.ingested"},  # trigger on custom event
-        #             match_related={"prefect.resource.name": "ingest_NASC"},
-        #         ),
-        #     ]
-        # ),
+        flow_update_grid.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_integration.py:flow_update_grid"
+        ).to_deployment(
+            name="update_grid",
+            parameters=config["update_grid"],
+            # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+            triggers=[
+                DeploymentEventTrigger(
+                    expect={"haul.ingested"},  # trigger on custom event
+                    match_related={"prefect.resource.name": "ingest_haul"},
+                ),
+                DeploymentEventTrigger(
+                    expect={"nasc.ingested"},  # trigger on custom event
+                    match_related={"prefect.resource.name": "ingest_NASC"},
+                ),
+            ]
+        ),
         flow_update_cache_MVBS.from_source(
             source=str(Path(__file__).parent),
             entrypoint="flows_viz_cloud.py:flow_update_cache_MVBS"

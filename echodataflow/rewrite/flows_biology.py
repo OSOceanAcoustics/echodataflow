@@ -134,7 +134,7 @@ def add_stratum(df, df_stratum):
         bins=lat_bins,
         labels=lat_labels,
         include_lowest=True
-    ).astype(int)
+    )
 
     return df
 

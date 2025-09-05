@@ -24,10 +24,10 @@ ingest_NASC:
   file_NASC_all_grid: NASC_all_griddify.geojson
   num_NASC_reprocess: 1
 update_grid:
-  path_main: "/Users/feresa/code_git/echodataflow/temp_bio"
+  path_main: "/media/volume/shimada_202506_volume/integrated" # path to local integrated data
+  path_trawl: "/media/volume/shimada_202506_volume/trawl" # path to local trawl info
   file_NASC_all_grid: NASC_all_griddify.geojson
   file_stratum_mean: stratum_mean.csv
-  file_grid_cells: grid_cells.geojson
 update_cache_MVBS:
   interval: 10
   slice_mins: 180
