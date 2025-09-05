@@ -14,6 +14,11 @@ dependencies:
   - prefect
   - python=3.12
   - shapely
+  # for plotting
+  - bokeh
+  - geoviews
+  - holoviews
+  - panel
   - pip:
     - prefect[shell]
     - prefect[dask]
