@@ -1,23 +1,20 @@
 from pathlib import Path
-import panel as pn
+import datetime
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import geopandas as gpd
 import shapely
 
+from bokeh.models import HoverTool
+import holoviews as hv
 import geoviews as gv
 import geoviews.tile_sources as gvts
-import holoviews as hv
 import panel as pn
-from bokeh.models import HoverTool
-
-import datetime
-
 
 
 from viz_core import (
-    THEME, BIO_VAR_NAME, COLORBAR_LABEL, BIO_VAR_UNIT, TILE_MAP
+    THEME, BIO_VAR_NAME, COLORBAR_LABEL, BIO_VAR_UNIT
 )
 
 
@@ -30,7 +27,6 @@ pn.extension()
 # Path to grid file
 path_grid = Path("/media/volume/shimada_202506_volume/integrated")
 file_grid = path_grid / "grid_cells.geojson"
-
 
 
 def clean_cells(
@@ -52,8 +48,7 @@ def clean_cells(
 
 # Define widgets
 info_text = pn.pane.Markdown(
-    "# Bio Estimate Grid\nPanel last updated: never",
-    sizing_mode="stretch_width"
+    f"Grid map last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
 )
 
 variable_selector = pn.widgets.Select(
@@ -71,13 +66,18 @@ tile_selector = pn.widgets.Select(
     value="OpenTopoMap"
 )
 
-@pn.depends(variable_selector, tile_selector)
-def render_polygons(
+# Hidden widget for forcing plot refresh
+refresh_button = pn.widgets.Button(name="Refresh", visible=False)
+
+
+@pn.depends(variable_selector, tile_selector, refresh_button)
+def plot_grid_map(
     bio_var: str,
     map_tile: gv.element.geo.WMTS,
+    refresh: bool,
 ) -> None:
     """
-    Panel plotting function
+    Plot grid map according to the selected biological variable and tile source.
     """      
     # Load grid file
     gdf_grids = gpd.read_file(file_grid)
@@ -116,28 +116,19 @@ def render_polygons(
         gdf_grids, 
         vdims=[var, f"{var}_label", "area"]
     ).opts(
-        # Dimensions
         width=900,
         height=800,
-        # Polygon colors
         colorbar=True,
-        # cmap=palette,
+        cmap="viridis",
         clim=(data_min, data_max),
-        clipping_colors={
-            "NaN": "#c1c1c1",
-        },
-        colorbar_opts={
-            "title": colorbar_title,
-        },
+        clipping_colors={"NaN": "white"},
+        colorbar_opts={"title": colorbar_title},
         line_color="black",
         alpha=0.5,
         labelled=[bio_var],
-        # Axis labels
         xlabel="Longitude (\u00B0E)",
         ylabel="Latitude (\u00B0N)",
-        # Plot title
         title=f"{bio_var}",
-        # Hover tooltip
         tools=[hover_tool],
     )
 
@@ -151,21 +142,25 @@ def grid_app():
     """
     Application to visualize bio estimate grid cells.
     """
-    # layout = plot_grid()
     layout = pn.Column(
-        info_text, variable_selector, tile_selector, render_polygons,
+        info_text, variable_selector, tile_selector, plot_grid_map,
         sizing_mode="stretch_width"
     )
 
     # Example scheduled update: change variable to trigger refresh
     def scheduled_update():
         try:
-            # Example: cycle through variables
-            current = variable_selector.value
-            options = list(BIO_VAR_NAME.keys())
-            idx = (options.index(current) + 1) % len(options)
-            variable_selector.value = options[idx]  # This triggers the plot update
-            info_text.object = f"# Bio Estimate Grid\nPanel last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\nCurrent variable: **{options[idx]}**"
+            # # Test: cycle through variables
+            # current = variable_selector.value
+            # options = list(BIO_VAR_NAME.keys())
+            # idx = (options.index(current) + 1) % len(options)
+            # variable_selector.value = options[idx]  # triggers plot_grid_map to run
+
+            # Use hidden button to trigger plot_grid_map to run again
+            refresh_button.click()  # This triggers plot_grid_map to run again
+            info_text.object = (
+                f"Grid map last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            )
             print("Plot updated at scheduled interval")
         except Exception as e:
             print(f"Error during scheduled update: {e}")
