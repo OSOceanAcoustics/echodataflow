@@ -51,8 +51,8 @@ def plot_length_count(refresh) -> hv.Overlay:
     df_len_cnt_all = pd.read_csv(file_length_count)
 
     # Define stratum options and colors
-    stratum_options = sorted(df_len_cnt_all['stratum'].dropna().unique())
-    stratum_colors = hv.Cycle('Category10').values
+    stratum_options = sorted(df_len_cnt_all["stratum"].dropna().unique())
+    stratum_colors = hv.Cycle("Category10").values
     stratum_colors = {stratum: stratum_colors[i % len(stratum_colors)] for i, stratum in enumerate(stratum_options)}
 
     # Get all values in "sex"
@@ -63,9 +63,9 @@ def plot_length_count(refresh) -> hv.Overlay:
     for sex in sex_options:
         overlay = None
         for stratum in stratum_options:
-            df_sub = df_len_cnt_all[(df_len_cnt_all['sex'] == sex) & (df_len_cnt_all['stratum'] == stratum)]
+            df_sub = df_len_cnt_all[(df_len_cnt_all["sex"] == sex) & (df_len_cnt_all["stratum"] == stratum)]
             if not df_sub.empty:
-                hist = hv.Histogram(np.histogram(df_sub['length'], bins=np.arange(0, 101, 5)), label=f"Stratum: {stratum} ({sex})").opts(
+                hist = hv.Histogram(np.histogram(df_sub["length"], bins=np.arange(0, 101, 5)), label=f"Stratum: {stratum} ({sex})").opts(
                     color=stratum_colors[stratum],
                     alpha=0.6,  # default transparency
                     muted_alpha=0.1,  # transparency when muted via legend
@@ -73,7 +73,7 @@ def plot_length_count(refresh) -> hv.Overlay:
                 )
                 overlay = hist if overlay is None else overlay * hist
         if overlay:
-            overlay = overlay.opts(title=f"Sex: {sex}", legend_position='right')
+            overlay = overlay.opts(title=f"Sex: {sex}", legend_position="right")
             plots.append(overlay)
     if plots:
         return hv.Layout(plots).cols(1)
@@ -95,7 +95,7 @@ def length_count_app():
     def scheduled_update():
         try:
             # Use hidden button to trigger plot_grid_map to run again
-            refresh_button_length_count.param.trigger('value')  # This triggers plot_grid_map to run again
+            refresh_button_length_count.param.trigger("value")  # This triggers plot_grid_map to run again
             length_count_text.object = (
                 f"Length histograms last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
@@ -104,7 +104,7 @@ def length_count_app():
             print(f"Error during scheduled update: {e}")
 
     doc = pn.state.curdoc
-    if not hasattr(doc, 'length_count_callback'):
+    if not hasattr(doc, "length_count_callback"):
         doc.length_count_callback = pn.state.add_periodic_callback(
             scheduled_update,
             period=1*60*1000  # Update every 1 mins
@@ -122,7 +122,7 @@ def length_count_app():
 
 
 # Axis scale selector for length-weight app
-log_selector_length_weight = pn.widgets.RadioButtonGroup(name='Axis Scale', options=['lin-lin', 'log-log'], value='log-log')
+log_selector_length_weight = pn.widgets.RadioButtonGroup(name="Axis Scale", options=["lin-lin", "log-log"], value="log-log")
 length_weight_text = pn.pane.Markdown(
     f"Length-weight scatter last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
 )
@@ -134,16 +134,16 @@ def plot_length_weight(refresh, axis_scale) -> hv.Layout:
     Plot length vs weight scatter for all strata and sex, with axis scale selector and separate legend for each plot.
     """
     df_specimen_all = pd.read_csv(file_specimen)
-    stratum_options = sorted(df_specimen_all['stratum'].dropna().unique())
-    stratum_colors = hv.Cycle('Category10').values
+    stratum_options = sorted(df_specimen_all["stratum"].dropna().unique())
+    stratum_colors = hv.Cycle("Category10").values
     stratum_colors = {stratum: stratum_colors[i % len(stratum_colors)] for i, stratum in enumerate(stratum_options)}
-    sex_options = sorted(df_specimen_all['sex'].dropna().unique())
+    sex_options = sorted(df_specimen_all["sex"].dropna().unique())
 
     plots = []
     for sex in sex_options:
         scatter_overlays = []
         for i, stratum in enumerate(stratum_options):
-            df_sub = df_specimen_all[(df_specimen_all['stratum'] == stratum) & (df_specimen_all['sex'] == sex)]
+            df_sub = df_specimen_all[(df_specimen_all["stratum"] == stratum) & (df_specimen_all["sex"] == sex)]
             if not df_sub.empty:
                 scatter = hv.Scatter(df_sub, "fork_length", "organism_weight", label=f"Stratum: {stratum} ({sex})")
                 opts = dict(
@@ -151,14 +151,14 @@ def plot_length_weight(refresh, axis_scale) -> hv.Layout:
                     size=6,
                     alpha=0.5,
                     muted_alpha=0.05,
-                    legend_position='top_left',
+                    legend_position="top_left",
                     height=400, width=400,
-                    tools=['hover'],
+                    tools=["hover"],
                     show_legend=True,
                 )
-                if axis_scale == 'log-log':
-                    opts['logx'] = True
-                    opts['logy'] = True
+                if axis_scale == "log-log":
+                    opts["logx"] = True
+                    opts["logy"] = True
                 scatter = scatter.opts(**opts)
                 scatter_overlays.append(scatter)
         if scatter_overlays:
@@ -181,7 +181,7 @@ def length_weight_app():
 
     def scheduled_update():
         try:
-            refresh_button_length_weight.param.trigger('value')
+            refresh_button_length_weight.param.trigger("value")
             length_weight_text.object = (
                 f"Length-weight scatter last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
@@ -190,7 +190,7 @@ def length_weight_app():
             print(f"Error during scheduled update: {e}")
 
     doc = pn.state.curdoc
-    if not hasattr(doc, 'length_weight_callback'):
+    if not hasattr(doc, "length_weight_callback"):
         doc.length_weight_callback = pn.state.add_periodic_callback(
             scheduled_update,
             period=1*60*1000  # Update every 1 mins
@@ -329,7 +329,7 @@ def grid_app():
 
             # Use hidden button to trigger plot_grid_map to run again
             # refresh_button.click()  # This triggers plot_grid_map to run again
-            refresh_button.param.trigger('value')
+            refresh_button.param.trigger("value")
             grid_app_text.object = (
                 f"Grid map last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
@@ -338,7 +338,7 @@ def grid_app():
             print(f"Error during scheduled update: {e}")
 
     doc = pn.state.curdoc
-    if not hasattr(doc, 'grid_map_callback'):
+    if not hasattr(doc, "grid_map_callback"):
         doc.grid_map_callback = pn.state.add_periodic_callback(
             scheduled_update,
             period=1*60*1000  # Update every 1 mins
