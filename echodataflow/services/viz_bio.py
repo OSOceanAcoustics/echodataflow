@@ -69,7 +69,8 @@ def plot_length_count(refresh) -> hv.Overlay:
                     color=stratum_colors[stratum],
                     alpha=0.6,  # default transparency
                     muted_alpha=0.1,  # transparency when muted via legend
-                    height=250, width=500,
+                    height=250, width=650,
+                    xlabel="Fork Length (cm)",
                 )
                 overlay = hist if overlay is None else overlay * hist
         if overlay:
@@ -99,7 +100,7 @@ def length_count_app():
             length_count_text.object = (
                 f"Length histograms last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
-            print("Plot updated at scheduled interval")
+            print("Length histograms updated at scheduled interval")
         except Exception as e:
             print(f"Error during scheduled update: {e}")
 
@@ -110,7 +111,10 @@ def length_count_app():
             period=1*60*1000  # Update every 1 mins
         )
         def cleanup(session_context):
-            doc.length_count_callback.stop()
+            try:
+                doc.length_count_callback.stop()
+            except ValueError:
+                pass  # Ignore if callback already stopped or not in list
         pn.state.on_session_destroyed(cleanup)
     # pn.state.add_periodic_callback(
     #     scheduled_update,
@@ -152,7 +156,7 @@ def plot_length_weight(refresh, axis_scale) -> hv.Layout:
                     alpha=0.5,
                     muted_alpha=0.05,
                     legend_position="top_left",
-                    height=400, width=400,
+                    height=500, width=500,
                     tools=["hover"],
                     show_legend=True,
                 )
@@ -185,7 +189,7 @@ def length_weight_app():
             length_weight_text.object = (
                 f"Length-weight scatter last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
-            print("Length-weight plot updated at scheduled interval")
+            print("Length-weight scatter plot updated at scheduled interval")
         except Exception as e:
             print(f"Error during scheduled update: {e}")
 
@@ -196,7 +200,10 @@ def length_weight_app():
             period=1*60*1000  # Update every 1 mins
         )
         def cleanup(session_context):
-            doc.length_weight_callback.stop()
+            try:
+                doc.length_weight_callback.stop()
+            except ValueError:
+                pass  # Ignore if callback already stopped or not in list
         pn.state.on_session_destroyed(cleanup)
     return layout
 
@@ -333,7 +340,7 @@ def grid_app():
             grid_app_text.object = (
                 f"Grid map last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
-            print("Plot updated at scheduled interval")
+            print("Grid map updated at scheduled interval")
         except Exception as e:
             print(f"Error during scheduled update: {e}")
 
@@ -344,7 +351,10 @@ def grid_app():
             period=1*60*1000  # Update every 1 mins
         )
         def cleanup(session_context):
-            doc.grid_map_callback.stop()
+            try:
+                doc.grid_map_callback.stop()
+            except ValueError:
+                pass  # Ignore if callback already stopped or not in list
         pn.state.on_session_destroyed(cleanup)
     # pn.state.add_periodic_callback(
     #     scheduled_update,
