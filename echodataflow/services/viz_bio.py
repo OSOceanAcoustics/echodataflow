@@ -30,82 +30,91 @@ file_grid = path_vm_local / "grid_cells.geojson"
 file_length_count = path_vm_local / "length_count_all.csv"
 
 
-# # Define length count app widgets
-# length_count_text = pn.pane.Markdown(
-#     f"Length histograms last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-# )
+# Define length count app widgets
+length_count_text = pn.pane.Markdown(
+    f"Length histograms last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+)
 
-# # Hidden widget for forcing plot refresh
-# refresh_button_length_count = pn.widgets.Button(name="Refresh", visible=False)
-
-
-# @pn.depends(refresh_button_length_count)
-# def plot_length_count(refresh) -> hv.Overlay:
-#     """
-#     Plot length count from all haul catches.
-#     """
-#     # Load data
-#     df_len_cnt_all = pd.read_csv(file_length_count)
-
-#     # Define stratum options and colors
-#     stratum_options = sorted(df_len_cnt_all['stratum'].dropna().unique())
-#     stratum_colors = hv.Cycle('Category10').values
-#     stratum_colors = {stratum: stratum_colors[i % len(stratum_colors)] for i, stratum in enumerate(stratum_options)}
-
-#     # Get all values in "sex"
-#     sex_options = df_len_cnt_all["sex"].unique().tolist()
-
-#     # Create overlay
-#     plots = []
-#     for sex in sex_options:
-#         overlay = None
-#         for i, stratum in enumerate(stratum_options):
-#             df_sub = df_len_cnt_all[(df_len_cnt_all['sex'] == sex) & (df_len_cnt_all['stratum'] == stratum)]
-#             if not df_sub.empty:
-#                 hist = hv.Histogram(np.histogram(df_sub['length'], bins=np.arange(0, 101, 5)), label=f"Stratum: {stratum}").opts(
-#                     color=stratum_colors[stratum],
-#                     alpha=0.6,  # default transparency
-#                     muted_alpha=0.1,  # transparency when muted via legend
-#                     height=250, width=500,
-#                 )
-#                 overlay = hist if overlay is None else overlay * hist
-#         if overlay:
-#             overlay = overlay.opts(title=f"Sex: {sex}", legend_position='right')
-#             plots.append(overlay)
-#     if plots:
-#         return hv.Layout(plots).cols(1)
-#     else:
-#         return hv.Text(0, 0, "No data for available strata.")
+# Hidden widget for forcing plot refresh
+refresh_button_length_count = pn.widgets.Button(name="Refresh", visible=False)
 
 
-# def length_count_app():
-#     """
-#     Application to visualize length count from all haul catches.
-#     """
-#     layout = pn.Column(
-#         pn.pane.Markdown("# Length histograms"),
-#         length_count_text, plot_length_count,
-#         sizing_mode="stretch_width"
-#     )
+@pn.depends(refresh_button_length_count)
+def plot_length_count(refresh) -> hv.Overlay:
+    """
+    Plot length count from all haul catches.
+    """
+    # Load data
+    df_len_cnt_all = pd.read_csv(file_length_count)
 
-#     # Example scheduled update: change variable to trigger refresh
-#     def scheduled_update():
-#         try:
-#             # Use hidden button to trigger plot_grid_map to run again
-#             refresh_button_length_count.click()  # This triggers plot_grid_map to run again
-#             length_count_text.object = (
-#                 f"Length histograms last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-#             )
-#             print("Plot updated at scheduled interval")
-#         except Exception as e:
-#             print(f"Error during scheduled update: {e}")
+    # Define stratum options and colors
+    stratum_options = sorted(df_len_cnt_all['stratum'].dropna().unique())
+    stratum_colors = hv.Cycle('Category10').values
+    stratum_colors = {stratum: stratum_colors[i % len(stratum_colors)] for i, stratum in enumerate(stratum_options)}
 
-#     pn.state.add_periodic_callback(
-#         scheduled_update,
-#         period=2*60*1000  # Update every 2 mins
-#     )
+    # Get all values in "sex"
+    sex_options = df_len_cnt_all["sex"].unique().tolist()
 
-#     return layout
+    # Create overlay
+    plots = []
+    for sex in sex_options:
+        overlay = None
+        for stratum in stratum_options:
+            df_sub = df_len_cnt_all[(df_len_cnt_all['sex'] == sex) & (df_len_cnt_all['stratum'] == stratum)]
+            if not df_sub.empty:
+                hist = hv.Histogram(np.histogram(df_sub['length'], bins=np.arange(0, 101, 5)), label=f"Stratum: {stratum}").opts(
+                    color=stratum_colors[stratum],
+                    alpha=0.6,  # default transparency
+                    muted_alpha=0.1,  # transparency when muted via legend
+                    height=250, width=500,
+                )
+                overlay = hist if overlay is None else overlay * hist
+        if overlay:
+            overlay = overlay.opts(title=f"Sex: {sex}", legend_position='right')
+            plots.append(overlay)
+    if plots:
+        return hv.Layout(plots).cols(1)
+    else:
+        return hv.Text(0, 0, "No data for available strata.")
+
+
+def length_count_app():
+    """
+    Application to visualize length count from all haul catches.
+    """
+    layout = pn.Column(
+        pn.pane.Markdown("# Length histograms"),
+        length_count_text, plot_length_count,
+        sizing_mode="stretch_width"
+    )
+
+    # Example scheduled update: change variable to trigger refresh
+    def scheduled_update():
+        try:
+            # Use hidden button to trigger plot_grid_map to run again
+            refresh_button_length_count.param.trigger('value')  # This triggers plot_grid_map to run again
+            length_count_text.object = (
+                f"Length histograms last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            )
+            print("Plot updated at scheduled interval")
+        except Exception as e:
+            print(f"Error during scheduled update: {e}")
+
+    doc = pn.state.curdoc
+    if not hasattr(doc, 'length_count_callback'):
+        doc.length_count_callback = pn.state.add_periodic_callback(
+            scheduled_update,
+            period=1*60*1000  # Update every 1 mins
+        )
+        def cleanup(session_context):
+            doc.length_count_callback.stop()
+        pn.state.on_session_destroyed(cleanup)
+    # pn.state.add_periodic_callback(
+    #     scheduled_update,
+    #     period=2*60*1000  # Update every 2 mins
+    # )
+
+    return layout
 
 
 def clean_cells(
@@ -266,7 +275,7 @@ def grid_app():
 test_server = pn.serve(
     {
         "biological_estimate_grid": grid_app,
-        # "length_histograms": length_count_app,
+        "length_histograms": length_count_app,
     },
     port=1804,
     websocket_origin="*",
