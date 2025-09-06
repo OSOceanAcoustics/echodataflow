@@ -267,6 +267,12 @@ def flow_update_grid(
     # Merge with grid cells
     gdf_grid_cells = pd.merge(
         gdf_grid_cells,
+        gdf_NASC.groupby(["grid_x", "grid_y"])["NASC"].mean(),
+        on=["grid_x", "grid_y"],
+        how="left"
+    )
+    gdf_grid_cells = pd.merge(
+        gdf_grid_cells,
         gdf_NASC.groupby(["grid_x", "grid_y"])["number_density"].mean(),
         on=["grid_x", "grid_y"],
         how="left"
