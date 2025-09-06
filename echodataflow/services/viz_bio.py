@@ -1,3 +1,4 @@
+
 from pathlib import Path
 import datetime
 
@@ -28,6 +29,8 @@ pn.extension()
 path_vm_local = Path("/media/volume/shimada_202506_volume/integration")
 file_grid = path_vm_local / "grid_cells.geojson"
 file_length_count = path_vm_local / "length_count_all.csv"
+file_specimen = path_vm_local / "specimen_all.csv"
+
 
 
 # Define length count app widgets
@@ -62,7 +65,7 @@ def plot_length_count(refresh) -> hv.Overlay:
         for stratum in stratum_options:
             df_sub = df_len_cnt_all[(df_len_cnt_all['sex'] == sex) & (df_len_cnt_all['stratum'] == stratum)]
             if not df_sub.empty:
-                hist = hv.Histogram(np.histogram(df_sub['length'], bins=np.arange(0, 101, 5)), label=f"Stratum: {stratum}").opts(
+                hist = hv.Histogram(np.histogram(df_sub['length'], bins=np.arange(0, 101, 5)), label=f"Stratum: {stratum} ({sex})").opts(
                     color=stratum_colors[stratum],
                     alpha=0.6,  # default transparency
                     muted_alpha=0.1,  # transparency when muted via legend
@@ -114,6 +117,87 @@ def length_count_app():
     #     period=2*60*1000  # Update every 2 mins
     # )
 
+    return layout
+
+
+
+# Axis scale selector for length-weight app
+log_selector_length_weight = pn.widgets.RadioButtonGroup(name='Axis Scale', options=['lin-lin', 'log-log'], value='log-log')
+length_weight_text = pn.pane.Markdown(
+    f"Length-weight scatter last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+)
+refresh_button_length_weight = pn.widgets.Button(name="Refresh", visible=False)
+
+@pn.depends(refresh_button_length_weight, log_selector_length_weight)
+def plot_length_weight(refresh, axis_scale) -> hv.Layout:
+    """
+    Plot length vs weight scatter for all strata and sex, with axis scale selector and separate legend for each plot.
+    """
+    df_specimen_all = pd.read_csv(file_specimen)
+    stratum_options = sorted(df_specimen_all['stratum'].dropna().unique())
+    stratum_colors = hv.Cycle('Category10').values
+    stratum_colors = {stratum: stratum_colors[i % len(stratum_colors)] for i, stratum in enumerate(stratum_options)}
+    sex_options = sorted(df_specimen_all['sex'].dropna().unique())
+
+    plots = []
+    for sex in sex_options:
+        scatter_overlays = []
+        for i, stratum in enumerate(stratum_options):
+            df_sub = df_specimen_all[(df_specimen_all['stratum'] == stratum) & (df_specimen_all['sex'] == sex)]
+            if not df_sub.empty:
+                scatter = hv.Scatter(df_sub, "fork_length", "organism_weight", label=f"Stratum: {stratum} ({sex})")
+                opts = dict(
+                    color=stratum_colors[stratum],
+                    size=6,
+                    alpha=0.5,
+                    muted_alpha=0.05,
+                    legend_position='top_left',
+                    height=400, width=400,
+                    tools=['hover'],
+                    show_legend=True,
+                )
+                if axis_scale == 'log-log':
+                    opts['logx'] = True
+                    opts['logy'] = True
+                scatter = scatter.opts(**opts)
+                scatter_overlays.append(scatter)
+        if scatter_overlays:
+            overlay = hv.Overlay(scatter_overlays).opts(title=f"Sex: {sex}")
+            plots.append(overlay)
+    if plots:
+        return hv.Layout(plots).cols(3)
+    else:
+        return hv.Text(0, 0, "No data for available strata.")
+
+def length_weight_app():
+    """
+    Application to visualize length-weight scatter for all haul catches.
+    """
+    layout = pn.Column(
+        pn.pane.Markdown("# Length vs weight by stratum"),
+        length_weight_text, log_selector_length_weight, plot_length_weight,
+        sizing_mode="stretch_width"
+    )
+
+    def scheduled_update():
+        try:
+            refresh_button_length_weight.param.trigger('value')
+            length_weight_text.object = (
+                f"Length-weight scatter last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            )
+            print("Length-weight plot updated at scheduled interval")
+        except Exception as e:
+            print(f"Error during scheduled update: {e}")
+
+    doc = pn.state.curdoc
+    if not hasattr(doc, 'length_weight_callback'):
+        doc.length_weight_callback = pn.state.add_periodic_callback(
+            scheduled_update,
+            period=1*60*1000  # Update every 1 mins
+        )
+        def cleanup(session_context):
+            doc.length_weight_callback.stop()
+        pn.state.on_session_destroyed(cleanup)
     return layout
 
 
@@ -276,6 +360,7 @@ test_server = pn.serve(
     {
         "biological_estimate_grid": grid_app,
         "length_histograms": length_count_app,
+        "length_weight_scatter": length_weight_app,
     },
     port=1804,
     websocket_origin="*",
