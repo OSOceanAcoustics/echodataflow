@@ -187,7 +187,7 @@ def get_weight_mean_stratum(
 
 @flow(log_prints=True)
 def flow_ingest_haul(
-    path_main: str = data_path,
+    path_vm_local: str = data_path,
     path_bio_files: str = "BIO_CSV_CLOUD_LOCATION",
     cred_file: str = "CREDENTIAL_FILE",
     file_haul_info_all: str = "haul_info_all.csv",
@@ -195,17 +195,15 @@ def flow_ingest_haul(
     file_length_all: str = "length_all.csv",
     file_length_count_all: str = "length_count_all.csv",
     file_stratum_mean: str = "stratum_mean.csv",
-    date_prefix: str = "202407",
-    species_code: int = 22500,
 ):
 
     # Assemble full paths
-    path_main: Path = Path(path_main)
-    file_haul_info_all: Path = path_main / file_haul_info_all
-    file_specimen_all: Path = path_main / file_specimen_all
-    file_length_all: Path = path_main / file_length_all
-    file_length_count_all: Path = path_main / file_length_count_all
-    file_stratum_mean: Path = path_main / file_stratum_mean
+    path_vm_local: Path = Path(path_vm_local)
+    file_haul_info_all: Path = path_vm_local / file_haul_info_all
+    file_specimen_all: Path = path_vm_local / file_specimen_all
+    file_length_all: Path = path_vm_local / file_length_all
+    file_length_count_all: Path = path_vm_local / file_length_count_all
+    file_stratum_mean: Path = path_vm_local / file_stratum_mean
 
     # Get cloud bucket
     config = configparser.ConfigParser()
