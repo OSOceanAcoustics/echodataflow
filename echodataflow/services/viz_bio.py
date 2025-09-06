@@ -63,7 +63,7 @@ tile_options = [name for name, obj in gvts.__dict__.items() if isinstance(obj, g
 tile_selector = pn.widgets.Select(
     name="Basemap tile source",
     options=tile_options,
-    value="OpenTopoMap"
+    value="EsriNatGeo"
 )
 
 # Hidden widget for forcing plot refresh
