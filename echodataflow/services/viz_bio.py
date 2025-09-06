@@ -51,8 +51,8 @@ info_text = pn.pane.Markdown(
     f"Grid map last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
 )
 
-variable_selector = pn.widgets.Select(
-    name="Select variable",
+bio_var_selector = pn.widgets.Select(
+    name="Biological estimate to plot",
     options=list(BIO_VAR_NAME.keys()),
     value="NASC"
 )
@@ -70,7 +70,7 @@ tile_selector = pn.widgets.Select(
 refresh_button = pn.widgets.Button(name="Refresh", visible=False)
 
 
-@pn.depends(variable_selector, tile_selector, refresh_button)
+@pn.depends(bio_var_selector, tile_selector, refresh_button)
 def plot_grid_map(
     bio_var: str,
     map_tile: gv.element.geo.WMTS,
@@ -143,7 +143,7 @@ def grid_app():
     Application to visualize bio estimate grid cells.
     """
     layout = pn.Column(
-        info_text, variable_selector, tile_selector, plot_grid_map,
+        info_text, bio_var_selector, tile_selector, plot_grid_map,
         sizing_mode="stretch_width"
     )
 
@@ -151,10 +151,10 @@ def grid_app():
     def scheduled_update():
         try:
             # # Test: cycle through variables
-            # current = variable_selector.value
+            # current = bio_var_selector.value
             # options = list(BIO_VAR_NAME.keys())
             # idx = (options.index(current) + 1) % len(options)
-            # variable_selector.value = options[idx]  # triggers plot_grid_map to run
+            # bio_var_selector.value = options[idx]  # triggers plot_grid_map to run
 
             # Use hidden button to trigger plot_grid_map to run again
             refresh_button.click()  # This triggers plot_grid_map to run again
