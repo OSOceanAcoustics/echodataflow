@@ -124,8 +124,7 @@ def task_griddify_NASC(
 
 @flow(log_prints=True)
 def flow_ingest_NASC(
-    path_main: str = "LOCAL_PATH_TO_INTEGRATED_DATA",
-    path_trawl: str = "LOCAL_PATH_TO_TRAWL_INFO",
+    path_vm_local: str = "LOCAL_PATH_TO_INTEGRATED_DATA",
     path_NASC_files: str = "NASC_ZARR_CLOUD_LOCATION",
     cred_file: str = "CREDENTIAL_FILE",
     file_NASC_all: str = "NASC_all.csv",
@@ -144,7 +143,7 @@ def flow_ingest_NASC(
         raise Warning("num_NASC_ignore must be at least 1, setting it to 1.")
 
     # Get NASC files already processed
-    file_NASC_all = Path(path_main) / file_NASC_all
+    file_NASC_all = Path(path_vm_local) / file_NASC_all
     df_NASC_all = (
         pd.read_csv(file_NASC_all, index_col=0)
         if file_NASC_all.exists() else pd.DataFrame()
@@ -203,14 +202,14 @@ def flow_ingest_NASC(
         df_NASC_all.to_csv(file_NASC_all)
 
         # Grifdify the NASC data
-        df_stratum = pd.read_csv(Path(path_trawl) / file_stratum_mean, index_col=0)
+        df_stratum = pd.read_csv(Path(path_vm_local) / file_stratum_mean, index_col=0)
         gdf_NASC = task_griddify_NASC(
             df_stratum=df_stratum,
             df_NASC=df_NASC_all,
             utm_num=utm_num,
             gdf_boundary_utm=gdf_boundary_utm
         )
-        gdf_NASC.to_file(Path(path_main) / file_NASC_all_grid, driver="GeoJSON")
+        gdf_NASC.to_file(Path(path_vm_local) / file_NASC_all_grid, driver="GeoJSON")
 
         # Emit custom event when new NASC files are processed
         emit_event(
@@ -223,8 +222,7 @@ def flow_ingest_NASC(
 
 @flow(log_prints=True)
 def flow_update_grid(
-    path_main: str = "LOCAL_PATH_TO_INTEGRATED_DATA",
-    path_trawl: str = "LOCAL_PATH_TO_TRAWL_INFO",
+    path_vm_local: str = "LOCAL_PATH_TO_INTEGRATED_DATA",
     file_NASC_all_grid: str = "NASC_all_griddify.geojson",
     file_stratum_mean: str = "stratum_mean.csv",
 ):
@@ -232,8 +230,8 @@ def flow_update_grid(
     Update the grid with the latest NASC data and stratum means from hauls.
     """
     # Assemble full paths
-    file_NASC_all_grid = Path(path_main) / file_NASC_all_grid
-    file_stratum_mean = Path(path_trawl) / file_stratum_mean
+    file_NASC_all_grid = Path(path_vm_local) / file_NASC_all_grid
+    file_stratum_mean = Path(path_vm_local) / file_stratum_mean
 
     # Load griddified NASC and grid cells
     gdf_NASC = gpd.read_file(file_NASC_all_grid)
@@ -289,7 +287,7 @@ def flow_update_grid(
     gdf_grid_cells["biomass"] = gdf_grid_cells["biomass_density"] * gdf_grid_cells["area"]
 
     # Save updated grid cells
-    gdf_grid_cells.to_file(Path(path_main) / "grid_cells.geojson", driver="GeoJSON")
+    gdf_grid_cells.to_file(Path(path_vm_local) / "grid_cells.geojson", driver="GeoJSON")
 
 
 

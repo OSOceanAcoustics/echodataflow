@@ -5,7 +5,7 @@ ingest_haul:
   interval: 5
   date_prefix: "202407"
   species_code: 22500
-  path_main: "/media/volume/shimada_202506_volume/trawl" # path to local processed trawl info
+  path_vm_local: "/media/volume/shimada_202506_volume/integration" # path to local integrated data
   path_bio_files: "agr230002-bucket01/prefect_sh2506_test/trawl" # path to cloud trawl data
   cred_file: "/home/exouser/.config/rclone/rclone.conf"
   file_haul_info_all: haul_info_all.csv
@@ -15,8 +15,7 @@ ingest_haul:
   file_stratum_mean: stratum_mean.csv
 ingest_NASC:
   interval: 5
-  path_main: "/media/volume/shimada_202506_volume/integrated" # path to local integrated data
-  path_trawl: "/media/volume/shimada_202506_volume/trawl" # path to local trawl info
+  path_vm_local: "/media/volume/shimada_202506_volume/integration" # path to local integrated data
   path_NASC_files: "agr230002-bucket01/prefect_sh2506_test/acoustics/NASC" # path to cloud acoustic data
   cred_file: "/home/exouser/.config/rclone/rclone.conf"
   file_NASC_all: NASC_all.csv
@@ -24,8 +23,7 @@ ingest_NASC:
   file_NASC_all_grid: NASC_all_griddify.geojson
   num_NASC_reprocess: 1
 update_grid:
-  path_main: "/media/volume/shimada_202506_volume/integrated" # path to local integrated data
-  path_trawl: "/media/volume/shimada_202506_volume/trawl" # path to local trawl info
+  path_vm_local: "/media/volume/shimada_202506_volume/integration" # path to local integrated data
   file_NASC_all_grid: NASC_all_griddify.geojson
   file_stratum_mean: stratum_mean.csv
 update_cache_MVBS:
