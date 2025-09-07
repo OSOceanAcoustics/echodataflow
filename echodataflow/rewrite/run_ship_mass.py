@@ -20,7 +20,7 @@ with open(Path(__file__).parent / "config_ship_mass.yaml", "r") as file:
 
 
 # Run flow_raw2Sv for all available raw files
-asyncio.run(flow_raw2Sv(**config["raw2Sv"]))
+flow_raw2Sv(**config["raw2Sv"])
 
 
 # Run flow_create_MVBS for all possible slices

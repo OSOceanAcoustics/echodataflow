@@ -10,6 +10,7 @@ raw2Sv:
   depth_offset: 7
   sonar_model: EK80
   nmea_sentence: GGA
+  filename_pattern: "IWCPS*.raw"
   path_raw: "/Users/feresa/mnt_qnap/Leg 3"
   path_main: "/Volumes/sh2506_ext1/leg3"
   file_Sv_csv: Sv_files.csv
