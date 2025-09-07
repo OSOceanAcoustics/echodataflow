@@ -28,13 +28,14 @@ pn.extension()
 # Path to data files
 path_vm_local = Path("/media/volume/shimada_202506_volume/integration")
 file_grid = path_vm_local / "grid_cells.geojson"
+file_NASC = path_vm_local / "NASC_all.csv"
 file_length_count = path_vm_local / "length_count_all.csv"
 file_specimen = path_vm_local / "specimen_all.csv"
 
 
 
 # Define length count app widgets
-length_count_text = pn.pane.Markdown(
+update_text_length_count = pn.pane.Markdown(
     f"Length histograms last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
 )
 
@@ -88,7 +89,7 @@ def length_count_app():
     """
     layout = pn.Column(
         pn.pane.Markdown("# Length histograms"),
-        length_count_text, plot_length_count,
+        update_text_length_count, plot_length_count,
         sizing_mode="stretch_width"
     )
 
@@ -97,7 +98,7 @@ def length_count_app():
         try:
             # Use hidden button to trigger plot_grid_map to run again
             refresh_button_length_count.param.trigger("value")  # This triggers plot_grid_map to run again
-            length_count_text.object = (
+            update_text_length_count.object = (
                 f"Length histograms last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
             print("Length histograms updated at scheduled interval")
@@ -127,7 +128,7 @@ def length_count_app():
 
 # Axis scale selector for length-weight app
 log_selector_length_weight = pn.widgets.RadioButtonGroup(name="Axis Scale", options=["lin-lin", "log-log"], value="log-log")
-length_weight_text = pn.pane.Markdown(
+update_text_length_weight = pn.pane.Markdown(
     f"Length-weight scatter last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
 )
 refresh_button_length_weight = pn.widgets.Button(name="Refresh", visible=False)
@@ -179,14 +180,14 @@ def length_weight_app():
     """
     layout = pn.Column(
         pn.pane.Markdown("# Length vs weight by stratum"),
-        length_weight_text, log_selector_length_weight, plot_length_weight,
+        update_text_length_weight, log_selector_length_weight, plot_length_weight,
         sizing_mode="stretch_width"
     )
 
     def scheduled_update():
         try:
             refresh_button_length_weight.param.trigger("value")
-            length_weight_text.object = (
+            update_text_length_weight.object = (
                 f"Length-weight scatter last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
             print("Length-weight scatter plot updated at scheduled interval")
@@ -226,11 +227,11 @@ def clean_cells(
 
 
 # Define widgets
-grid_app_text = pn.pane.Markdown(
+update_text_grid_app = pn.pane.Markdown(
     f"Grid map last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
 )
 
-bio_var_selector = pn.widgets.Select(
+bio_var_selector_grid_map = pn.widgets.Select(
     name="Biological estimate to plot",
     options=list(BIO_VAR_NAME.keys()),
     value="NASC"
@@ -239,17 +240,17 @@ bio_var_selector = pn.widgets.Select(
 # Get all WMTS tile source names
 tile_options = [name for name, obj in gvts.__dict__.items() if isinstance(obj, gvts.WMTS)]
 
-tile_selector = pn.widgets.Select(
+tile_selector_grid_map = pn.widgets.Select(
     name="Basemap tile source",
     options=tile_options,
     value="EsriNatGeo"
 )
 
 # Hidden widget for forcing plot refresh
-refresh_button = pn.widgets.Button(name="Refresh", visible=False)
+refresh_button_grid_map = pn.widgets.Button(name="Refresh", visible=False)
 
 
-@pn.depends(bio_var_selector, tile_selector, refresh_button)
+@pn.depends(bio_var_selector_grid_map, tile_selector_grid_map, refresh_button_grid_map)
 def plot_grid_map(
     bio_var: str,
     map_tile: gv.element.geo.WMTS,
@@ -316,7 +317,7 @@ def grid_app():
     Application to visualize bio estimate grid cells.
     """
     layout = pn.Column(
-        grid_app_text, bio_var_selector, tile_selector, plot_grid_map,
+        update_text_grid_app, bio_var_selector_grid_map, tile_selector_grid_map, plot_grid_map,
         sizing_mode="stretch_width"
     )
     # Example scheduled update: change variable to trigger refresh
@@ -329,9 +330,8 @@ def grid_app():
             # bio_var_selector.value = options[idx]  # triggers plot_grid_map to run
 
             # Use hidden button to trigger plot_grid_map to run again
-            # refresh_button.click()  # This triggers plot_grid_map to run again
-            refresh_button.param.trigger("value")
-            grid_app_text.object = (
+            refresh_button_grid_map.param.trigger("value")
+            update_text_grid_app.object = (
                 f"Grid map last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
             )
             print("Grid map updated at scheduled interval")
@@ -358,6 +358,152 @@ def grid_app():
     return layout
 
 
+# Define widgets
+update_text_track_app = pn.pane.Markdown(
+    f"Track map last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+)
+
+bio_var_selector_track_map = pn.widgets.Select(
+    name="Biological estimate to plot",
+    options=list(BIO_VAR_NAME.keys()),
+    value="NASC"
+)
+
+# Get all WMTS tile source names
+tile_options = [name for name, obj in gvts.__dict__.items() if isinstance(obj, gvts.WMTS)]
+
+tile_selector_track_map = pn.widgets.Select(
+    name="Basemap tile source",
+    options=tile_options,
+    value="EsriOceanBase"
+)
+
+# Hidden widget for forcing plot refresh
+refresh_button_track_map = pn.widgets.Button(name="Refresh", visible=False)
+
+
+def scale_sizes(values, min_value, max_value, min_size=25, max_size=250):
+
+    # Censor values if needed
+    sizes = values.copy()
+    sizes.loc[sizes < min_value] = min_value
+    sizes.loc[sizes > max_value] = max_value
+
+    return ((sizes - min_value) / (max_value - min_value)) * (max_size - min_size) + min_size
+
+
+@pn.depends(bio_var_selector_track_map, tile_selector_track_map, refresh_button_track_map)
+def plot_track_map(
+    bio_var: str,
+    map_tile: gv.element.geo.WMTS,
+    refresh: bool,
+) -> None:
+    """
+    Plot track map with NASC bubbles according to the selected biological variable and tile source.
+    """      
+    # Load grid file
+    df_NASC = pd.read_csv(file_NASC, index_col=0)
+
+    # Filter points with nonzero NASC and format ping_time
+    df_NASC_sel = df_NASC[
+        (df_NASC["NASC"]>0) & (df_NASC["latitude"].isna() == False) & (df_NASC["longitude"].isna() == False)
+    ]
+    df_NASC_sel = df_NASC_sel.dropna(subset=["longitude", "latitude", "NASC"])
+    df_NASC_sel['ping_time'] = pd.to_datetime(df_NASC_sel['ping_time'], format='ISO8601', errors='coerce').dt.strftime('%Y-%m-%dT%H:%M:%S')
+
+    # Get variable attributes
+    var = BIO_VAR_NAME.get(bio_var, "NASC")
+    var_units = BIO_VAR_UNIT.get(var, "NASC")
+    colorbar_label = COLORBAR_LABEL.get(var, "NASC")
+    var_clim = BIO_VAR_CLIM.get(var, "NASC")
+
+    # Get the base tilemap
+    tile = getattr(gvts, map_tile)
+
+    # Calculate marker size
+    df_NASC_sel["size"] = scale_sizes(
+        df_NASC_sel["NASC"],
+        min_value=var_clim[0],
+        max_value=var_clim[1],
+        min_size=5,
+        max_size=20,
+    )
+
+    # Begin plotting
+    points = gv.Points(
+        df_NASC_sel, ["longitude", "latitude"], [f"{var}", "size", "ping_time", "filename"]
+    ).opts(
+        color=f"{var}",
+        cmap="Reds",
+        clim=var_clim,
+        colorbar=True,
+        size="size",
+        alpha=0.5,
+        width=900,
+        height=800,
+        tools=["hover"],
+        xlabel="Longitude",
+        ylabel="Latitude",
+        title=f"Ship track with {bio_var}",
+        hover_tooltips=[
+            ('Longitude', '@longitude'),
+            ('Latitude', '@latitude'),
+            (f"{var}", f"@{var}"),
+            ('Ping Time', '@ping_time'),
+            ('Filename', '@filename'),
+        ]
+    )
+
+    track = gv.Path([df_NASC[['longitude', 'latitude']].values]).opts(
+        color='gray',
+        line_width=1
+    )
+
+    # Combine with tilemap
+    overlay = tile * points * track
+
+    return overlay
+
+
+def track_app():
+    """
+    Application to visualize track with NASC bubbles.
+    """
+    layout = pn.Column(
+        update_text_track_app, bio_var_selector_track_map, tile_selector_track_map, plot_track_map,
+        sizing_mode="stretch_width"
+    )
+    # Example scheduled update: change variable to trigger refresh
+    def scheduled_update():
+        try:
+            # Use hidden button to trigger plot_grid_map to run again
+            refresh_button_track_map.param.trigger("value")
+            update_text_track_app.object = (
+                f"Track map last updated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            )
+            print("Track map updated at scheduled interval")
+        except Exception as e:
+            print(f"Error during scheduled update: {e}")
+
+    doc = pn.state.curdoc
+    if not hasattr(doc, "track_map_callback"):
+        doc.track_map_callback = pn.state.add_periodic_callback(
+            scheduled_update,
+            period=1*60*1000  # Update every 1 mins
+        )
+        def cleanup(session_context):
+            try:
+                doc.track_map_callback.stop()
+            except ValueError:
+                pass  # Ignore if callback already stopped or not in list
+        pn.state.on_session_destroyed(cleanup)
+    # pn.state.add_periodic_callback(
+    #     scheduled_update,
+    #     period=2*60*1000  # Update every 2 mins
+    # )
+
+    return layout
+
 
 # Deploy the application with stable configuration
 test_server = pn.serve(
@@ -365,6 +511,7 @@ test_server = pn.serve(
         "biological_estimate_grid": grid_app,
         "length_histograms": length_count_app,
         "length_weight_scatter": length_weight_app,
+        "track_map": track_app,
     },
     port=1804,
     websocket_origin="*",
