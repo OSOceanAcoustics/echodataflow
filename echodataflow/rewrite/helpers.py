@@ -68,6 +68,10 @@ def flow_file_upload(
 
 @task(log_prints=True)
 async def deployment_already_running() -> bool:
+    if runtime.deployment.id is None:
+        # Not running as a deployment, so skip the check
+        return False
+
     # Check if the deployment is already running
     async with get_client() as client:
         # Get all running flows for this deployment using simpler filters
