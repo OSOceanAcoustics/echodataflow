@@ -54,40 +54,40 @@ if __name__ == "__main__":
 
     # Deploy flows
     deploy(
-        # flow_ingest_haul.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_biology.py:flow_ingest_haul"
-        # ).to_deployment(
-        #     name="ingest_haul",
-        #     parameters=config["ingest_haul"],
-        #     # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
-        # ),
-        # flow_ingest_NASC.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_integration.py:flow_ingest_NASC"
-        # ).to_deployment(
-        #     name="ingest_NASC",
-        #     parameters=config["ingest_NASC"],
-        #     # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
-        # ),
-        # flow_update_grid.from_source(
-        #     source=str(Path(__file__).parent),
-        #     entrypoint="flows_integration.py:flow_update_grid"
-        # ).to_deployment(
-        #     name="update_grid",
-        #     parameters=config["update_grid"],
-        #     # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
-        #     triggers=[
-        #         DeploymentEventTrigger(
-        #             expect={"haul.ingested"},  # trigger on custom event
-        #             match_related={"prefect.resource.name": "ingest_haul"},
-        #         ),
-        #         DeploymentEventTrigger(
-        #             expect={"nasc.ingested"},  # trigger on custom event
-        #             match_related={"prefect.resource.name": "ingest_NASC"},
-        #         ),
-        #     ]
-        # ),
+        flow_ingest_haul.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_biology.py:flow_ingest_haul"
+        ).to_deployment(
+            name="ingest_haul",
+            parameters=config["ingest_haul"],
+            cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+        ),
+        flow_ingest_NASC.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_integration.py:flow_ingest_NASC"
+        ).to_deployment(
+            name="ingest_NASC",
+            parameters=config["ingest_NASC"],
+            cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+        ),
+        flow_update_grid.from_source(
+            source=str(Path(__file__).parent),
+            entrypoint="flows_integration.py:flow_update_grid"
+        ).to_deployment(
+            name="update_grid",
+            parameters=config["update_grid"],
+            # cron=f"*/{interval_dict["ingest_haul"]} * * * *",
+            triggers=[
+                DeploymentEventTrigger(
+                    expect={"haul.ingested"},  # trigger on custom event
+                    match_related={"prefect.resource.name": "ingest_haul"},
+                ),
+                DeploymentEventTrigger(
+                    expect={"nasc.ingested"},  # trigger on custom event
+                    match_related={"prefect.resource.name": "ingest_NASC"},
+                ),
+            ]
+        ),
         flow_update_cache_MVBS.from_source(
             source=str(Path(__file__).parent),
             entrypoint="flows_viz_cloud.py:flow_update_cache_MVBS"

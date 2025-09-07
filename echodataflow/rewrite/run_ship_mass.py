@@ -1,0 +1,62 @@
+import re
+from pathlib import Path
+import datetime
+
+from yaml import safe_load
+
+import numpy as np
+import pandas as pd
+import xarray as xr
+import numpy as np
+
+import echopype as ep
+
+
+from flows_acoustics import (
+    flow_raw2Sv, flow_create_MVBS, flow_predict_hake
+)
+
+from helpers import flow_file_upload
+
+
+# Load workflow config params
+with open(Path(__file__).parent / "config_ship_mass.yaml", "r") as file:
+    config = safe_load(file)
+
+
+# Run flow_raw2Sv for all available raw files
+# flow_raw2Sv(**config["raw2Sv"])
+
+
+# Run flow_create_MVBS for all possible slices
+if config["create_MVBS"]["num_slices"] == -1:
+    df_Sv = pd.read_csv(Path(config["create_MVBS"]["path_main"]) / config["create_MVBS"]["file_Sv_csv"])
+    time_start = df_Sv["first_ping_time"].iloc[0]
+    time_end = df_Sv["last_ping_time"].iloc[-1]
+    total_mins = (time_end - time_start).total_seconds() / 60
+    num_slices = int(np.ceil(total_mins / config["create_MVBS"]["slice_mins"]))
+    config["create_MVBS"]["num_slices"] = num_slices
+    print(f"Sv files from {time_start} to {time_end}")
+    print(f"Total mins: {total_mins:.2f}")
+    print(f"Number of slices to process: {num_slices}")
+
+flow_create_MVBS(**config["create_MVBS"])
+
+
+# Run flow_predict_hake for all possible slices
+if config["predict_hake"]["num_slices"] == -1:
+    df_MVBS = pd.read_csv(Path(config["predict_hake"]["path_main"]) / config["predict_hake"]["file_MVBS_csv"])
+    time_start = df_MVBS["first_ping_time"].iloc[0]
+    time_end = df_MVBS["last_ping_time"].iloc[-1]
+    total_mins = (time_end - time_start).total_seconds() / 60
+    num_slices = int(np.ceil(total_mins / config["predict_hake"]["slice_mins"]))
+    config["predict_hake"]["num_slices"] = num_slices
+    print(f"MVBS files from {time_start} to {time_end}")
+    print(f"Total mins: {total_mins:.2f}")
+    print(f"Number of slices to process: {num_slices}")
+
+flow_predict_hake(**config["predict_hake"])
+
+
+# Run file_upload_acoustics to upload all created acoustic files
+flow_file_upload(**config["file_upload_acoustics"])

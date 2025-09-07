@@ -22,7 +22,7 @@ from prefect.variables import Variable
 
 from helpers import deployment_already_running
 from utils import (
-    get_MVBS_tensor,
+    # get_MVBS_tensor,
     # get_hake_model,
     round_up_mins,
     get_slice_start_end_times,
@@ -44,6 +44,40 @@ asyncio.run(set_concurrency_limit())
 # Turn on verbose logging for echopype
 # otherwise all logging will be muted
 ep.utils.log.verbose()
+
+
+def get_MVBS_tensor(ds_in, freq_wanted=[120000, 38000, 18000]):
+    # Find the right channel sequence
+    ch_wanted = [int((np.abs(ds_in["frequency_nominal"]-freq)).argmin()) for freq in freq_wanted]
+
+    # Crucial for model prediction:
+    # - order of dimension (channel, depth, ping_time)
+    # - depth slice up to 590 m
+    mvbs_tensor = torch.tensor(
+        (
+            ds_in["Sv"]
+            .transpose("channel", "depth", "ping_time")
+            .isel(channel=ch_wanted).sel(depth=slice(None, 590)).values
+        ),
+        dtype=torch.float32
+    )
+
+    # Clip to Sv range
+    mvbs_tensor_clip = torch.clip(
+        mvbs_tensor.clone().detach().to(torch.float16),
+        min=-70,
+        max=-36,
+    )
+
+    # Replace NaN values with min Sv
+    mvbs_tensor_clip[torch.isnan(mvbs_tensor_clip)] = -70
+
+    # Normalize and conver to float
+    mvbs_tensor_clip_normalized = (
+        (mvbs_tensor_clip - (-70.0)) / (-36.0 - (-70.0)) * 255.0
+    )
+    
+    return mvbs_tensor_clip_normalized.unsqueeze(0).float()
 
 
 # Load binary hake models with weights

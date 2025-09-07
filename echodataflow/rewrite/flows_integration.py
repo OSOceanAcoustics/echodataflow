@@ -36,12 +36,12 @@ gdf_boundary, gdf_boundary_utm, utm_num = create_boundary_gdf(
 
 
 
-@task()
+@task(log_prints=True)
 def task_combine_NASC_to_dataframe(
     fs: s3fs.S3FileSystem,
     path_NASC_files: str,
     NASC_filenames: list,
-) -> pd.DataFrame:
+) -> list[pd.DataFrame, list]:
     """
     Combine multiple NASC datasets into a single DataFrame.
 
@@ -54,23 +54,32 @@ def task_combine_NASC_to_dataframe(
         Not the full path, just the filenames.
     """
     df_NASC_list = []
+    errors = []
     for nascf in NASC_filenames:
-        mapper = fs.get_mapper(str(Path(path_NASC_files) / nascf))
-        ds_NASC = xr.open_zarr(mapper, consolidated=True)
-        ds_NASC = ep.consolidate.swap_dims_channel_frequency(ds_NASC)
-        df_NASC = ds_NASC.sum("depth").sel(frequency_nominal=38000).to_dataframe()
-        df_NASC["filename"] = nascf
-        df_NASC_list.append(df_NASC)
+        try:
+            mapper = fs.get_mapper(str(Path(path_NASC_files) / nascf))
+            ds_NASC = xr.open_zarr(mapper, consolidated=True)
+            ds_NASC = ep.consolidate.swap_dims_channel_frequency(ds_NASC)
+            df_NASC = ds_NASC.sum("depth").sel(frequency_nominal=38000).to_dataframe()
+            df_NASC["filename"] = nascf
+            df_NASC_list.append(df_NASC)
+        except Exception as e:
+            errors.append(e)
+            print(f"Error processing {nascf}: {e}")
+            continue
 
-    return pd.concat(df_NASC_list, ignore_index=True)
+    if len(df_NASC_list) == 0:
+        return None, None
+    else:
+        return pd.concat(df_NASC_list, ignore_index=True), errors
 
 
-@task()
+@task(log_prints=True)
 def task_griddify_NASC(
     df_stratum: pd.DataFrame,
     df_NASC: pd.DataFrame,
     utm_num: int = utm_num,
-    boundary_gdf_utm: gpd.GeoDataFrame = gdf_boundary_utm,
+    gdf_boundary_utm: gpd.GeoDataFrame = gdf_boundary_utm,
 ) -> gpd.GeoDataFrame:
     """
     Generate geodataframe with grid x/y containing NASC values.
@@ -89,7 +98,7 @@ def task_griddify_NASC(
     # Get grid step sizes and boundary x/y
     x_step = distance(nautical=GRID_PARAMS["resolution"]["x_distance"]).meters
     y_step = distance(nautical=GRID_PARAMS["resolution"]["y_distance"]).meters
-    xmin, ymin, xmax, ymax = boundary_gdf_utm.total_bounds
+    xmin, ymin, xmax, ymax = gdf_boundary_utm.total_bounds
 
     # Bin longitude and latitude into grids
     gdf_NASC["grid_x"] = pd.cut(
@@ -97,7 +106,7 @@ def task_griddify_NASC(
         np.arange(xmin, xmax + x_step, x_step),
         right=False,
         labels=np.arange(1, len(np.arange(xmin, xmax + x_step, x_step))),
-    ).astype(int)
+    )
 
     # Bin the latitude data
     gdf_NASC["grid_y"] = pd.cut(
@@ -105,7 +114,7 @@ def task_griddify_NASC(
         np.arange(ymin, ymax + y_step, y_step),
         right=True,
         labels=np.arange(1, len(np.arange(ymin, ymax + y_step, y_step))),
-    ).astype(int)
+    )
 
     # Add stratum info
     gdf_NASC = add_stratum(gdf_NASC, df_stratum)
@@ -115,7 +124,7 @@ def task_griddify_NASC(
 
 @flow(log_prints=True)
 def flow_ingest_NASC(
-    path_main: str = data_main,
+    path_vm_local: str = "LOCAL_PATH_TO_INTEGRATED_DATA",
     path_NASC_files: str = "NASC_ZARR_CLOUD_LOCATION",
     cred_file: str = "CREDENTIAL_FILE",
     file_NASC_all: str = "NASC_all.csv",
@@ -134,7 +143,7 @@ def flow_ingest_NASC(
         raise Warning("num_NASC_ignore must be at least 1, setting it to 1.")
 
     # Get NASC files already processed
-    file_NASC_all = Path(path_main) / file_NASC_all
+    file_NASC_all = Path(path_vm_local) / file_NASC_all
     df_NASC_all = (
         pd.read_csv(file_NASC_all, index_col=0)
         if file_NASC_all.exists() else pd.DataFrame()
@@ -160,7 +169,7 @@ def flow_ingest_NASC(
     fs = s3fs.S3FileSystem(
         key=config["osn_sdsc_hake"]["access_key_id"],
         secret=config["osn_sdsc_hake"]["secret_access_key"],
-        endpoint_url=config["osn_sdsc_hake"]["endpoint"],
+        client_kwargs={"endpoint_url": config["osn_sdsc_hake"]["endpoint"]},
     )
 
     # Get all NASC files in the bucket
@@ -170,37 +179,58 @@ def flow_ingest_NASC(
 
     # Determine which files to process
     NASC_to_process = sorted(list(set(NASC_all).difference(set(NASC_processed))))
-    logger.info(f"NASC files to process: {NASC_to_process}")
 
     if len(NASC_to_process) == 0:
         logger.info("No new NASC files to process.")
         return
     else:
+        # Print list of files to process
         files_to_process = ""
         for nascf in NASC_to_process:
             files_to_process += f"- {nascf}\n"
         logger.info(f"Files to process:\n{files_to_process}")
 
         # Combine all unprocessed NASC datasets into a single DataFrame
-        df_NASC = task_combine_NASC_to_dataframe(fs, path_NASC_files, NASC_to_process)
-        logger.info(f"df_NASC contains: {list(df_NASC["filename"].unique())}")
+        df_NASC, errors = task_combine_NASC_to_dataframe(fs, path_NASC_files, NASC_to_process)
+        if df_NASC is not None:
+            logger.info(f"df_NASC contains: {list(df_NASC["filename"].unique())}")
 
         # Append new NASC data to existing data
         df_NASC_all = pd.concat([df_NASC_all, df_NASC], ignore_index=True)
-        logger.info(f"after run df_NASC_all contains: {list(df_NASC_all["filename"].unique())}")
+        if df_NASC_all is not None:
+            logger.info(f"after run df_NASC_all contains: {list(df_NASC_all["filename"].unique())}")
+
+        # Load stratum means
+        df_stratum = pd.read_csv(Path(path_vm_local) / file_stratum_mean, index_col=0)
+
+        # Add stratum info
+        df_NASC_all = add_stratum(df_NASC_all, df_stratum)
+        df_NASC_all["stratum"] = df_NASC_all["stratum"].astype("Int64")  # convert from category to int
+
+        # Merge on stratum 
+        df_NASC_all = df_NASC_all.merge(
+            df_stratum[["stratum", "sigma_bs_mean", "weight_mean"]],
+            on="stratum",  # merge on stratum 
+            how="left"
+        )
+
+        # Compute stratified number density from NASC
+        df_NASC_all["number_density"] = df_NASC_all["NASC"] / df_NASC_all["sigma_bs_mean"]
+
+        # Compute biomass density from number density
+        df_NASC_all["biomass_density"] = df_NASC_all["number_density"] * df_NASC_all["weight_mean"]
 
         # Save to combined NASC data to csv
         df_NASC_all.to_csv(file_NASC_all)
 
-        # Grifdify the NASC data
-        df_stratum = pd.read_csv(Path(path_main) / file_stratum_mean, index_col=0)
+        # Griddify the NASC data
         gdf_NASC = task_griddify_NASC(
             df_stratum=df_stratum,
             df_NASC=df_NASC_all,
             utm_num=utm_num,
-            boundary_gdf_utm=gdf_boundary_utm
+            gdf_boundary_utm=gdf_boundary_utm
         )
-        gdf_NASC.to_file(Path(path_main) / file_NASC_all_grid, driver="GeoJSON")
+        gdf_NASC.to_file(Path(path_vm_local) / file_NASC_all_grid, driver="GeoJSON")
 
         # Emit custom event when new NASC files are processed
         emit_event(
@@ -208,24 +238,24 @@ def flow_ingest_NASC(
             resource={"prefect.resource.id": "ingest_NASC"}
         )
 
+        # TODO: add error handling
+
 
 @flow(log_prints=True)
 def flow_update_grid(
-    path_main: str = data_main,
+    path_vm_local: str = "LOCAL_PATH_TO_INTEGRATED_DATA",
     file_NASC_all_grid: str = "NASC_all_griddify.geojson",
     file_stratum_mean: str = "stratum_mean.csv",
-    file_grid_cells: str = "grid_cells.geojson",
 ):
     """
     Update the grid with the latest NASC data and stratum means from hauls.
     """
     # Assemble full paths
-    file_NASC_all_grid = Path(path_main) / file_NASC_all_grid
-    file_grid_cells = Path(path_main) / file_grid_cells
-    file_stratum_mean = Path(path_main) / file_stratum_mean
+    file_NASC_all_grid = Path(path_vm_local) / file_NASC_all_grid
+    file_stratum_mean = Path(path_vm_local) / file_stratum_mean
 
     # Load griddified NASC and grid cells
-    gdf_NASC = gpd.read_file(Path(path_main) / file_NASC_all_grid)
+    gdf_NASC = gpd.read_file(file_NASC_all_grid)
 
     # Load stratum means
     df_stratum = pd.read_csv(file_stratum_mean, index_col=0)
@@ -256,6 +286,12 @@ def flow_update_grid(
     # Merge with grid cells
     gdf_grid_cells = pd.merge(
         gdf_grid_cells,
+        gdf_NASC.groupby(["grid_x", "grid_y"])["NASC"].mean(),
+        on=["grid_x", "grid_y"],
+        how="left"
+    )
+    gdf_grid_cells = pd.merge(
+        gdf_grid_cells,
         gdf_NASC.groupby(["grid_x", "grid_y"])["number_density"].mean(),
         on=["grid_x", "grid_y"],
         how="left"
@@ -272,7 +308,7 @@ def flow_update_grid(
     gdf_grid_cells["biomass"] = gdf_grid_cells["biomass_density"] * gdf_grid_cells["area"]
 
     # Save updated grid cells
-    gdf_grid_cells.to_file(Path(path_main) / "grid_cells.geojson", driver="GeoJSON")
+    gdf_grid_cells.to_file(Path(path_vm_local) / "grid_cells.geojson", driver="GeoJSON")
 
 
 

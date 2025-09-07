@@ -378,8 +378,13 @@ def load_grid_from_csv(filepath, projection="epsg:4326"):
     return gdf
 
 
-def create_grid_from_bounds(bounds, resolution, projection="epsg:4326", 
-                            coastline_resolution='10m', area_threshold=10):
+def create_grid_from_bounds(
+    bounds,
+    resolution,
+    projection="epsg:4326",
+    coastline_resolution='10m',
+    area_threshold=10
+):
     """
     Create a complete grid from bounds and resolution
     
