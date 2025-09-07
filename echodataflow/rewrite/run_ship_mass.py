@@ -20,28 +20,36 @@ with open(Path(__file__).parent / "config_ship_mass.yaml", "r") as file:
 
 
 # Run flow_raw2Sv for all available raw files
+print("Run flow_raw2Sv for all available raw files...")
 flow_raw2Sv(**config["raw2Sv"])
 
 
-# Run flow_create_MVBS for all possible slices
-if config["create_MVBS"]["num_slices"] == -1:
-    df_Sv = pd.read_csv(
-        Path(config["create_MVBS"]["path_main"]) / config["create_MVBS"]["file_Sv_csv"],
+# Helper function for flow_create_MVBS and flow_predict_hake
+def get_start_end_times(file_path):
+    """Get start and end times from csv."""
+    df = pd.read_csv(
+        file_path,
         index_col=0,
         date_format="ISO8601",
         parse_dates=["first_ping_time", "last_ping_time"]
     )
-    if df_Sv["last_ping_time"].dt.tz is None:
-        df_Sv["last_ping_time"] = df_Sv["last_ping_time"].dt.tz_localize("UTC")
-    if df_Sv["first_ping_time"].dt.tz is None:
-        df_Sv["first_ping_time"] = df_Sv["first_ping_time"].dt.tz_localize("UTC")
-    time_start = df_Sv["first_ping_time"].iloc[0]
-    time_end = df_Sv["last_ping_time"].iloc[-1]
+    if df["last_ping_time"].dt.tz is None:
+        df["last_ping_time"] = df["last_ping_time"].dt.tz_localize("UTC")
+    if df["first_ping_time"].dt.tz is None:
+        df["first_ping_time"] = df["first_ping_time"].dt.tz_localize("UTC")
+    return df["first_ping_time"].iloc[0], df["last_ping_time"].iloc[-1] 
 
+
+# Run flow_create_MVBS for all possible slices
+print("Run flow_create_MVBS for all possible slices...")
+
+if config["create_MVBS"]["num_slices"] == -1:
     # Get total number of slices
+    time_start, time_end = get_start_end_times(
+        Path(config["create_MVBS"]["path_main"]) / config["create_MVBS"]["file_Sv_csv"]
+    )
     total_mins = (time_end - time_start).total_seconds() / 60
     num_slices = int(np.ceil(total_mins / config["create_MVBS"]["slice_mins"]))
-    num_slices = 10
     config["create_MVBS"]["num_slices"] = num_slices
 
     # Get time offset in seconds
@@ -61,18 +69,32 @@ asyncio.run(flow_create_MVBS(**config["create_MVBS"]))
 
 
 # Run flow_predict_hake for all possible slices
-# if config["predict_hake"]["num_slices"] == -1:
-#     df_MVBS = pd.read_csv(Path(config["predict_hake"]["path_main"]) / config["predict_hake"]["file_MVBS_csv"])
-#     time_start = df_MVBS["first_ping_time"].iloc[0]
-#     time_end = df_MVBS["last_ping_time"].iloc[-1]
-#     total_mins = (time_end - time_start).total_seconds() / 60
-#     num_slices = int(np.ceil(total_mins / config["predict_hake"]["slice_mins"]))
-#     config["predict_hake"]["num_slices"] = num_slices
-#     print(f"MVBS files from {time_start} to {time_end}")
-#     print(f"Total mins: {total_mins:.2f}")
-#     print(f"Number of slices to process: {num_slices}")
+print("Run flow_predict_hake for all possible slices...")
 
-# flow_predict_hake(**config["predict_hake"])
+if config["predict_hake"]["num_slices"] == -1:
+    # Get total number of slices
+    time_start, time_end = get_start_end_times(
+        Path(config["predict_hake"]["path_main"]) / config["predict_hake"]["file_MVBS_csv"]
+    )
+    total_mins = (time_end - time_start).total_seconds() / 60
+    num_slices = int(np.ceil(total_mins / config["predict_hake"]["slice_mins"]))
+    # num_slices = 10
+    config["predict_hake"]["num_slices"] = num_slices
+
+    # Get time offset in seconds
+    curr_time_offset = (
+        datetime.datetime.now(datetime.timezone.utc)
+        - time_end.astimezone(datetime.timezone.utc)
+    )
+    config["predict_hake"]["time_offset_seconds"] = curr_time_offset.total_seconds()
+
+    # Print computation info
+    print(f"MVBS files from {time_start} to {time_end}")
+    print(f"Total mins: {total_mins:.2f}")
+    print(f"Number of slices to process: {num_slices}")
+    print(f"Time offset (s): {config['predict_hake']['time_offset_seconds']:.2f}")
+
+asyncio.run(flow_predict_hake(**config["predict_hake"]))
 
 
 # # Run file_upload_acoustics to upload all created acoustic files
