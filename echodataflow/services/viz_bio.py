@@ -365,7 +365,7 @@ update_text_track_app = pn.pane.Markdown(
 
 bio_var_selector_track_map = pn.widgets.Select(
     name="Biological estimate to plot",
-    options=list(BIO_VAR_NAME.keys()),
+    options=["NASC", "Number density", "Biomass density"],
     value="NASC"
 )
 

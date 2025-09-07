@@ -192,17 +192,38 @@ def flow_ingest_NASC(
 
         # Combine all unprocessed NASC datasets into a single DataFrame
         df_NASC, errors = task_combine_NASC_to_dataframe(fs, path_NASC_files, NASC_to_process)
-        logger.info(f"df_NASC contains: {list(df_NASC["filename"].unique())}")
+        if df_NASC is not None:
+            logger.info(f"df_NASC contains: {list(df_NASC["filename"].unique())}")
 
         # Append new NASC data to existing data
         df_NASC_all = pd.concat([df_NASC_all, df_NASC], ignore_index=True)
-        logger.info(f"after run df_NASC_all contains: {list(df_NASC_all["filename"].unique())}")
+        if df_NASC_all is not None:
+            logger.info(f"after run df_NASC_all contains: {list(df_NASC_all["filename"].unique())}")
+
+        # Load stratum means
+        df_stratum = pd.read_csv(Path(path_vm_local) / file_stratum_mean, index_col=0)
+
+        # Add stratum info
+        df_NASC_all = add_stratum(df_NASC_all, df_stratum)
+        df_NASC_all["stratum"] = df_NASC_all["stratum"].astype("Int64")  # convert from category to int
+
+        # Merge on stratum 
+        df_NASC_all = df_NASC_all.merge(
+            df_stratum[["stratum", "sigma_bs_mean", "weight_mean"]],
+            on="stratum",  # merge on stratum 
+            how="left"
+        )
+
+        # Compute stratified number density from NASC
+        df_NASC_all["number_density"] = df_NASC_all["NASC"] / df_NASC_all["sigma_bs_mean"]
+
+        # Compute biomass density from number density
+        df_NASC_all["biomass_density"] = df_NASC_all["number_density"] * df_NASC_all["weight_mean"]
 
         # Save to combined NASC data to csv
         df_NASC_all.to_csv(file_NASC_all)
 
-        # Grifdify the NASC data
-        df_stratum = pd.read_csv(Path(path_vm_local) / file_stratum_mean, index_col=0)
+        # Griddify the NASC data
         gdf_NASC = task_griddify_NASC(
             df_stratum=df_stratum,
             df_NASC=df_NASC_all,
