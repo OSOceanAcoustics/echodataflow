@@ -105,6 +105,7 @@ def flow_raw2Sv(
     path_main: str = "",
     path_raw: str = "",
     file_Sv_csv: str = "Sv_files.csv",
+    new_file_num_limit: int = 50,
 ):
 
     # Check if the deployment is already running
@@ -172,6 +173,12 @@ def flow_raw2Sv(
         print(f"Reprocess {last_raw_filename}")
         new_files.add(last_raw_filename)
     new_files = sorted(list(new_files))
+    if len(new_files) > new_file_num_limit:
+        print(
+            f"More than {new_file_num_limit} new files to process. "
+            f"Limiting to first {new_file_num_limit} files."
+        )
+        new_files = new_files[:new_file_num_limit]
     print(
         f"Files to process: \n"
         + "".join([f"- {nf}\n" for nf in new_files])
