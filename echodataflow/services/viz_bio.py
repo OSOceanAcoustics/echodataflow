@@ -15,7 +15,7 @@ import panel as pn
 
 
 from viz_core import (
-    THEME, BIO_VAR_NAME, COLORBAR_LABEL, BIO_VAR_UNIT
+    THEME, BIO_VAR_NAME, COLORBAR_LABEL, BIO_VAR_UNIT, BIO_VAR_CLIM
 )
 
 
@@ -262,20 +262,14 @@ def plot_grid_map(
     gdf_grids = gpd.read_file(file_grid)
     gdf_grids = clean_cells(gdf_grids)
 
-    # Get column name
+    # Get variable attributes
     var = BIO_VAR_NAME.get(bio_var, "biomass")
-
-    # Get the variable units
     var_units = BIO_VAR_UNIT.get(var, "biomass")
-
-    # Get colorbar name/title
-    colorbar_title = COLORBAR_LABEL.get(var, "biomass")
+    colorbar_label = COLORBAR_LABEL.get(var, "biomass")
+    var_clim = BIO_VAR_CLIM.get(var, "biomass")
 
     # Get the base tilemap
     tile = getattr(gvts, map_tile)
-
-    # Get data limits
-    data_min, data_max = np.nanmin(gdf_grids[var]), np.nanmax(gdf_grids[var]) * 1.01
     
     # Add label column
     gdf_grids.loc[:, f"{var}_label"] = gdf_grids.loc[:, var].apply(
@@ -299,9 +293,9 @@ def plot_grid_map(
         height=800,
         colorbar=True,
         cmap="viridis",
-        clim=(data_min, data_max),
+        clim=var_clim,
         clipping_colors={"NaN": "white"},
-        colorbar_opts={"title": colorbar_title},
+        colorbar_opts={"title": colorbar_label},
         line_color="black",
         alpha=0.5,
         labelled=[bio_var],

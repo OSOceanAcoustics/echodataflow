@@ -65,12 +65,10 @@ BIO_VAR_UNIT = {
     "biomass_density": "kg nmi⁻²",
 }
 
-# Tile source map
-TILE_MAP = {
-    "OpenTopoMap": gvts.OpenTopoMap,
-    "OpenStreetMap": gvts.OSM,
-    "ESRI NatGeo": gvts.EsriNatGeo,
-    "ESRI Imagery": gvts.EsriImagery,
-    "Carto Light": gvts.CartoLight,
-    "Carto Dark": gvts.CartoDark,
+BIO_VAR_CLIM ={
+    "NASC": (1e2, 1e4),
+    "abundance": (1e1*625, 1e6*625),
+    "biomass": (1e1*625, 1e6*625),
+    "number_density": (1e1, 1e6),
+    "biomass_density": (1e1, 1e6),
 }
