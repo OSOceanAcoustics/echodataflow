@@ -173,7 +173,9 @@ def flow_raw2Sv(
         print(f"Reprocess {last_raw_filename}")
         new_files.add(last_raw_filename)
     new_files = sorted(list(new_files))
-    if len(new_files) > new_file_num_limit:
+
+    # Limit number of new files to process
+    if new_file_num_limit != -1 and len(new_files) > new_file_num_limit:
         print(
             f"More than {new_file_num_limit} new files to process. "
             f"Limiting to first {new_file_num_limit} files."
