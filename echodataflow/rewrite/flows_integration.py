@@ -287,6 +287,12 @@ def flow_update_grid(
     )
     gdf_grid_cells.set_index(["grid_x", "grid_y"], inplace=True)
 
+    # Drop sigma_bs_mean and weight_mean to avoid merge conflicts
+    gdf_NASC = gdf_NASC.drop(
+        ["sigma_bs_mean", "weight_mean"],
+        axis=1, errors='ignore'
+    )
+
     # Merge on stratum 
     gdf_NASC = gdf_NASC.merge(
         df_stratum[["stratum", "sigma_bs_mean", "weight_mean"]],
