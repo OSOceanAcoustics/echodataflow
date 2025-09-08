@@ -21,6 +21,7 @@ with open(Path(__file__).parent / "config_ship_mass.yaml", "r") as file:
 
 # Run flow_raw2Sv for all available raw files
 print("Run flow_raw2Sv for all available raw files...")
+config["raw2Sv"]["new_file_num_limit"] = -1  # include all new files
 flow_raw2Sv(**config["raw2Sv"])
 
 
@@ -65,7 +66,10 @@ if config["create_MVBS"]["num_slices"] == -1:
     print(f"Number of slices to process: {num_slices}")
     print(f"Time offset (s): {config['create_MVBS']['time_offset_seconds']:.2f}")
 
-asyncio.run(flow_create_MVBS(**config["create_MVBS"]))
+try:
+    asyncio.run(flow_create_MVBS(**config["create_MVBS"]))
+except Exception as e:
+    print(f"Error in flow_create_MVBS: {e}")
 
 
 # Run flow_predict_hake for all possible slices
@@ -94,8 +98,11 @@ if config["predict_hake"]["num_slices"] == -1:
     print(f"Number of slices to process: {num_slices}")
     print(f"Time offset (s): {config['predict_hake']['time_offset_seconds']:.2f}")
 
-asyncio.run(flow_predict_hake(**config["predict_hake"]))
+try:
+    asyncio.run(flow_predict_hake(**config["predict_hake"]))
+except Exception as e:
+    print(f"Error in flow_predict_hake: {e}")
 
 
-# # Run file_upload_acoustics to upload all created acoustic files
-# flow_file_upload(**config["file_upload_acoustics"])
+# Run file_upload_acoustics to upload all created acoustic files
+flow_file_upload(**config["file_upload_acoustics"])
