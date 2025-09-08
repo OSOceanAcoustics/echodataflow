@@ -57,6 +57,7 @@ def task_combine_NASC_to_dataframe(
     errors = []
     for nascf in NASC_filenames:
         try:
+            print(f"Processing {nascf}...")
             mapper = fs.get_mapper(str(Path(path_NASC_files) / nascf))
             ds_NASC = xr.open_zarr(mapper, consolidated=True)
             ds_NASC = ep.consolidate.swap_dims_channel_frequency(ds_NASC)
@@ -131,6 +132,7 @@ def flow_ingest_NASC(
     file_stratum_mean: str = "stratum_mean.csv",
     file_NASC_all_grid: str = "NASC_all_griddify.geojson",
     num_NASC_reprocess: int = 1,
+    new_file_num_limit: int = 50,
 ):
     """
     Ingest NASC data from zarr files and combine into a single DataFrame.
@@ -140,7 +142,7 @@ def flow_ingest_NASC(
     # Ensure num_NASC_reprocess is at least 1
     if num_NASC_reprocess < 1:
         num_NASC_reprocess = 1
-        raise Warning("num_NASC_ignore must be at least 1, setting it to 1.")
+        raise Warning("num_NASC_reprocess must be at least 1, setting it to 1.")
 
     # Get NASC files already processed
     file_NASC_all = Path(path_vm_local) / file_NASC_all
@@ -184,6 +186,15 @@ def flow_ingest_NASC(
         logger.info("No new NASC files to process.")
         return
     else:
+
+        # Limit number of new files to process
+        if new_file_num_limit != -1 and len(NASC_to_process) > new_file_num_limit:
+            print(
+                f"More than {new_file_num_limit} new files to process. "
+                f"Limiting to first {new_file_num_limit} files."
+            )
+            NASC_to_process = NASC_to_process[:new_file_num_limit]
+
         # Print list of files to process
         files_to_process = ""
         for nascf in NASC_to_process:
@@ -202,6 +213,12 @@ def flow_ingest_NASC(
 
         # Load stratum means
         df_stratum = pd.read_csv(Path(path_vm_local) / file_stratum_mean, index_col=0)
+
+        # Drop previous stratification to avoid merge conflicts
+        df_NASC_all = df_NASC_all.drop(
+            ["stratum", "sigma_bs_mean", "weight_mean"],
+            axis=1, errors='ignore'
+        )
 
         # Add stratum info
         df_NASC_all = add_stratum(df_NASC_all, df_stratum)
