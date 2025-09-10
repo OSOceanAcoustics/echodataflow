@@ -237,6 +237,9 @@ def flow_ingest_NASC(
         # Compute biomass density from number density
         df_NASC_all["biomass_density"] = df_NASC_all["number_density"] * df_NASC_all["weight_mean"]
 
+        # Sort by ping_time
+        df_NASC_all.sort_values(by="ping_time", inplace=True)
+
         # Save to combined NASC data to csv
         df_NASC_all.to_csv(file_NASC_all)
 
