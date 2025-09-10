@@ -95,6 +95,7 @@ def get_hake_model(model_path: str) -> BinaryHakeModel:
 )
 def flow_raw2Sv(
     exclude_before: str|None = None,
+    exclude_raw_file: list[str] = [],
     parallel: bool = False,
     encode_mode: str = "power",
     waveform_mode: str = "CW",
@@ -169,9 +170,18 @@ def flow_raw2Sv(
     # Find new files to process
     new_files = raw_files_in_folder.difference(raw_files_in_df)
     print(f"Found {len(new_files)} new files to process")
+
+    # Reprocess last file in case it was incomplete
     if last_raw_filename:
         print(f"Reprocess {last_raw_filename}")
         new_files.add(last_raw_filename)
+
+    # Skip files in exclude_raw_file list
+    if len(exclude_raw_file) > 0:
+        print(f"Exclude {exclude_raw_file} from processing")
+        new_files.difference_update(set(exclude_raw_file))
+
+    # Sort new files
     new_files = sorted(list(new_files))
 
     # Limit number of new files to process

@@ -11,6 +11,8 @@ init:
 raw2Sv:
   interval: 5
   exclude_before: "2025-06-17T20:00:00+00:00" # "2025-06-13T10:00:00+00:00"  # use ISO8601 format: if UTC use +00:00 or Z
+  exclude_raw_file:
+    - "IWCPS-D20250901-T145533.raw"
   parallel: False
   encode_mode: power
   waveform_mode: CW
