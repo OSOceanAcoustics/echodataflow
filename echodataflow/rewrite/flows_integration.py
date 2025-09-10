@@ -147,7 +147,12 @@ def flow_ingest_NASC(
     # Get NASC files already processed
     file_NASC_all = Path(path_vm_local) / file_NASC_all
     df_NASC_all = (
-        pd.read_csv(file_NASC_all, index_col=0)
+        pd.read_csv(
+            file_NASC_all,
+            index_col=0,
+            date_format="ISO8601",
+            parse_dates=["ping_time"]
+        )
         if file_NASC_all.exists() else pd.DataFrame()
     )
     NASC_processed = (
@@ -211,6 +216,9 @@ def flow_ingest_NASC(
         if df_NASC_all is not None:
             logger.info(f"after run df_NASC_all contains: {list(df_NASC_all["filename"].unique())}")
 
+        # Sort by ping_time
+        df_NASC_all.sort_values(by="ping_time", inplace=True)
+
         # Load stratum means
         df_stratum = pd.read_csv(Path(path_vm_local) / file_stratum_mean, index_col=0)
 
@@ -236,9 +244,6 @@ def flow_ingest_NASC(
 
         # Compute biomass density from number density
         df_NASC_all["biomass_density"] = df_NASC_all["number_density"] * df_NASC_all["weight_mean"]
-
-        # Sort by ping_time
-        df_NASC_all.sort_values(by="ping_time", inplace=True)
 
         # Save to combined NASC data to csv
         df_NASC_all.to_csv(file_NASC_all)
