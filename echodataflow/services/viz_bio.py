@@ -93,7 +93,6 @@ def length_count_app():
         sizing_mode="stretch_width"
     )
 
-    # Example scheduled update: change variable to trigger refresh
     def scheduled_update():
         try:
             # Use hidden button to trigger plot_grid_map to run again
@@ -320,7 +319,7 @@ def grid_app():
         update_text_grid_app, bio_var_selector_grid_map, tile_selector_grid_map, plot_grid_map,
         sizing_mode="stretch_width"
     )
-    # Example scheduled update: change variable to trigger refresh
+
     def scheduled_update():
         try:
             # # Test: cycle through variables
@@ -473,7 +472,7 @@ def track_app():
         update_text_track_app, bio_var_selector_track_map, tile_selector_track_map, plot_track_map,
         sizing_mode="stretch_width"
     )
-    # Example scheduled update: change variable to trigger refresh
+
     def scheduled_update():
         try:
             # Use hidden button to trigger plot_grid_map to run again
