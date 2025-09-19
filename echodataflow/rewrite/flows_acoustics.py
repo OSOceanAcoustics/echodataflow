@@ -397,6 +397,12 @@ async def flow_create_MVBS(
             df_Sv["last_ping_time"] = df_Sv["last_ping_time"].dt.tz_localize("UTC")
         if df_Sv["first_ping_time"].dt.tz is None:
             df_Sv["first_ping_time"] = df_Sv["first_ping_time"].dt.tz_localize("UTC")
+    else:
+        logger.info(
+            "Sv info csv is empty, raw2Sv flow may have just started! "
+            "No MVBS can be created, exiting flow."
+        )
+        return
 
     if not file_MVBS_csv.exists():
         df_MVBS = pd.DataFrame(
@@ -625,6 +631,12 @@ async def flow_predict_hake(
             df_MVBS["last_ping_time"] = df_MVBS["last_ping_time"].dt.tz_localize("UTC")
         if df_MVBS["first_ping_time"].dt.tz is None:
             df_MVBS["first_ping_time"] = df_MVBS["first_ping_time"].dt.tz_localize("UTC")
+    else:
+        logger.info(
+            "MVBS info csv is empty, create_MVBS flow may have just started! "
+            "No prediction can be made, exiting flow."
+        )
+        return
 
     if not file_prediction_csv.exists():
         df_prediction = pd.DataFrame(
