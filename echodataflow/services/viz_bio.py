@@ -108,7 +108,7 @@ def length_count_app():
     if not hasattr(doc, "length_count_callback"):
         doc.length_count_callback = pn.state.add_periodic_callback(
             scheduled_update,
-            period=1*60*1000  # Update every 1 mins
+            period=10*60*1000  # Update every 10 mins
         )
         def cleanup(session_context):
             try:
@@ -197,7 +197,7 @@ def length_weight_app():
     if not hasattr(doc, "length_weight_callback"):
         doc.length_weight_callback = pn.state.add_periodic_callback(
             scheduled_update,
-            period=1*60*1000  # Update every 1 mins
+            period=10*60*1000  # Update every 10 mins
         )
         def cleanup(session_context):
             try:
@@ -341,7 +341,7 @@ def grid_app():
     if not hasattr(doc, "grid_map_callback"):
         doc.grid_map_callback = pn.state.add_periodic_callback(
             scheduled_update,
-            period=1*60*1000  # Update every 1 mins
+            period=10*60*1000  # Update every 10 mins
         )
         def cleanup(session_context):
             try:
@@ -488,7 +488,7 @@ def track_app():
     if not hasattr(doc, "track_map_callback"):
         doc.track_map_callback = pn.state.add_periodic_callback(
             scheduled_update,
-            period=1*60*1000  # Update every 1 mins
+            period=10*60*1000  # Update every 10 mins
         )
         def cleanup(session_context):
             try:
