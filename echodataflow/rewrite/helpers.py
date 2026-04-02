@@ -8,7 +8,6 @@ from botocore import UNSIGNED
 from botocore.config import Config
 
 from prefect import flow, task, get_client
-from prefect_shell import ShellOperation
 from prefect import runtime
 from prefect.client.schemas.filters import FlowRunFilter
 from prefect.states import Cancelled
@@ -36,6 +35,10 @@ def flow_file_upload(
     max_age : int, optional
         Maximum age of files to upload in hours, by default -1 (no limit).
     """ 
+    # TODO: need to fix dependency issue
+    # TODO: consider moving it back to top imports
+    from prefect_shell import ShellOperation
+
     # Generate upload_exclude_folders.txt
     exclude_filename = f"upload_exclude_folders_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
     with open(exclude_filename, "w") as f:

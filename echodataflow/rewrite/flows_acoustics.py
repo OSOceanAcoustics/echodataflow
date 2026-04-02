@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import re
 from pathlib import Path
 import datetime
@@ -16,12 +18,13 @@ from botocore.config import Config
 
 from prefect import flow, task, get_run_logger, get_client
 from prefect_dask import DaskTaskRunner
+from prefect.exceptions import ObjectAlreadyExists, ObjectNotFound
 from prefect.states import Cancelled, Failed
 from prefect import runtime
 from prefect.variables import Variable
 
-from helpers import deployment_already_running
-from utils import (
+from .helpers import deployment_already_running
+from .utils import (
     # get_MVBS_tensor,
     # get_hake_model,
     round_up_mins,
@@ -30,20 +33,29 @@ from utils import (
 )
 
 import torch
-from src.model.BinaryHakeModel import BinaryHakeModel
 
 
 
 async def set_concurrency_limit():
     async with get_client() as client:
-        await client.create_concurrency_limit(tag="raw2Sv", concurrency_limit=4)
-
-asyncio.run(set_concurrency_limit())
+        try:
+            await client.read_concurrency_limit_by_tag("raw2Sv")
+        except ObjectNotFound:
+            try:
+                await client.create_concurrency_limit(tag="raw2Sv", concurrency_limit=4)
+            except ObjectAlreadyExists:
+                pass
 
 
 # Turn on verbose logging for echopype
 # otherwise all logging will be muted
 ep.utils.log.verbose()
+
+
+def _load_binary_hake_model_class():
+    from src.model.BinaryHakeModel import BinaryHakeModel
+
+    return BinaryHakeModel
 
 
 def get_MVBS_tensor(ds_in, freq_wanted=[120000, 38000, 18000]):
@@ -82,9 +94,13 @@ def get_MVBS_tensor(ds_in, freq_wanted=[120000, 38000, 18000]):
 
 # Load binary hake models with weights
 def get_hake_model(model_path: str) -> BinaryHakeModel:
-    model = BinaryHakeModel("placeholder_experiment_name",
-                            Path("placeholder_score_tensor_dir"),
-                            "placeholder_tensor_log_dir", 0).eval()
+    binary_hake_model = _load_binary_hake_model_class()
+    model = binary_hake_model(
+        "placeholder_experiment_name",
+        Path("placeholder_score_tensor_dir"),
+        "placeholder_tensor_log_dir",
+        0,
+    ).eval()
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'))["state_dict"])
     return model
 

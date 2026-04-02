@@ -2,6 +2,7 @@
 Deploy the ship data processing flows using Prefect.
 """
 
+import asyncio
 from pathlib import Path
 
 from prefect import deploy
@@ -26,6 +27,9 @@ def main() -> None:
     deploy_cfg = load_deploy_spec(source_dir / "deploy_ship.yaml")
     validate_flow_coverage(param_cfg, deploy_cfg)
     set_prefect_variables(deploy_cfg, param_cfg)
+    set_concurrency_limit = getattr(flows_acoustics_lib, "set_concurrency_limit", None)
+    if callable(set_concurrency_limit):
+        asyncio.run(set_concurrency_limit())
     work_pool_name = get_work_pool_name(deploy_cfg)
 
     specs = build_specs_from_deploy_spec(
