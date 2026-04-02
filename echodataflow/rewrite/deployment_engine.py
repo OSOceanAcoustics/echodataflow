@@ -79,6 +79,7 @@ def get_work_pool_name(deploy_cfg: dict[str, Any], default: str = "local") -> st
 
 
 def get_time_offset_targets(deploy_cfg: dict[str, Any]) -> tuple[str, ...]:
+    """Return flow names that should receive time_offset_seconds injection."""
     targets: list[str] = []
     for flow_name, deploy_meta in deploy_cfg.get("flows", {}).items():
         if not isinstance(deploy_meta, dict):
@@ -99,29 +100,15 @@ def _compute_time_offset_seconds(flow_start_time: str | None) -> float:
     return curr_time_offset.total_seconds()
 
 
-def prepare_config(
-    config: dict[str, Any],
-    *,
-    time_offset_targets: tuple[str, ...] = (),
-) -> dict[str, int | None]:
-    init_dict = config.pop("init")
-    flows_cfg = config.get("flows")
-    if not isinstance(flows_cfg, dict):
-        raise ValueError("Config file must contain a top-level 'flows' mapping")
-
-    Variable.set("flow_start_time", init_dict["flow_start_time"], overwrite=True)
-    Variable.set("counter_raw_copy", init_dict["counter_raw_copy"], overwrite=True)
-
-    interval_dict: dict[str, int | None] = {}
-    for flow_name, flow_cfg in flows_cfg.items():
-        interval_dict[flow_name] = flow_cfg.pop("interval", None)
-
-    time_offset_seconds = _compute_time_offset_seconds(init_dict["flow_start_time"])
-    for flow_name in time_offset_targets:
-        if flow_name in flows_cfg:
-            flows_cfg[flow_name]["time_offset_seconds"] = time_offset_seconds
-
-    return interval_dict
+def set_prefect_variables(
+    deploy_cfg: dict[str, Any],
+    param_cfg: dict[str, Any],
+) -> None:
+    """Set Prefect Variables from deploy and param specifications."""
+    Variable.set("flow_start_time", deploy_cfg.get("flow_start_time"), overwrite=True)
+    
+    init_dict = param_cfg.get("init", {})
+    Variable.set("counter_raw_copy", init_dict.get("counter_raw_copy"), overwrite=True)
 
 
 def build_cron(interval: int | None, cron_offset: int = 0) -> str | None:
@@ -149,14 +136,22 @@ def build_triggers(trigger_items: list[dict[str, Any]]) -> list[Any]:
 
 
 def validate_flow_coverage(
-    config: dict[str, Any],
+    param_cfg: dict[str, Any],
     deploy_cfg: dict[str, Any],
 ) -> None:
-    """Raise ValueError if config and deploy_cfg flows do not match exactly."""
-    config_flows = set(config.get("flows", {}).keys())
-    deploy_flows = set(deploy_cfg.get("flows", {}).keys())
-    missing_from_deploy = config_flows - deploy_flows
-    missing_from_config = deploy_flows - config_flows
+    """Raise ValueError if param/deploy flow mappings are missing or not aligned."""
+    flows_cfg = param_cfg.get("flows")
+    if not isinstance(flows_cfg, dict):
+        raise ValueError("Param config file must contain a top-level 'flows' mapping")
+
+    deploy_flows = deploy_cfg.get("flows")
+    if not isinstance(deploy_flows, dict):
+        raise ValueError("Deploy config must contain a top-level 'flows' mapping")
+
+    config_flows = set(flows_cfg.keys())
+    deploy_flow_keys = set(deploy_flows.keys())
+    missing_from_deploy = config_flows - deploy_flow_keys
+    missing_from_config = deploy_flow_keys - config_flows
     errors: list[str] = []
     if missing_from_deploy:
         errors.append(
@@ -218,14 +213,15 @@ def build_specs_from_deploy_spec(
 def create_deployments(
     *,
     specs: list[DeploymentSpec],
-    config: dict[str, Any],
-    interval_dict: dict[str, int | None],
+    param_cfg: dict[str, Any],
+    deploy_cfg: dict[str, Any],
     source_dir: Path,
     work_pool_name: str,
 ) -> tuple[list[Any], list[Any]]:
-    flows_cfg = config.get("flows")
-    if not isinstance(flows_cfg, dict):
-        raise ValueError("Config file must contain a top-level 'flows' mapping")
+    flows_cfg = param_cfg["flows"]
+    deploy_flows = deploy_cfg["flows"]
+    time_offset_targets = get_time_offset_targets(deploy_cfg)
+    time_offset_seconds = _compute_time_offset_seconds(deploy_cfg.get("flow_start_time"))
 
     grouped: list[Any] = []
     standalone: list[Any] = []
@@ -237,12 +233,17 @@ def create_deployments(
             "parameters": sanitize_parameters(flows_cfg[spec.flow_key]),
         }
 
+        # Inject time_offset_seconds if this flow is marked for it
+        if spec.flow_key in time_offset_targets:
+            deployment_kwargs["parameters"]["time_offset_seconds"] = time_offset_seconds
+
         if spec.trigger_builder is not None:
-            deployment_kwargs["triggers"] = spec.trigger_builder(config, interval_dict)
+            deployment_kwargs["triggers"] = spec.trigger_builder(param_cfg, deploy_flows)
         elif "triggers" in flows_cfg[spec.flow_key]:
             deployment_kwargs["triggers"] = build_triggers(flows_cfg[spec.flow_key]["triggers"])
         else:
-            cron = build_cron(interval_dict[spec.flow_key], spec.cron_offset)
+            interval = deploy_flows[spec.flow_key].get("interval")
+            cron = build_cron(interval, spec.cron_offset)
             if cron is not None:
                 deployment_kwargs["cron"] = cron
 

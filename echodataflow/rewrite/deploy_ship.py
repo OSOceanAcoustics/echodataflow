@@ -11,11 +11,10 @@ from echodataflow.rewrite import helpers as helpers_lib  # , flow_copy_raw
 from echodataflow.rewrite.deployment_engine import (
     build_specs_from_deploy_spec,
     create_deployments,
-    get_time_offset_targets,
     get_work_pool_name,
     load_config,
     load_deploy_spec,
-    prepare_config,
+    set_prefect_variables,
     validate_flow_coverage,
 )
 
@@ -23,11 +22,11 @@ from echodataflow.rewrite.deployment_engine import (
 
 def main() -> None:
     source_dir = Path(__file__).parent
-    config = load_config(source_dir / "config_ship.yaml")
+    param_cfg = load_config(source_dir / "config_ship.yaml")
     deploy_cfg = load_deploy_spec(source_dir / "deploy_ship.yaml")
-    validate_flow_coverage(config, deploy_cfg)
+    validate_flow_coverage(param_cfg, deploy_cfg)
+    set_prefect_variables(deploy_cfg, param_cfg)
     work_pool_name = get_work_pool_name(deploy_cfg)
-    interval_dict = prepare_config(config, time_offset_targets=get_time_offset_targets(deploy_cfg))
 
     specs = build_specs_from_deploy_spec(
         deploy_cfg=deploy_cfg,
@@ -39,8 +38,8 @@ def main() -> None:
 
     grouped, standalone = create_deployments(
         specs=specs,
-        config=config,
-        interval_dict=interval_dict,
+        param_cfg=param_cfg,
+        deploy_cfg=deploy_cfg,
         source_dir=source_dir,
         work_pool_name=work_pool_name,
     )
