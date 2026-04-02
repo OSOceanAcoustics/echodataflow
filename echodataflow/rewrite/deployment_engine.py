@@ -119,8 +119,9 @@ def build_cron(interval: int | None, cron_offset: int = 0) -> str | None:
     return f"*/{interval} * * * *"
 
 
+# TODO: decide if want to keep this
 def sanitize_parameters(flow_cfg: dict[str, Any]) -> dict[str, Any]:
-    return {key: value for key, value in flow_cfg.items() if key != "triggers"}
+    return dict(flow_cfg)
 
 
 def build_triggers(trigger_items: list[dict[str, Any]]) -> list[Any]:
@@ -239,8 +240,6 @@ def create_deployments(
 
         if spec.trigger_builder is not None:
             deployment_kwargs["triggers"] = spec.trigger_builder(param_cfg, deploy_flows)
-        elif "triggers" in flows_cfg[spec.flow_key]:
-            deployment_kwargs["triggers"] = build_triggers(flows_cfg[spec.flow_key]["triggers"])
         else:
             interval = deploy_flows[spec.flow_key].get("interval")
             cron = build_cron(interval, spec.cron_offset)

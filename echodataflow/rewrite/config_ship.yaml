@@ -1,4 +1,4 @@
-init:
+init:  # TODO: consider moving this section to deploy_ship.yaml
   counter_raw_copy: 0
 
 flows:
