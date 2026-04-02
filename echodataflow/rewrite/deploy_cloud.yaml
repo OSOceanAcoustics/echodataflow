@@ -1,0 +1,21 @@
+work_pool_name: local
+flows:
+  ingest_haul:
+    module: flows_biology
+    deployment_name: ingest_haul
+  ingest_NASC:
+    module: flows_integration
+    deployment_name: ingest_NASC
+  update_grid:
+    module: flows_integration
+    deployment_name: update_grid
+    triggers:
+      - expect: haul.ingested
+        resource_name: ingest_haul
+      - expect: nasc.ingested
+        resource_name: ingest_NASC
+  update_cache_MVBS:
+    module: flows_viz_cloud
+    deployment_name: update_cache_MVBS
+    cron_offset: 3
+    inject_time_offset: true
