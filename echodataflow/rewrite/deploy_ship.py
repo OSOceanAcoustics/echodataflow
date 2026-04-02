@@ -18,7 +18,7 @@ from helpers import flow_file_upload #, flow_copy_raw
 
 
 
-if __name__ == "__main__":
+def main() -> None:
 
     # Load variables from config
     with open(Path(__file__).parent / "config_ship.yaml", "r") as file:
@@ -104,3 +104,7 @@ if __name__ == "__main__":
         cron=f"*/{interval_dict["file_upload_trawl"]} * * * *",
         work_pool_name="local",
     ).apply()
+
+
+if __name__ == "__main__":
+    main()

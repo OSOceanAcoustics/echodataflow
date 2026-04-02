@@ -20,7 +20,7 @@ from flows_viz_cloud import flow_update_cache_MVBS
 # from flows_integration import flow_test_trigger, flow_to_be_trigger
 
 
-if __name__ == "__main__":
+def main() -> None:
 
     # Load variables from config
     with open(Path(__file__).parent / "config_cloud.yaml", "r") as file:
@@ -117,3 +117,7 @@ if __name__ == "__main__":
         # ),
         work_pool_name="local",
     )
+
+
+if __name__ == "__main__":
+    main()
