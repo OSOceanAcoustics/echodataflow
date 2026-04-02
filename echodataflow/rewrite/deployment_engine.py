@@ -148,6 +148,28 @@ def build_triggers(trigger_items: list[dict[str, Any]]) -> list[Any]:
     ]
 
 
+def validate_flow_coverage(
+    config: dict[str, Any],
+    deploy_cfg: dict[str, Any],
+) -> None:
+    """Raise ValueError if config and deploy_cfg flows do not match exactly."""
+    config_flows = set(config.get("flows", {}).keys())
+    deploy_flows = set(deploy_cfg.get("flows", {}).keys())
+    missing_from_deploy = config_flows - deploy_flows
+    missing_from_config = deploy_flows - config_flows
+    errors: list[str] = []
+    if missing_from_deploy:
+        errors.append(
+            f"In config but missing from deploy: {sorted(missing_from_deploy)}"
+        )
+    if missing_from_config:
+        errors.append(
+            f"In deploy but missing from config: {sorted(missing_from_config)}"
+        )
+    if errors:
+        raise ValueError("Flow coverage mismatch. " + " | ".join(errors))
+
+
 def build_specs_from_deploy_spec(
     *,
     deploy_cfg: dict[str, Any],

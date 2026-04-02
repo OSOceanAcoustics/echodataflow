@@ -16,6 +16,7 @@ from echodataflow.rewrite.deployment_engine import (
     load_config,
     load_deploy_spec,
     prepare_config,
+    validate_flow_coverage,
 )
 
 
@@ -23,6 +24,7 @@ def main() -> None:
     source_dir = Path(__file__).parent
     config = load_config(source_dir / "config_cloud.yaml")
     deploy_cfg = load_deploy_spec(source_dir / "deploy_cloud.yaml")
+    validate_flow_coverage(config, deploy_cfg)
     work_pool_name = get_work_pool_name(deploy_cfg)
     interval_dict = prepare_config(config, time_offset_targets=get_time_offset_targets(deploy_cfg))
 
