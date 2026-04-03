@@ -7,6 +7,7 @@ source:
     branch: rewrite_2026_cleanup
 
 work_pool_name: local
+entrypoint_root: echodataflow/rewrite
 flows:
   ingest_haul:
     module: flows_biology

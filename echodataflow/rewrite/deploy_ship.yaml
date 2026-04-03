@@ -1,9 +1,13 @@
 flow_start_time: "2025-07-04T16:13:00+00:00"
 
 source:
-  mode: local
+  mode: git
+  git:
+    url: https://github.com/OSOceanAcoustics/echodataflow.git
+    branch: rewrite_2026_cleanup
 
 work_pool_name: local
+entrypoint_root: echodataflow/rewrite
 flows:
   raw2Sv:
     module: flows_acoustics

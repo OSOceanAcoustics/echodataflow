@@ -25,6 +25,7 @@ from echodataflow.rewrite.deployment_engine import (
 
 def main() -> None:
     source_dir = Path(__file__).parent
+    repo_root = source_dir.parent.parent
     param_cfg = load_config(source_dir / "config_ship.yaml")
     deploy_cfg = load_deploy_spec(source_dir / "deploy_ship.yaml")
     validate_flow_coverage(param_cfg, deploy_cfg)
@@ -36,7 +37,7 @@ def main() -> None:
     source_mode_override = os.getenv("PREFECT_SOURCE_MODE")
     source = resolve_deployment_source(
         deploy_cfg=deploy_cfg,
-        default_local_dir=source_dir,
+        default_local_dir=repo_root,
         source_mode_override=source_mode_override,
         log_context="deploy_ship",
     )

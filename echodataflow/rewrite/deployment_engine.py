@@ -224,6 +224,7 @@ def build_specs_from_deploy_spec(
     module_registry: dict[str, Any],
 ) -> list[DeploymentSpec]:
     specs: list[DeploymentSpec] = []
+    entrypoint_root = str(deploy_cfg.get("entrypoint_root", "")).strip("/")
 
     for flow_key, deploy_meta in deploy_cfg.get("flows", {}).items():
         if not isinstance(deploy_meta, dict):
@@ -231,7 +232,13 @@ def build_specs_from_deploy_spec(
 
         module_name = deploy_meta["module"]
         flow_name = deploy_meta.get("flow_alias") or flow_key
-        entrypoint = deploy_meta.get("entrypoint", f"{module_name}.py:flow_{flow_name}")
+        default_entrypoint_file = (
+            f"{entrypoint_root}/{module_name}.py" if entrypoint_root else f"{module_name}.py"
+        )
+        entrypoint = deploy_meta.get(
+            "entrypoint",
+            f"{default_entrypoint_file}:flow_{flow_name}",
+        )
         if module_name not in module_registry:
             available = ", ".join(sorted(module_registry)) or "<none>"
             raise KeyError(
