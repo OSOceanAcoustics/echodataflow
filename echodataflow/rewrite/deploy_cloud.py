@@ -1,6 +1,7 @@
 """
 Deploy the cloud data processing flows using Prefect.
 """
+import os
 from pathlib import Path
 
 from prefect import deploy
@@ -14,6 +15,7 @@ from echodataflow.rewrite.deployment_engine import (
     get_work_pool_name,
     load_config,
     load_deploy_spec,
+    resolve_deployment_source,
     set_prefect_variables,
     validate_flow_coverage,
 )
@@ -26,6 +28,13 @@ def main() -> None:
     validate_flow_coverage(param_cfg, deploy_cfg)
     set_prefect_variables(deploy_cfg, param_cfg)
     work_pool_name = get_work_pool_name(deploy_cfg)
+    source_mode_override = os.getenv("PREFECT_SOURCE_MODE")
+    source = resolve_deployment_source(
+        deploy_cfg=deploy_cfg,
+        default_local_dir=source_dir,
+        source_mode_override=source_mode_override,
+        log_context="deploy_cloud",
+    )
 
     specs = build_specs_from_deploy_spec(
         deploy_cfg=deploy_cfg,
@@ -40,7 +49,7 @@ def main() -> None:
         specs=specs,
         param_cfg=param_cfg,
         deploy_cfg=deploy_cfg,
-        source_dir=source_dir,
+        source=source,
         work_pool_name=work_pool_name,
     )
 

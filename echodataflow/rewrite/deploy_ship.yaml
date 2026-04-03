@@ -1,5 +1,8 @@
 flow_start_time: "2025-07-04T16:13:00+00:00"
 
+source:
+  mode: local
+
 work_pool_name: local
 flows:
   raw2Sv:

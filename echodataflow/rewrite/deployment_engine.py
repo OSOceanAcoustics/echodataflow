@@ -78,6 +78,58 @@ def get_work_pool_name(deploy_cfg: dict[str, Any], default: str = "local") -> st
     return deploy_cfg.get("work_pool_name", default)
 
 
+def resolve_deployment_source(
+    deploy_cfg: dict[str, Any],
+    default_local_dir: Path,
+    source_mode_override: str | None = None,
+    log_context: str | None = None,
+) -> Any:
+    source_cfg = deploy_cfg.get("source", {})
+    if source_cfg is None:
+        source_cfg = {}
+
+    mode = (source_mode_override or source_cfg.get("mode") or "local").lower()
+    source_mode_origin = (
+        "env:PREFECT_SOURCE_MODE"
+        if source_mode_override
+        else "deploy_cfg.source.mode"
+        if source_cfg.get("mode")
+        else "default:local"
+    )
+
+    if mode == "local":
+        local_path = source_cfg.get("local_path")
+        source = str(local_path) if local_path else str(default_local_dir)
+        if log_context:
+            print(
+                f"[{log_context}] source_mode={mode} "
+                f"(origin={source_mode_origin}) target={source}"
+            )
+        return source
+
+    if mode == "git":
+        git_cfg = source_cfg.get("git", {})
+        if not isinstance(git_cfg, dict):
+            raise ValueError("Deploy source.git must be a mapping")
+        url = git_cfg.get("url")
+        if not url:
+            raise ValueError("Deploy source.git.url is required when source mode is 'git'")
+
+        # Import lazily so tests and local-only runs do not require Git storage objects.
+        from prefect.runner.storage import GitRepository
+
+        branch = git_cfg.get("branch", "main")
+        source = GitRepository(url=url, branch=branch)
+        if log_context:
+            print(
+                f"[{log_context}] source_mode={mode} "
+                f"(origin={source_mode_origin}) target={url}@{branch}"
+            )
+        return source
+
+    raise ValueError(f"Unsupported deploy source mode: {mode}")
+
+
 def get_time_offset_targets(deploy_cfg: dict[str, Any]) -> tuple[str, ...]:
     """Return flow names that should receive time_offset_seconds injection."""
     targets: list[str] = []
@@ -216,7 +268,7 @@ def create_deployments(
     specs: list[DeploymentSpec],
     param_cfg: dict[str, Any],
     deploy_cfg: dict[str, Any],
-    source_dir: Path,
+    source: Any,
     work_pool_name: str,
 ) -> tuple[list[Any], list[Any]]:
     flows_cfg = param_cfg["flows"]
@@ -251,7 +303,7 @@ def create_deployments(
 
         deployment = (
             flow_obj.from_source(
-                source=str(source_dir),
+                source=source,
                 entrypoint=spec.entrypoint,
             ).to_deployment(**deployment_kwargs)
         )

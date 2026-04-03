@@ -1,5 +1,11 @@
 flow_start_time: null
 
+source:
+  mode: git
+  git:
+    url: https://github.com/OSOceanAcoustics/echodataflow.git
+    branch: rewrite_2026_cleanup
+
 work_pool_name: local
 flows:
   ingest_haul:
