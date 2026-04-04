@@ -1,0 +1,298 @@
+import importlib.util
+import sys
+import types
+from pathlib import Path
+
+
+class FakeTrigger:
+    def __init__(self, expect, match_related):
+        self.expect = expect
+        self.match_related = match_related
+
+
+class FakeFlowSource:
+    def __init__(self, flow_name, sink):
+        self.flow_name = flow_name
+        self.sink = sink
+
+    def to_deployment(self, **kwargs):
+        dep = {"flow_name": self.flow_name, **kwargs}
+        self.sink["deployments"].append(dep)
+        return FakeDeployment(dep, self.sink)
+
+
+class FakeDeployment:
+    def __init__(self, data, sink):
+        self.data = data
+        self.sink = sink
+
+    def apply(self):
+        self.sink["applied"].append(self.data)
+
+
+class FakeFlow:
+    def __init__(self, flow_name, sink):
+        self.flow_name = flow_name
+        self.sink = sink
+
+    def from_source(self, source, entrypoint):
+        self.sink["from_source"].append(
+            {"flow_name": self.flow_name, "source": source, "entrypoint": entrypoint}
+        )
+        return FakeFlowSource(self.flow_name, self.sink)
+
+
+class FakeVariable:
+    calls = []
+
+    @classmethod
+    def set(cls, key, value, overwrite):
+        cls.calls.append({"key": key, "value": value, "overwrite": overwrite})
+
+
+def import_module_from_path(module_name, file_path):
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec is not None and spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def clone_config(config):
+    return {
+        key: (value.copy() if isinstance(value, dict) else value)
+        for key, value in config.items()
+    }
+
+
+def install_prefect_stubs(monkeypatch, sink):
+    prefect_mod = types.ModuleType("prefect")
+
+    def fake_deploy(*deployments, **kwargs):
+        sink["deploy_call"] = {"deployments": list(deployments), "kwargs": kwargs}
+
+    prefect_mod.deploy = fake_deploy
+
+    variables_mod = types.ModuleType("prefect.variables")
+    variables_mod.Variable = FakeVariable
+
+    events_mod = types.ModuleType("prefect.events")
+    events_mod.DeploymentEventTrigger = FakeTrigger
+
+    monkeypatch.setitem(sys.modules, "prefect", prefect_mod)
+    monkeypatch.setitem(sys.modules, "prefect.variables", variables_mod)
+    monkeypatch.setitem(sys.modules, "prefect.events", events_mod)
+
+
+def test_deploy_cloud_main_characterization(monkeypatch):
+    sink = {"from_source": [], "deployments": [], "applied": []}
+    install_prefect_stubs(monkeypatch, sink)
+    monkeypatch.setitem(sys.modules, "pandas", types.ModuleType("pandas"))
+    monkeypatch.setitem(sys.modules, "s3fs", types.ModuleType("s3fs"))
+
+    flows_biology = types.ModuleType("flows_biology")
+    flows_biology.flow_ingest_haul = FakeFlow("flow_ingest_haul", sink)
+    flows_integration = types.ModuleType("flows_integration")
+    flows_integration.flow_ingest_NASC = FakeFlow("flow_ingest_NASC", sink)
+    flows_integration.flow_update_grid = FakeFlow("flow_update_grid", sink)
+    flows_viz_cloud = types.ModuleType("flows_viz_cloud")
+    flows_viz_cloud.flow_update_cache_MVBS = FakeFlow("flow_update_cache_MVBS", sink)
+
+    monkeypatch.setitem(sys.modules, "flows_biology", flows_biology)
+    monkeypatch.setitem(sys.modules, "flows_integration", flows_integration)
+    monkeypatch.setitem(sys.modules, "flows_viz_cloud", flows_viz_cloud)
+    monkeypatch.setitem(sys.modules, "echodataflow.rewrite.flows_biology", flows_biology)
+    monkeypatch.setitem(sys.modules, "echodataflow.rewrite.flows_integration", flows_integration)
+    monkeypatch.setitem(sys.modules, "echodataflow.rewrite.flows_viz_cloud", flows_viz_cloud)
+
+    param_cfg = {
+        "init": {"counter_raw_copy": 0},
+        "flows": {
+            "ingest_haul": {"x": 1},
+            "ingest_NASC": {"y": 2},
+            "update_grid": {"z": 3},
+            "update_cache_MVBS": {"w": 4},
+        },
+    }
+    deploy_cfg = {
+        "flow_start_time": None,
+        "work_pool_name": "local",
+        "flows": {
+            "ingest_haul": {
+                "module": "flows_biology",
+                "entrypoint": "flows_biology.py:flow_ingest_haul",
+                "deployment_name": "ingest_haul",
+                "interval": 5,
+            },
+            "ingest_NASC": {
+                "module": "flows_integration",
+                "entrypoint": "flows_integration.py:flow_ingest_NASC",
+                "deployment_name": "ingest_NASC",
+                "interval": 7,
+            },
+            "update_grid": {
+                "module": "flows_integration",
+                "entrypoint": "flows_integration.py:flow_update_grid",
+                "deployment_name": "update_grid",
+                "triggers": [
+                    {"expect": "haul.ingested", "resource_name": "ingest_haul"},
+                    {"expect": "nasc.ingested", "resource_name": "ingest_NASC"},
+                ],
+            },
+            "update_cache_MVBS": {
+                "module": "flows_viz_cloud",
+                "entrypoint": "flows_viz_cloud.py:flow_update_cache_MVBS",
+                "deployment_name": "update_cache_MVBS",
+                "interval": 10,
+                "cron_offset": 3,
+                "inject_time_offset": True,
+            },
+        },
+    }
+
+    module = import_module_from_path(
+        "deploy_cloud_test_mod",
+        REPO_ROOT / "echodataflow" / "rewrite" / "deploy_cloud.py",
+    )
+    monkeypatch.setattr(module, "load_config", lambda _p: clone_config(param_cfg))
+    monkeypatch.setattr(module, "load_deploy_spec", lambda _p: clone_config(deploy_cfg))
+
+    FakeVariable.calls = []
+    module.main()
+
+    assert sink["deploy_call"]["kwargs"]["work_pool_name"] == "local"
+    assert len(sink["deployments"]) == 4
+    names = {d["name"] for d in sink["deployments"]}
+    assert names == {"ingest_haul", "ingest_NASC", "update_grid", "update_cache_MVBS"}
+
+    update_cache = next(d for d in sink["deployments"] if d["name"] == "update_cache_MVBS")
+    assert update_cache["cron"] == "3-59/10 * * * *"
+    assert update_cache["parameters"]["time_offset_seconds"] == 0
+
+    update_grid = next(d for d in sink["deployments"] if d["name"] == "update_grid")
+    assert len(update_grid["triggers"]) == 2
+
+    ingest_haul = next(d for d in sink["deployments"] if d["name"] == "ingest_haul")
+    ingest_nasc = next(d for d in sink["deployments"] if d["name"] == "ingest_NASC")
+    assert ingest_haul["cron"] == "*/5 * * * *"
+    assert ingest_nasc["cron"] == "*/7 * * * *"
+
+    assert FakeVariable.calls[0]["key"] == "flow_start_time"
+    assert FakeVariable.calls[1]["key"] == "counter_raw_copy"
+
+
+def test_deploy_ship_main_characterization(monkeypatch):
+    sink = {"from_source": [], "deployments": [], "applied": []}
+    install_prefect_stubs(monkeypatch, sink)
+
+    flows_acoustics = types.ModuleType("flows_acoustics")
+    flows_acoustics.flow_raw2Sv = FakeFlow("flow_raw2Sv", sink)
+    flows_acoustics.flow_create_MVBS = FakeFlow("flow_create_MVBS", sink)
+    flows_acoustics.flow_predict_hake = FakeFlow("flow_predict_hake", sink)
+
+    helpers_mod = types.ModuleType("helpers")
+    helpers_mod.flow_file_upload = FakeFlow("flow_file_upload", sink)
+
+    monkeypatch.setitem(sys.modules, "flows_acoustics", flows_acoustics)
+    monkeypatch.setitem(sys.modules, "helpers", helpers_mod)
+    monkeypatch.setitem(sys.modules, "echodataflow.rewrite.flows_acoustics", flows_acoustics)
+    monkeypatch.setitem(sys.modules, "echodataflow.rewrite.helpers", helpers_mod)
+
+    param_cfg = {
+        "init": {"counter_raw_copy": 0},
+        "flows": {
+            "raw2Sv": {"a": 1},
+            "create_MVBS": {"b": 2},
+            "predict_hake": {"c": 3},
+            "file_upload_acoustics": {"d": 4},
+            "file_upload_trawl": {"e": 5},
+        },
+    }
+    deploy_cfg = {
+        "flow_start_time": None,
+        "work_pool_name": "local",
+        "flows": {
+            "raw2Sv": {
+                "module": "flows_acoustics",
+                "entrypoint": "flows_acoustics.py:flow_raw2Sv",
+                "deployment_name": "raw2Sv_leg2",
+                "interval": 5,
+            },
+            "create_MVBS": {
+                "module": "flows_acoustics",
+                "entrypoint": "flows_acoustics.py:flow_create_MVBS",
+                "deployment_name": "create-MVBS_leg2",
+                "interval": 10,
+                "cron_offset": 3,
+                "inject_time_offset": True,
+            },
+            "predict_hake": {
+                "module": "flows_acoustics",
+                "entrypoint": "flows_acoustics.py:flow_predict_hake",
+                "deployment_name": "predict-hake_leg2",
+                "interval": 20,
+                "inject_time_offset": True,
+            },
+            "file_upload_acoustics": {
+                "module": "helpers",
+                "entrypoint": "helpers.py:flow_file_upload",
+                "deployment_name": "file-upload-acoustics_leg2",
+                "flow_alias": "file_upload",
+                "interval": 10,
+                "apply_separately": True,
+                "include_work_pool_in_deployment": True,
+            },
+            "file_upload_trawl": {
+                "module": "helpers",
+                "entrypoint": "helpers.py:flow_file_upload",
+                "deployment_name": "file-upload-trawl_20250902",
+                "flow_alias": "file_upload",
+                "interval": 10,
+                "apply_separately": True,
+                "include_work_pool_in_deployment": True,
+            },
+        },
+    }
+
+    module = import_module_from_path(
+        "deploy_ship_test_mod",
+        REPO_ROOT / "echodataflow" / "rewrite" / "deploy_ship.py",
+    )
+    monkeypatch.setattr(module, "load_config", lambda _p: clone_config(param_cfg))
+    monkeypatch.setattr(module, "load_deploy_spec", lambda _p: clone_config(deploy_cfg))
+
+    FakeVariable.calls = []
+    module.main()
+
+    assert sink["deploy_call"]["kwargs"]["work_pool_name"] == "local"
+    assert len(sink["deployments"]) == 5
+    assert len(sink["applied"]) == 2
+
+    assert FakeVariable.calls[0]["key"] == "flow_start_time"
+    assert FakeVariable.calls[1]["key"] == "counter_raw_copy"
+
+
+def test_validate_flow_coverage(monkeypatch):
+    install_prefect_stubs(monkeypatch, {})
+    import importlib
+    engine = importlib.import_module("echodataflow.rewrite.deployment_engine")
+
+    param_cfg = {"flows": {"flow_a": {}, "flow_b": {}}}
+    deploy_cfg = {"flows": {"flow_a": {}, "flow_b": {}}}
+
+    # Exact match — should not raise
+    engine.validate_flow_coverage(param_cfg, deploy_cfg)
+
+    # flow_b missing from deploy — should raise
+    deploy_cfg_missing = {"flows": {"flow_a": {}}}
+    import pytest
+    with pytest.raises(ValueError, match="flow_b"):
+        engine.validate_flow_coverage(param_cfg, deploy_cfg_missing)
+
+    # flow_c in deploy but missing from config — should raise
+    deploy_cfg_extra = {"flows": {"flow_a": {}, "flow_b": {}, "flow_c": {}}}
+    with pytest.raises(ValueError, match="flow_c"):
+        engine.validate_flow_coverage(param_cfg, deploy_cfg_extra)
