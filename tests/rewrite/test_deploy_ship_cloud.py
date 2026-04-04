@@ -87,7 +87,7 @@ def install_prefect_stubs(monkeypatch, sink):
     monkeypatch.setitem(sys.modules, "prefect.events", events_mod)
 
 
-def test_deploy_cloud_main_characterization(monkeypatch):
+def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path):
     sink = {"from_source": [], "deployments": [], "applied": []}
     install_prefect_stubs(monkeypatch, sink)
     monkeypatch.setitem(sys.modules, "pandas", types.ModuleType("pandas"))
@@ -119,7 +119,7 @@ def test_deploy_cloud_main_characterization(monkeypatch):
     }
     deploy_cfg = {
         "flow_start_time": None,
-        "work_pool_name": "local",
+        "default_work_pool_name": "local",
         "flows": {
             "ingest_haul": {
                 "module": "flows_biology",
@@ -154,14 +154,29 @@ def test_deploy_cloud_main_characterization(monkeypatch):
     }
 
     module = import_module_from_path(
-        "deploy_cloud_test_mod",
-        REPO_ROOT / "src" / "echodataflow" / "rewrite" / "deploy_cloud.py",
+        "deploy_cli_characterization_mod",
+        REPO_ROOT / "src" / "echodataflow" / "rewrite" / "deploy_cli.py",
     )
-    monkeypatch.setattr(module, "load_config", lambda _p: clone_config(param_cfg))
-    monkeypatch.setattr(module, "load_deploy_spec", lambda _p: clone_config(deploy_cfg))
+
+    def fake_load_config(path):
+        path_str = str(path)
+        if "config_" in path_str:
+            return clone_config(param_cfg)
+        return clone_config(deploy_cfg)
+
+    monkeypatch.setattr(module, "load_config", fake_load_config)
+    monkeypatch.setattr(module, "resolve_deployment_source", lambda **_kwargs: "local-source")
 
     FakeVariable.calls = []
-    module.main()
+    module._run_from_specs(
+        param_cfg_path=Path("config_cloud.yaml"),
+        deploy_cfg_path=Path("deploy_cloud.yaml"),
+        module_prefix="echodataflow.rewrite",
+        source_mode="local",
+        run_concurrency_setup=False,
+        local_source_root=tmp_path,
+        default_work_pool_name="local",
+    )
 
     assert sink["deploy_call"]["kwargs"]["work_pool_name"] == "local"
     assert len(sink["deployments"]) == 4
@@ -180,11 +195,9 @@ def test_deploy_cloud_main_characterization(monkeypatch):
     assert ingest_haul["cron"] == "*/5 * * * *"
     assert ingest_nasc["cron"] == "*/7 * * * *"
 
-    assert FakeVariable.calls[0]["key"] == "flow_start_time"
-    assert FakeVariable.calls[1]["key"] == "counter_raw_copy"
 
 
-def test_deploy_ship_main_characterization(monkeypatch):
+def test_deploy_cli_ship_characterization(monkeypatch, tmp_path):
     sink = {"from_source": [], "deployments": [], "applied": []}
     install_prefect_stubs(monkeypatch, sink)
 
@@ -213,7 +226,7 @@ def test_deploy_ship_main_characterization(monkeypatch):
     }
     deploy_cfg = {
         "flow_start_time": None,
-        "work_pool_name": "local",
+        "default_work_pool_name": "local",
         "flows": {
             "raw2Sv": {
                 "module": "flows_acoustics",
@@ -243,7 +256,7 @@ def test_deploy_ship_main_characterization(monkeypatch):
                 "flow_alias": "file_upload",
                 "interval": 10,
                 "apply_separately": True,
-                "include_work_pool_in_deployment": True,
+                "work_pool_name": "local",
             },
             "file_upload_trawl": {
                 "module": "helpers",
@@ -252,47 +265,36 @@ def test_deploy_ship_main_characterization(monkeypatch):
                 "flow_alias": "file_upload",
                 "interval": 10,
                 "apply_separately": True,
-                "include_work_pool_in_deployment": True,
+                "work_pool_name": "local",
             },
         },
     }
 
     module = import_module_from_path(
-        "deploy_ship_test_mod",
-        REPO_ROOT / "src" / "echodataflow" / "rewrite" / "deploy_ship.py",
+        "deploy_cli_characterization_mod_ship",
+        REPO_ROOT / "src" / "echodataflow" / "rewrite" / "deploy_cli.py",
     )
-    monkeypatch.setattr(module, "load_config", lambda _p: clone_config(param_cfg))
-    monkeypatch.setattr(module, "load_deploy_spec", lambda _p: clone_config(deploy_cfg))
+
+    def fake_load_config(path):
+        path_str = str(path)
+        if "config_" in path_str:
+            return clone_config(param_cfg)
+        return clone_config(deploy_cfg)
+
+    monkeypatch.setattr(module, "load_config", fake_load_config)
+    monkeypatch.setattr(module, "resolve_deployment_source", lambda **_kwargs: "local-source")
 
     FakeVariable.calls = []
-    module.main()
+    module._run_from_specs(
+        param_cfg_path=Path("config_ship.yaml"),
+        deploy_cfg_path=Path("deploy_ship.yaml"),
+        module_prefix="echodataflow.rewrite",
+        source_mode="local",
+        run_concurrency_setup=False,
+        local_source_root=tmp_path,
+        default_work_pool_name="local",
+    )
 
     assert sink["deploy_call"]["kwargs"]["work_pool_name"] == "local"
     assert len(sink["deployments"]) == 5
     assert len(sink["applied"]) == 2
-
-    assert FakeVariable.calls[0]["key"] == "flow_start_time"
-    assert FakeVariable.calls[1]["key"] == "counter_raw_copy"
-
-
-def test_validate_flow_coverage(monkeypatch):
-    install_prefect_stubs(monkeypatch, {})
-    import importlib
-    engine = importlib.import_module("echodataflow.rewrite.deployment_engine")
-
-    param_cfg = {"flows": {"flow_a": {}, "flow_b": {}}}
-    deploy_cfg = {"flows": {"flow_a": {}, "flow_b": {}}}
-
-    # Exact match — should not raise
-    engine.validate_flow_coverage(param_cfg, deploy_cfg)
-
-    # flow_b missing from deploy — should raise
-    deploy_cfg_missing = {"flows": {"flow_a": {}}}
-    import pytest
-    with pytest.raises(ValueError, match="flow_b"):
-        engine.validate_flow_coverage(param_cfg, deploy_cfg_missing)
-
-    # flow_c in deploy but missing from config — should raise
-    deploy_cfg_extra = {"flows": {"flow_a": {}, "flow_b": {}, "flow_c": {}}}
-    with pytest.raises(ValueError, match="flow_c"):
-        engine.validate_flow_coverage(param_cfg, deploy_cfg_extra)

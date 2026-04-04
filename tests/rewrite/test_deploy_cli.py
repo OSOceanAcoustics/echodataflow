@@ -56,6 +56,8 @@ def test_build_parser_run_boolean_optional(monkeypatch):
     args = parser.parse_args(
         [
             "run",
+            "--default-work-pool-name",
+            "local",
             "--param-config",
             "config_ship.yaml",
             "--deploy-spec",
@@ -86,6 +88,8 @@ def test_main_dispatches_run_args(monkeypatch):
         [
             "deploy_cli",
             "run",
+            "--default-work-pool-name",
+            "local",
             "--param-config",
             "src/echodataflow/rewrite/config_ship.yaml",
             "--deploy-spec",
