@@ -3,6 +3,7 @@ import os
 import sys
 import types
 from pathlib import Path
+from unittest.mock import call
 
 import pytest
 
@@ -115,3 +116,49 @@ def test_validate_local_source_layout_missing_entrypoint_root(monkeypatch, tmp_p
 
     with pytest.raises(ValueError, match="entrypoint_root"):
         module._validate_local_source_layout(tmp_path, deploy_cfg)
+
+
+def test_import_module_falls_back_when_prefixed_module_missing(monkeypatch):
+    module = _load_deploy_cli_module(monkeypatch)
+    prefixed = "echodataflow.rewrite.flows_acoustics"
+
+    def fake_import(name):
+        if name == prefixed:
+            raise ModuleNotFoundError(f"No module named '{prefixed}'", name=prefixed)
+        if name == "flows_acoustics":
+            return "ok"
+        raise AssertionError(f"unexpected import: {name}")
+
+    import importlib as _importlib
+    from unittest.mock import Mock
+
+    mock_import = Mock(side_effect=fake_import)
+    monkeypatch.setattr(_importlib, "import_module", mock_import)
+
+    result = module._import_module("flows_acoustics", "echodataflow.rewrite")
+
+    assert result == "ok"
+    assert mock_import.mock_calls == [
+        call(prefixed),
+        call("flows_acoustics"),
+    ]
+
+
+def test_import_module_raises_nested_dependency_error(monkeypatch):
+    module = _load_deploy_cli_module(monkeypatch)
+
+    def fake_import(name):
+        if name == "echodataflow.rewrite.flows_biology":
+            raise ModuleNotFoundError("No module named 'pandas'", name="pandas")
+        raise AssertionError(f"unexpected import: {name}")
+
+    import importlib as _importlib
+    from unittest.mock import Mock
+
+    mock_import = Mock(side_effect=fake_import)
+    monkeypatch.setattr(_importlib, "import_module", mock_import)
+
+    with pytest.raises(ModuleNotFoundError, match="pandas"):
+        module._import_module("flows_biology", "echodataflow.rewrite")
+
+    assert mock_import.mock_calls == [call("echodataflow.rewrite.flows_biology")]

@@ -27,10 +27,14 @@ from echodataflow.rewrite.deployment_engine import (
 
 def _import_module(module_name: str, module_prefix: str | None) -> Any:
     if module_prefix:
+        prefixed_name = f"{module_prefix}.{module_name}"
         try:
-            return importlib.import_module(f"{module_prefix}.{module_name}")
-        except ModuleNotFoundError:
-            pass
+            return importlib.import_module(prefixed_name)
+        except ModuleNotFoundError as exc:
+            # Only fall back to bare import when the prefixed module itself is missing.
+            # If a dependency imported within that module is missing, surface the real error.
+            if exc.name != prefixed_name:
+                raise
     return importlib.import_module(module_name)
 
 

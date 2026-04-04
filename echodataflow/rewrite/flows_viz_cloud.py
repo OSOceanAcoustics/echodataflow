@@ -8,7 +8,7 @@ import s3fs
 
 from prefect import flow, get_run_logger
 
-from utils import round_up_mins, get_slice_start_end_times
+from .utils import round_up_mins, get_slice_start_end_times
 
 
 @flow()

@@ -10,9 +10,9 @@ import geopandas as gpd
 
 import echopype as ep
 
-from core import GRID_PARAMS
-from grid import create_boundary_gdf, create_grid_from_bounds
-from flows_biology import add_stratum
+from .core import GRID_PARAMS
+from .grid import create_boundary_gdf, create_grid_from_bounds
+from .flows_biology import add_stratum
 
 from prefect import task, flow, get_run_logger
 from prefect.events import emit_event
