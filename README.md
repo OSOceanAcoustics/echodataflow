@@ -108,4 +108,4 @@ data  = echodataflow_start(dataset_config=dataset_config, pipeline_config=pipeli
 
 ## License
 
-Licensed under the MIT License; you may not use this file except in compliance with the License. You may obtain a copy of the License [here](./LICENSE).
+Echodataflow is licensed under the open source [Apache 2.0 license](https://opensource.org/license/Apache-2.0).

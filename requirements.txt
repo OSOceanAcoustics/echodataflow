@@ -1,7 +1,5 @@
-requests
 echopype>=0.6.3
 pydantic
 prefect[shell,dask]
-fastapi
 ipykernel
 geopandas
