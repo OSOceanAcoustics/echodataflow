@@ -12,13 +12,12 @@ from pathlib import Path
 from typing import Any
 
 from prefect import deploy
+from yaml import safe_load
 
 from echodataflow.rewrite.deployment_engine import (
     build_specs_from_deploy_spec,
     create_deployments,
-    get_work_pool_name,
     load_config,
-    load_deploy_spec,
     resolve_deployment_source,
     set_prefect_variables,
     validate_flow_coverage,
@@ -126,10 +125,16 @@ def _run_from_specs(
     source_mode: str | None,
     run_concurrency_setup: bool,
     local_source_root: Path | None,
+    default_work_pool_name: str = "local",
 ) -> None:
+    # Load configs
     param_cfg = load_config(param_cfg_path)
-    deploy_cfg = load_deploy_spec(deploy_cfg_path)
+    deploy_cfg = load_config(deploy_cfg_path)
+
+    # Validate the pair of configs contain the same flows
     validate_flow_coverage(param_cfg, deploy_cfg)
+
+    # Set prefect variables
     set_prefect_variables(deploy_cfg, param_cfg)
 
     module_registry = _build_module_registry(deploy_cfg, module_prefix)
@@ -146,7 +151,10 @@ def _run_from_specs(
         source_mode_override=source_mode,
         log_context="deploy_cli",
     )
-    work_pool_name = get_work_pool_name(deploy_cfg)
+
+    # Use deploy config default work pool name if specified,
+    # unless specified for individual flow
+    default_work_pool_name = deploy_cfg.get("default_work_pool_name", default_work_pool_name)
 
     specs = build_specs_from_deploy_spec(
         deploy_cfg=deploy_cfg,
@@ -157,10 +165,9 @@ def _run_from_specs(
         param_cfg=param_cfg,
         deploy_cfg=deploy_cfg,
         source=source,
-        work_pool_name=work_pool_name,
     )
 
-    deploy(*grouped, work_pool_name=work_pool_name)
+    deploy(*grouped, work_pool_name=default_work_pool_name)
     for deployment in standalone:
         deployment.apply()
 
@@ -183,6 +190,14 @@ def _build_parser() -> argparse.ArgumentParser:
         help=(
             "Temporarily override source selection for this run. "
             "Maps to PREFECT_SOURCE_MODE."
+        ),
+    )
+    run_parser.add_argument(
+        "--default-work-pool-name",
+        required=True,
+        default="local",
+        help=(
+            "Default work pool name for deployments."
         ),
     )
     run_parser.add_argument(
@@ -234,6 +249,7 @@ def main() -> None:
             source_mode=source_mode,
             run_concurrency_setup=args.use_concurrency,
             local_source_root=args.local_source_root,
+            default_work_pool_name=args.default_work_pool_name,
         )
         return
 

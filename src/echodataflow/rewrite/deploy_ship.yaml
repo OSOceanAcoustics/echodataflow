@@ -6,7 +6,7 @@ source:
     url: https://github.com/OSOceanAcoustics/echodataflow.git
     branch: rewrite_2026_cleanup
 
-work_pool_name: local
+default_work_pool_name: local
 entrypoint_root: echodataflow/rewrite
 flows:
   raw2Sv:
@@ -30,11 +30,11 @@ flows:
     flow_alias: file_upload
     interval: 10
     apply_separately: true
-    include_work_pool_in_deployment: true
+    work_pool_name: local
   file_upload_trawl:
     module: helpers
     deployment_name: file-upload-trawl_20250902
     flow_alias: file_upload
     interval: 10
     apply_separately: true
-    include_work_pool_in_deployment: true
+    work_pool_name: local

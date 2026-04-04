@@ -5,14 +5,11 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from prefect.events import DeploymentEventTrigger
 from prefect.variables import Variable
 from yaml import safe_load
-
-
-TriggerBuilder = Callable[[dict[str, Any], dict[str, int | None]], list[Any]]
 
 
 @dataclass(frozen=True)
@@ -25,8 +22,8 @@ class DeploymentSpec:
     flow_alias: str | None = None
     cron_offset: int = 0
     apply_separately: bool = False
-    include_work_pool_in_deployment: bool = False
-    trigger_builder: TriggerBuilder | None = None
+    work_pool_name: str | None = None
+    triggers: list[dict[str, Any]] | None = None
 
 
 def _discover_flow_map(flow_module: Any) -> dict[str, Any]:
@@ -67,15 +64,6 @@ def resolve_flow(spec: DeploymentSpec) -> Any:
 def load_config(config_path: Path) -> dict[str, Any]:
     with open(config_path, "r") as file:
         return safe_load(file)
-
-
-def load_deploy_spec(deploy_path: Path) -> dict[str, Any]:
-    with open(deploy_path, "r") as file:
-        return safe_load(file)
-
-
-def get_work_pool_name(deploy_cfg: dict[str, Any], default: str = "local") -> str:
-    return deploy_cfg.get("work_pool_name", default)
 
 
 def resolve_deployment_source(
@@ -192,7 +180,7 @@ def validate_flow_coverage(
     param_cfg: dict[str, Any],
     deploy_cfg: dict[str, Any],
 ) -> None:
-    """Raise ValueError if param/deploy flow mappings are missing or not aligned."""
+    """Raise ValueError if param/deploy flows do not correspond with each other."""
     flows_cfg = param_cfg.get("flows")
     if not isinstance(flows_cfg, dict):
         raise ValueError("Param config file must contain a top-level 'flows' mapping")
@@ -255,15 +243,8 @@ def build_specs_from_deploy_spec(
                 flow_alias=deploy_meta.get("flow_alias"),
                 cron_offset=deploy_meta.get("cron_offset", 0),
                 apply_separately=deploy_meta.get("apply_separately", False),
-                include_work_pool_in_deployment=deploy_meta.get(
-                    "include_work_pool_in_deployment", False
-                ),
-                trigger_builder=(
-                    (lambda flow_triggers: (lambda _cfg, _interval: build_triggers(flow_triggers)))
-                    (deploy_meta["triggers"])
-                    if "triggers" in deploy_meta
-                    else None
-                ),
+                work_pool_name=deploy_meta.get("work_pool_name"),
+                triggers=deploy_meta.get("triggers"),
             )
         )
 
@@ -276,37 +257,36 @@ def create_deployments(
     param_cfg: dict[str, Any],
     deploy_cfg: dict[str, Any],
     source: Any,
-    work_pool_name: str,
 ) -> tuple[list[Any], list[Any]]:
-    flows_cfg = param_cfg["flows"]
-    deploy_flows = deploy_cfg["flows"]
+    flows_params = param_cfg["flows"]
+    flows_deploy_settings = deploy_cfg["flows"]
     time_offset_targets = get_time_offset_targets(deploy_cfg)
     time_offset_seconds = _compute_time_offset_seconds(deploy_cfg.get("flow_start_time"))
 
-    grouped: list[Any] = []
-    standalone: list[Any] = []
+    grouped: list[Any] = []  # TODO: Change type
+    standalone: list[Any] = []  # TODO: Change type
 
     for spec in specs:
         flow_obj = resolve_flow(spec)
         deployment_kwargs: dict[str, Any] = {
             "name": spec.deployment_name,
-            "parameters": sanitize_parameters(flows_cfg[spec.flow_key]),
+            "parameters": sanitize_parameters(flows_params[spec.flow_key]),
         }
 
         # Inject time_offset_seconds if this flow is marked for it
         if spec.flow_key in time_offset_targets:
             deployment_kwargs["parameters"]["time_offset_seconds"] = time_offset_seconds
 
-        if spec.trigger_builder is not None:
-            deployment_kwargs["triggers"] = spec.trigger_builder(param_cfg, deploy_flows)
+        if spec.triggers is not None:
+            deployment_kwargs["triggers"] = build_triggers(spec.triggers)
         else:
-            interval = deploy_flows[spec.flow_key].get("interval")
+            interval = flows_deploy_settings[spec.flow_key].get("interval")
             cron = build_cron(interval, spec.cron_offset)
             if cron is not None:
                 deployment_kwargs["cron"] = cron
 
-        if spec.include_work_pool_in_deployment:
-            deployment_kwargs["work_pool_name"] = work_pool_name
+        if spec.work_pool_name is not None:
+            deployment_kwargs["work_pool_name"] = spec.work_pool_name
 
         deployment = (
             flow_obj.from_source(
@@ -315,7 +295,7 @@ def create_deployments(
             ).to_deployment(**deployment_kwargs)
         )
 
-        if spec.apply_separately:
+        if spec.apply_separately or spec.work_pool_name is not None:
             standalone.append(deployment)
         else:
             grouped.append(deployment)

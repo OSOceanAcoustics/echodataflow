@@ -6,7 +6,7 @@ source:
     url: https://github.com/OSOceanAcoustics/echodataflow.git
     branch: rewrite_2026_cleanup
 
-work_pool_name: local
+default_work_pool_name: local
 entrypoint_root: echodataflow/rewrite
 flows:
   ingest_haul:
