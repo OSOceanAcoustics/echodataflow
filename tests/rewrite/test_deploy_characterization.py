@@ -155,7 +155,7 @@ def test_deploy_cloud_main_characterization(monkeypatch):
 
     module = import_module_from_path(
         "deploy_cloud_test_mod",
-        REPO_ROOT / "echodataflow" / "rewrite" / "deploy_cloud.py",
+        REPO_ROOT / "src" / "echodataflow" / "rewrite" / "deploy_cloud.py",
     )
     monkeypatch.setattr(module, "load_config", lambda _p: clone_config(param_cfg))
     monkeypatch.setattr(module, "load_deploy_spec", lambda _p: clone_config(deploy_cfg))
@@ -259,7 +259,7 @@ def test_deploy_ship_main_characterization(monkeypatch):
 
     module = import_module_from_path(
         "deploy_ship_test_mod",
-        REPO_ROOT / "echodataflow" / "rewrite" / "deploy_ship.py",
+        REPO_ROOT / "src" / "echodataflow" / "rewrite" / "deploy_ship.py",
     )
     monkeypatch.setattr(module, "load_config", lambda _p: clone_config(param_cfg))
     monkeypatch.setattr(module, "load_deploy_spec", lambda _p: clone_config(deploy_cfg))

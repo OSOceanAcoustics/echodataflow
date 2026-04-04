@@ -45,7 +45,7 @@ def import_module_from_path(module_name, file_path):
 
 def _load_deploy_cli_module(monkeypatch):
     install_prefect_stubs(monkeypatch)
-    module_path = Path(__file__).resolve().parents[2] / "echodataflow" / "rewrite" / "deploy_cli.py"
+    module_path = Path(__file__).resolve().parents[2] / "src" / "echodataflow" / "rewrite" / "deploy_cli.py"
     return import_module_from_path("deploy_cli_test_mod", module_path)
 
 
@@ -87,9 +87,9 @@ def test_main_dispatches_run_args(monkeypatch):
             "deploy_cli",
             "run",
             "--param-config",
-            "echodataflow/rewrite/config_ship.yaml",
+            "src/echodataflow/rewrite/config_ship.yaml",
             "--deploy-spec",
-            "echodataflow/rewrite/deploy_ship.yaml",
+            "src/echodataflow/rewrite/deploy_ship.yaml",
             "--source-mode",
             "git",
             "--local-source-root",
@@ -101,8 +101,8 @@ def test_main_dispatches_run_args(monkeypatch):
     module.main()
 
     assert os.environ["PREFECT_SOURCE_MODE"] == "git"
-    assert captured["param_cfg_path"] == Path("echodataflow/rewrite/config_ship.yaml")
-    assert captured["deploy_cfg_path"] == Path("echodataflow/rewrite/deploy_ship.yaml")
+    assert captured["param_cfg_path"] == Path("src/echodataflow/rewrite/config_ship.yaml")
+    assert captured["deploy_cfg_path"] == Path("src/echodataflow/rewrite/deploy_ship.yaml")
     assert captured["module_prefix"] == "echodataflow.rewrite"
     assert captured["source_mode"] == "git"
     assert captured["run_concurrency_setup"] is False
