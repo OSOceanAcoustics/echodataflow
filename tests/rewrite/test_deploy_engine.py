@@ -1,57 +1,8 @@
 import importlib
-import sys
-import types
 
 
-class FakeTrigger:
-    def __init__(self, *args, **kwargs):
-        self.args = args
-        self.kwargs = kwargs
-
-
-class FakeVariable:
-    @classmethod
-    def set(cls, key, value, overwrite):
-        return None
-
-
-class FakeRunnerDeployment:
-    pass
-
-
-class FakeFlow:
-    @classmethod
-    def __class_getitem__(cls, _item):
-        return cls
-
-
-def install_prefect_stubs(monkeypatch):
-    prefect_mod = types.ModuleType("prefect")
-    prefect_mod.deploy = lambda *args, **kwargs: None
-
-    deployments_mod = types.ModuleType("prefect.deployments")
-    runner_mod = types.ModuleType("prefect.deployments.runner")
-    runner_mod.RunnerDeployment = FakeRunnerDeployment
-
-    flows_mod = types.ModuleType("prefect.flows")
-    flows_mod.Flow = FakeFlow
-
-    variables_mod = types.ModuleType("prefect.variables")
-    variables_mod.Variable = FakeVariable
-
-    events_mod = types.ModuleType("prefect.events")
-    events_mod.DeploymentEventTrigger = FakeTrigger
-
-    monkeypatch.setitem(sys.modules, "prefect", prefect_mod)
-    monkeypatch.setitem(sys.modules, "prefect.deployments", deployments_mod)
-    monkeypatch.setitem(sys.modules, "prefect.deployments.runner", runner_mod)
-    monkeypatch.setitem(sys.modules, "prefect.flows", flows_mod)
-    monkeypatch.setitem(sys.modules, "prefect.variables", variables_mod)
-    monkeypatch.setitem(sys.modules, "prefect.events", events_mod)
-
-
-def test_validate_flow_coverage(monkeypatch):
-    install_prefect_stubs(monkeypatch)
+def test_validate_flow_coverage(install_prefect_stubs):
+    install_prefect_stubs()
     engine = importlib.import_module("echodataflow.rewrite.deployment_engine")
 
     param_cfg = {"flows": {"flow_a": {}, "flow_b": {}}}

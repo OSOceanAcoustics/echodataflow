@@ -1,58 +1,10 @@
 import importlib.util
 import os
 import sys
-import types
 from pathlib import Path
 from unittest.mock import call
 
 import pytest
-
-
-class _FakeVariable:
-    @classmethod
-    def set(cls, key, value, overwrite):
-        return None
-
-
-class _FakeTrigger:
-    def __init__(self, *args, **kwargs):
-        self.args = args
-        self.kwargs = kwargs
-
-
-class _FakeRunnerDeployment:
-    pass
-
-
-class _FakeFlow:
-    @classmethod
-    def __class_getitem__(cls, _item):
-        return cls
-
-
-def install_prefect_stubs(monkeypatch):
-    prefect_mod = types.ModuleType("prefect")
-    prefect_mod.deploy = lambda *args, **kwargs: None
-
-    deployments_mod = types.ModuleType("prefect.deployments")
-    runner_mod = types.ModuleType("prefect.deployments.runner")
-    runner_mod.RunnerDeployment = _FakeRunnerDeployment
-
-    flows_mod = types.ModuleType("prefect.flows")
-    flows_mod.Flow = _FakeFlow
-
-    variables_mod = types.ModuleType("prefect.variables")
-    variables_mod.Variable = _FakeVariable
-
-    events_mod = types.ModuleType("prefect.events")
-    events_mod.DeploymentEventTrigger = _FakeTrigger
-
-    monkeypatch.setitem(sys.modules, "prefect", prefect_mod)
-    monkeypatch.setitem(sys.modules, "prefect.deployments", deployments_mod)
-    monkeypatch.setitem(sys.modules, "prefect.deployments.runner", runner_mod)
-    monkeypatch.setitem(sys.modules, "prefect.flows", flows_mod)
-    monkeypatch.setitem(sys.modules, "prefect.variables", variables_mod)
-    monkeypatch.setitem(sys.modules, "prefect.events", events_mod)
 
 
 def import_module_from_path(module_name, file_path):
@@ -63,14 +15,14 @@ def import_module_from_path(module_name, file_path):
     return module
 
 
-def _load_deploy_cli_module(monkeypatch):
-    install_prefect_stubs(monkeypatch)
+def _load_deploy_cli_module(install_prefect_stubs):
+    install_prefect_stubs()
     module_path = Path(__file__).resolve().parents[2] / "src" / "echodataflow" / "rewrite" / "deploy_cli.py"
     return import_module_from_path("deploy_cli_test_mod", module_path)
 
 
-def test_build_parser_run_boolean_optional(monkeypatch):
-    module = _load_deploy_cli_module(monkeypatch)
+def test_build_parser_run_boolean_optional(install_prefect_stubs):
+    module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
 
     parser = module._build_parser()
     args = parser.parse_args(
@@ -93,8 +45,8 @@ def test_build_parser_run_boolean_optional(monkeypatch):
     assert args.deploy_spec == Path("deploy_ship.yaml")
 
 
-def test_main_dispatches_run_args(monkeypatch):
-    module = _load_deploy_cli_module(monkeypatch)
+def test_main_dispatches_run_args(monkeypatch, install_prefect_stubs):
+    module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
 
     captured = {}
 
@@ -133,8 +85,10 @@ def test_main_dispatches_run_args(monkeypatch):
     assert captured["local_source_root"] == Path("/tmp/local-root")
 
 
-def test_validate_local_source_layout_missing_entrypoint_root(monkeypatch, tmp_path):
-    module = _load_deploy_cli_module(monkeypatch)
+def test_validate_local_source_layout_missing_entrypoint_root(
+    install_prefect_stubs, tmp_path
+):
+    module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
 
     deploy_cfg = {"entrypoint_root": "echodataflow/rewrite"}
 
@@ -142,8 +96,10 @@ def test_validate_local_source_layout_missing_entrypoint_root(monkeypatch, tmp_p
         module._validate_local_source_layout(tmp_path, deploy_cfg)
 
 
-def test_import_module_falls_back_when_prefixed_module_missing(monkeypatch):
-    module = _load_deploy_cli_module(monkeypatch)
+def test_import_module_falls_back_when_prefixed_module_missing(
+    monkeypatch, install_prefect_stubs
+):
+    module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
     prefixed = "echodataflow.rewrite.flows_acoustics"
 
     def fake_import(name):
@@ -168,8 +124,8 @@ def test_import_module_falls_back_when_prefixed_module_missing(monkeypatch):
     ]
 
 
-def test_import_module_raises_nested_dependency_error(monkeypatch):
-    module = _load_deploy_cli_module(monkeypatch)
+def test_import_module_raises_nested_dependency_error(monkeypatch, install_prefect_stubs):
+    module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
 
     def fake_import(name):
         if name == "echodataflow.rewrite.flows_biology":

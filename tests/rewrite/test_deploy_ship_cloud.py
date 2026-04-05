@@ -3,13 +3,6 @@ import sys
 import types
 from pathlib import Path
 
-
-class FakeTrigger:
-    def __init__(self, expect, match_related):
-        self.expect = expect
-        self.match_related = match_related
-
-
 class FakeFlowSource:
     def __init__(self, flow_name, sink):
         self.flow_name = flow_name
@@ -42,24 +35,6 @@ class FakeFlow:
         return FakeFlowSource(self.flow_name, self.sink)
 
 
-class FakeVariable:
-    calls = []
-
-    @classmethod
-    def set(cls, key, value, overwrite):
-        cls.calls.append({"key": key, "value": value, "overwrite": overwrite})
-
-
-class FakeRunnerDeployment:
-    pass
-
-
-class FakeFlowType:
-    @classmethod
-    def __class_getitem__(cls, _item):
-        return cls
-
-
 def import_module_from_path(module_name, file_path):
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
@@ -78,38 +53,9 @@ def clone_config(config):
     }
 
 
-def install_prefect_stubs(monkeypatch, sink):
-    prefect_mod = types.ModuleType("prefect")
-
-    def fake_deploy(*deployments, **kwargs):
-        sink["deploy_call"] = {"deployments": list(deployments), "kwargs": kwargs}
-
-    prefect_mod.deploy = fake_deploy
-
-    deployments_mod = types.ModuleType("prefect.deployments")
-    runner_mod = types.ModuleType("prefect.deployments.runner")
-    runner_mod.RunnerDeployment = FakeRunnerDeployment
-
-    flows_mod = types.ModuleType("prefect.flows")
-    flows_mod.Flow = FakeFlowType
-
-    variables_mod = types.ModuleType("prefect.variables")
-    variables_mod.Variable = FakeVariable
-
-    events_mod = types.ModuleType("prefect.events")
-    events_mod.DeploymentEventTrigger = FakeTrigger
-
-    monkeypatch.setitem(sys.modules, "prefect", prefect_mod)
-    monkeypatch.setitem(sys.modules, "prefect.deployments", deployments_mod)
-    monkeypatch.setitem(sys.modules, "prefect.deployments.runner", runner_mod)
-    monkeypatch.setitem(sys.modules, "prefect.flows", flows_mod)
-    monkeypatch.setitem(sys.modules, "prefect.variables", variables_mod)
-    monkeypatch.setitem(sys.modules, "prefect.events", events_mod)
-
-
-def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path):
+def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefect_stubs):
     sink = {"from_source": [], "deployments": [], "applied": []}
-    install_prefect_stubs(monkeypatch, sink)
+    stubs = install_prefect_stubs(sink=sink)
     monkeypatch.setitem(sys.modules, "pandas", types.ModuleType("pandas"))
     monkeypatch.setitem(sys.modules, "s3fs", types.ModuleType("s3fs"))
 
@@ -187,7 +133,7 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path):
     monkeypatch.setattr(module, "load_config", fake_load_config)
     monkeypatch.setattr(module, "resolve_deployment_source", lambda **_kwargs: "local-source")
 
-    FakeVariable.calls = []
+    stubs["FakeVariable"].calls = []
     module._run_from_specs(
         param_cfg_path=Path("config_cloud.yaml"),
         deploy_cfg_path=Path("deploy_cloud.yaml"),
@@ -217,9 +163,9 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path):
 
 
 
-def test_deploy_cli_ship_characterization(monkeypatch, tmp_path):
+def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect_stubs):
     sink = {"from_source": [], "deployments": [], "applied": []}
-    install_prefect_stubs(monkeypatch, sink)
+    stubs = install_prefect_stubs(sink=sink)
 
     flows_acoustics = types.ModuleType("flows_acoustics")
     flows_acoustics.flow_raw2Sv = FakeFlow("flow_raw2Sv", sink)
@@ -304,7 +250,7 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path):
     monkeypatch.setattr(module, "load_config", fake_load_config)
     monkeypatch.setattr(module, "resolve_deployment_source", lambda **_kwargs: "local-source")
 
-    FakeVariable.calls = []
+    stubs["FakeVariable"].calls = []
     module._run_from_specs(
         param_cfg_path=Path("config_ship.yaml"),
         deploy_cfg_path=Path("deploy_ship.yaml"),
