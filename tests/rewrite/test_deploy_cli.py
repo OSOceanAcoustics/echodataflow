@@ -20,9 +20,26 @@ class _FakeTrigger:
         self.kwargs = kwargs
 
 
+class _FakeRunnerDeployment:
+    pass
+
+
+class _FakeFlow:
+    @classmethod
+    def __class_getitem__(cls, _item):
+        return cls
+
+
 def install_prefect_stubs(monkeypatch):
     prefect_mod = types.ModuleType("prefect")
     prefect_mod.deploy = lambda *args, **kwargs: None
+
+    deployments_mod = types.ModuleType("prefect.deployments")
+    runner_mod = types.ModuleType("prefect.deployments.runner")
+    runner_mod.RunnerDeployment = _FakeRunnerDeployment
+
+    flows_mod = types.ModuleType("prefect.flows")
+    flows_mod.Flow = _FakeFlow
 
     variables_mod = types.ModuleType("prefect.variables")
     variables_mod.Variable = _FakeVariable
@@ -31,6 +48,9 @@ def install_prefect_stubs(monkeypatch):
     events_mod.DeploymentEventTrigger = _FakeTrigger
 
     monkeypatch.setitem(sys.modules, "prefect", prefect_mod)
+    monkeypatch.setitem(sys.modules, "prefect.deployments", deployments_mod)
+    monkeypatch.setitem(sys.modules, "prefect.deployments.runner", runner_mod)
+    monkeypatch.setitem(sys.modules, "prefect.flows", flows_mod)
     monkeypatch.setitem(sys.modules, "prefect.variables", variables_mod)
     monkeypatch.setitem(sys.modules, "prefect.events", events_mod)
 

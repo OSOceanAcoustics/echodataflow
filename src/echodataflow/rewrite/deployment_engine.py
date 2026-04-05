@@ -5,9 +5,12 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import ModuleType
+from typing import Any, cast
 
+from prefect.deployments.runner import RunnerDeployment
 from prefect.events import DeploymentEventTrigger
+from prefect.flows import Flow
 from prefect.variables import Variable
 from yaml import safe_load
 
@@ -17,8 +20,7 @@ class DeploymentSpec:
     flow_key: str
     deployment_name: str
     entrypoint: str
-    flow_obj: Any | None = None
-    flow_module: Any | None = None
+    flow_module: ModuleType | None = None
     flow_alias: str | None = None
     cron_offset: int = 0
     apply_separately: bool = False
@@ -26,30 +28,27 @@ class DeploymentSpec:
     triggers: list[dict[str, Any]] | None = None
 
 
-def _discover_flow_map(flow_module: Any) -> dict[str, Any]:
-    discovered: dict[str, Any] = {}
+def _discover_flow_map(flow_module: ModuleType) -> dict[str, Flow[..., Any]]:
+    discovered: dict[str, Flow[..., Any]] = {}
 
     for attr_name in dir(flow_module):
         if not attr_name.startswith("flow_"):
             continue
 
         flow_name = attr_name.removeprefix("flow_")
-        discovered[flow_name] = getattr(flow_module, attr_name)
+        discovered[flow_name] = cast(Flow[..., Any], getattr(flow_module, attr_name))
 
     return discovered
 
 
-def resolve_flow(spec: DeploymentSpec) -> Any:
-    if spec.flow_obj is not None:
-        return spec.flow_obj
-
+def resolve_flow(spec: DeploymentSpec) -> Flow[..., Any]:
     if spec.flow_module is None:
         raise ValueError(
-            f"Deployment spec '{spec.deployment_name}' must provide flow_obj or flow_module"
+            f"Deployment spec '{spec.deployment_name}' must provide flow_module"
         )
 
     flow_name = spec.flow_alias or spec.flow_key
-    discovered = _discover_flow_map(spec.flow_module)
+    discovered = _discover_flow_map(spec.flow_module)  # find available flows in flow_module
 
     if flow_name not in discovered:
         available = ", ".join(sorted(discovered)) or "<none>"
@@ -257,14 +256,14 @@ def create_deployments(
     param_cfg: dict[str, Any],
     deploy_cfg: dict[str, Any],
     source: Any,
-) -> tuple[list[Any], list[Any]]:
+) -> tuple[list[RunnerDeployment], list[RunnerDeployment]]:
     flows_params = param_cfg["flows"]
     flows_deploy_settings = deploy_cfg["flows"]
     time_offset_targets = get_time_offset_targets(deploy_cfg)
     time_offset_seconds = _compute_time_offset_seconds(deploy_cfg.get("flow_start_time"))
 
-    grouped: list[Any] = []  # TODO: Change type
-    standalone: list[Any] = []  # TODO: Change type
+    grouped: list[RunnerDeployment] = []
+    standalone: list[RunnerDeployment] = []
 
     for spec in specs:
         flow_obj = resolve_flow(spec)

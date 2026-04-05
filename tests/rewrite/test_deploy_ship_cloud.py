@@ -50,6 +50,16 @@ class FakeVariable:
         cls.calls.append({"key": key, "value": value, "overwrite": overwrite})
 
 
+class FakeRunnerDeployment:
+    pass
+
+
+class FakeFlowType:
+    @classmethod
+    def __class_getitem__(cls, _item):
+        return cls
+
+
 def import_module_from_path(module_name, file_path):
     spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
@@ -76,6 +86,13 @@ def install_prefect_stubs(monkeypatch, sink):
 
     prefect_mod.deploy = fake_deploy
 
+    deployments_mod = types.ModuleType("prefect.deployments")
+    runner_mod = types.ModuleType("prefect.deployments.runner")
+    runner_mod.RunnerDeployment = FakeRunnerDeployment
+
+    flows_mod = types.ModuleType("prefect.flows")
+    flows_mod.Flow = FakeFlowType
+
     variables_mod = types.ModuleType("prefect.variables")
     variables_mod.Variable = FakeVariable
 
@@ -83,6 +100,9 @@ def install_prefect_stubs(monkeypatch, sink):
     events_mod.DeploymentEventTrigger = FakeTrigger
 
     monkeypatch.setitem(sys.modules, "prefect", prefect_mod)
+    monkeypatch.setitem(sys.modules, "prefect.deployments", deployments_mod)
+    monkeypatch.setitem(sys.modules, "prefect.deployments.runner", runner_mod)
+    monkeypatch.setitem(sys.modules, "prefect.flows", flows_mod)
     monkeypatch.setitem(sys.modules, "prefect.variables", variables_mod)
     monkeypatch.setitem(sys.modules, "prefect.events", events_mod)
 
