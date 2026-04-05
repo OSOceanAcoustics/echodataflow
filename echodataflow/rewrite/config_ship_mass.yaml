@@ -1,0 +1,48 @@
+init:
+  counter_raw_copy: 0
+  flow_start_time:  # use ISO8601 format: if UTC use +00:00 or Z
+raw2Sv:
+  # interval: 5
+  exclude_before:  # use ISO8601 format: if UTC use +00:00 or Z
+  parallel: False
+  encode_mode: power
+  waveform_mode: CW
+  depth_offset: 7
+  sonar_model: EK80
+  nmea_sentence: GGA
+  filename_pattern: "IWCPS*.raw"
+  path_raw: "/Users/feresa/mnt_qnap/Leg 1"
+  path_main: "/Volumes/sh2506_ext1/leg1"
+  file_Sv_csv: Sv_files.csv
+create_MVBS:
+  # interval: 10
+  slice_mins: 20
+  num_slices: -1  # mass process all possible slices
+  path_main: "/Volumes/sh2506_ext1/leg1"
+  file_Sv_csv: Sv_files.csv
+  file_MVBS_csv: MVBS_files.csv
+predict_hake:
+  # interval: 20
+  slice_mins: 40
+  num_slices: -1  # mass process all possible slices
+  temperature: 0.5
+  softmax_threshold: 0.5
+  path_main: "/Volumes/sh2506_ext1/leg1"
+  file_MVBS_csv: MVBS_files.csv
+  file_prediction_csv: prediction_files.csv
+file_upload_acoustics:
+  # interval: 10
+  src_dir: "/Volumes/sh2506_ext1/leg1"
+  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506_test/acoustics"
+  exclude_subdirs:
+    - Sv
+  max_age: -1  # upload all files regardless of age
+file_upload_trawl:
+  # interval: 10
+  src_dir: "/Users/feresa/mnt_qnap_clams/nwc"
+  dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506_test/trawl"
+  exclude_subdirs:
+    - backups
+    - "temp AB stuff"
+    - "How to run CLAMS reports.docx"
+  max_age: -1  # upload all files regardless of age
