@@ -19,6 +19,7 @@ flows:
     file_stratum_mean: stratum_mean.csv
     file_NASC_all_grid: NASC_all_griddify.geojson
     num_NASC_reprocess: 1
+    new_file_num_limit: -1
   update_grid:
     path_vm_local: "/media/volume/shimada_202506_volume/integration" # path to local integrated data
     file_NASC_all_grid: NASC_all_griddify.geojson
