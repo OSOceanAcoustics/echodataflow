@@ -93,7 +93,6 @@ def length_count_app():
         sizing_mode="stretch_width"
     )
 
-    # Example scheduled update: change variable to trigger refresh
     def scheduled_update():
         try:
             # Use hidden button to trigger plot_grid_map to run again
@@ -109,7 +108,7 @@ def length_count_app():
     if not hasattr(doc, "length_count_callback"):
         doc.length_count_callback = pn.state.add_periodic_callback(
             scheduled_update,
-            period=1*60*1000  # Update every 1 mins
+            period=10*60*1000  # Update every 10 mins
         )
         def cleanup(session_context):
             try:
@@ -198,7 +197,7 @@ def length_weight_app():
     if not hasattr(doc, "length_weight_callback"):
         doc.length_weight_callback = pn.state.add_periodic_callback(
             scheduled_update,
-            period=1*60*1000  # Update every 1 mins
+            period=10*60*1000  # Update every 10 mins
         )
         def cleanup(session_context):
             try:
@@ -320,7 +319,7 @@ def grid_app():
         update_text_grid_app, bio_var_selector_grid_map, tile_selector_grid_map, plot_grid_map,
         sizing_mode="stretch_width"
     )
-    # Example scheduled update: change variable to trigger refresh
+
     def scheduled_update():
         try:
             # # Test: cycle through variables
@@ -342,7 +341,7 @@ def grid_app():
     if not hasattr(doc, "grid_map_callback"):
         doc.grid_map_callback = pn.state.add_periodic_callback(
             scheduled_update,
-            period=1*60*1000  # Update every 1 mins
+            period=10*60*1000  # Update every 10 mins
         )
         def cleanup(session_context):
             try:
@@ -473,7 +472,7 @@ def track_app():
         update_text_track_app, bio_var_selector_track_map, tile_selector_track_map, plot_track_map,
         sizing_mode="stretch_width"
     )
-    # Example scheduled update: change variable to trigger refresh
+
     def scheduled_update():
         try:
             # Use hidden button to trigger plot_grid_map to run again
@@ -489,7 +488,7 @@ def track_app():
     if not hasattr(doc, "track_map_callback"):
         doc.track_map_callback = pn.state.add_periodic_callback(
             scheduled_update,
-            period=1*60*1000  # Update every 1 mins
+            period=10*60*1000  # Update every 10 mins
         )
         def cleanup(session_context):
             try:

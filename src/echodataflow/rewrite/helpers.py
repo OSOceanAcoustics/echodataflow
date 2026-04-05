@@ -40,7 +40,7 @@ def flow_file_upload(
     from prefect_shell import ShellOperation
 
     # Generate upload_exclude_folders.txt
-    exclude_filename = f"upload_exclude_folders_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
+    exclude_filename = Path(__file__).parent /f"upload_exclude_folders_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
     with open(exclude_filename, "w") as f:
         # Add .DS_Store to exclude list
         f.write(".DS_Store\n")
@@ -50,9 +50,9 @@ def flow_file_upload(
 
     # Potentially long running so using a context manager
     if max_age == -1:
-        command = f"rclone copy -v --no-traverse {src_dir} {dest_dir} --exclude-from {str(Path(__file__).parent / exclude_filename)}" 
+        command = f"rclone copy -v --no-traverse {src_dir} {dest_dir} --exclude-from {str(exclude_filename)}" 
     else:
-        command = f"rclone copy -v --max-age 2h --no-traverse {src_dir} {dest_dir} --exclude-from {str(Path(__file__).parent / exclude_filename)}" 
+        command = f"rclone copy -v --max-age 2h --no-traverse {src_dir} {dest_dir} --exclude-from {str(exclude_filename)}" 
     print("command:", command)
     with ShellOperation(commands=[command], working_dir=src_dir) as file_upload_operation:
 

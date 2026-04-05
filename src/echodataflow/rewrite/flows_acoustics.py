@@ -111,6 +111,7 @@ def get_hake_model(model_path: str) -> BinaryHakeModel:
 )
 def flow_raw2Sv(
     exclude_before: str|None = None,
+    exclude_raw_file: list[str] = [],
     parallel: bool = False,
     encode_mode: str = "power",
     waveform_mode: str = "CW",
@@ -185,11 +186,22 @@ def flow_raw2Sv(
     # Find new files to process
     new_files = raw_files_in_folder.difference(raw_files_in_df)
     print(f"Found {len(new_files)} new files to process")
+
+    # Reprocess last file in case it was incomplete
     if last_raw_filename:
         print(f"Reprocess {last_raw_filename}")
         new_files.add(last_raw_filename)
+
+    # Skip files in exclude_raw_file list
+    if len(exclude_raw_file) > 0:
+        print(f"Exclude {exclude_raw_file} from processing")
+        new_files.difference_update(set(exclude_raw_file))
+
+    # Sort new files
     new_files = sorted(list(new_files))
-    if len(new_files) > new_file_num_limit:
+
+    # Limit number of new files to process
+    if new_file_num_limit != -1 and len(new_files) > new_file_num_limit:
         print(
             f"More than {new_file_num_limit} new files to process. "
             f"Limiting to first {new_file_num_limit} files."
@@ -401,6 +413,12 @@ async def flow_create_MVBS(
             df_Sv["last_ping_time"] = df_Sv["last_ping_time"].dt.tz_localize("UTC")
         if df_Sv["first_ping_time"].dt.tz is None:
             df_Sv["first_ping_time"] = df_Sv["first_ping_time"].dt.tz_localize("UTC")
+    else:
+        logger.info(
+            "Sv info csv is empty, raw2Sv flow may have just started! "
+            "No MVBS can be created, exiting flow."
+        )
+        return
 
     if not file_MVBS_csv.exists():
         df_MVBS = pd.DataFrame(
@@ -629,6 +647,12 @@ async def flow_predict_hake(
             df_MVBS["last_ping_time"] = df_MVBS["last_ping_time"].dt.tz_localize("UTC")
         if df_MVBS["first_ping_time"].dt.tz is None:
             df_MVBS["first_ping_time"] = df_MVBS["first_ping_time"].dt.tz_localize("UTC")
+    else:
+        logger.info(
+            "MVBS info csv is empty, create_MVBS flow may have just started! "
+            "No prediction can be made, exiting flow."
+        )
+        return
 
     if not file_prediction_csv.exists():
         df_prediction = pd.DataFrame(
