@@ -30,8 +30,8 @@ def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_st
     engine = importlib.import_module("echodataflow.deployment.deployment_engine")
 
     repo_root = Path(__file__).resolve().parents[2]
-    deploy_ship = engine.load_config(repo_root / "src" / "echodataflow" / "rewrite" / "deploy_ship.yaml")
-    deploy_cloud = engine.load_config(repo_root / "src" / "echodataflow" / "rewrite" / "deploy_cloud.yaml")
+    deploy_ship = engine.load_config(repo_root / "recipe" / "deploy" / "deploy_ship.yaml")
+    deploy_cloud = engine.load_config(repo_root / "recipe" / "deploy" / "deploy_cloud.yaml")
 
     ship_registry = {
         module_name: types.ModuleType(module_name)
