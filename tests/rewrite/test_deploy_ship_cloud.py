@@ -119,7 +119,7 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
 
     module = import_module_from_path(
         "deploy_cli_characterization_mod",
-        REPO_ROOT / "src" / "echodataflow" / "rewrite" / "deploy_cli.py",
+        REPO_ROOT / "src" / "echodataflow" / "deployment" / "deploy_cli.py",
     )
 
     def fake_load_config(path):
@@ -245,7 +245,7 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
 
     module = import_module_from_path(
         "deploy_cli_characterization_mod_ship",
-        REPO_ROOT / "src" / "echodataflow" / "rewrite" / "deploy_cli.py",
+        REPO_ROOT / "src" / "echodataflow" / "deployment" / "deploy_cli.py",
     )
 
     def fake_load_config(path):

@@ -14,7 +14,7 @@ from typing import Any
 from prefect import deploy
 from yaml import safe_load
 
-from echodataflow.rewrite.deployment_engine import (
+from echodataflow.deployment.deployment_engine import (
     build_specs_from_deploy_spec,
     create_deployments,
     load_config,

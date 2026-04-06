@@ -17,7 +17,7 @@ def import_module_from_path(module_name, file_path):
 
 def _load_deploy_cli_module(install_prefect_stubs):
     install_prefect_stubs()
-    module_path = Path(__file__).resolve().parents[2] / "src" / "echodataflow" / "rewrite" / "deploy_cli.py"
+    module_path = Path(__file__).resolve().parents[2] / "src" / "echodataflow" / "deployment" / "deploy_cli.py"
     return import_module_from_path("deploy_cli_test_mod", module_path)
 
 

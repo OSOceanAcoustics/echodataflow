@@ -5,7 +5,7 @@ from pathlib import Path
 
 def test_validate_flow_coverage(install_prefect_stubs):
     install_prefect_stubs()
-    engine = importlib.import_module("echodataflow.rewrite.deployment_engine")
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
 
     param_cfg = {"flows": {"flow_a": {}, "flow_b": {}}}
     deploy_cfg = {"flows": {"flow_a": {}, "flow_b": {}}}
@@ -27,7 +27,7 @@ def test_validate_flow_coverage(install_prefect_stubs):
 
 def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_stubs):
     install_prefect_stubs()
-    engine = importlib.import_module("echodataflow.rewrite.deployment_engine")
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
 
     repo_root = Path(__file__).resolve().parents[2]
     deploy_ship = engine.load_config(repo_root / "src" / "echodataflow" / "rewrite" / "deploy_ship.yaml")
