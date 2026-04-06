@@ -239,7 +239,7 @@ def main() -> None:
     if source_mode is not None:
         os.environ["PREFECT_SOURCE_MODE"] = source_mode
 
-    module_prefix = "echodataflow.rewrite"
+    module_prefix = "echodataflow.flows"
 
     if args.target == "run":
         _run_from_specs(

@@ -23,7 +23,7 @@ from prefect.states import Cancelled, Failed
 from prefect import runtime
 from prefect.variables import Variable
 
-from .helpers import deployment_already_running
+from .flows_helper import deployment_already_running
 from ..utils.utils import (
     # get_MVBS_tensor,
     # get_hake_model,

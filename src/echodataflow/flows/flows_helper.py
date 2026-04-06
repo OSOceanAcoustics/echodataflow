@@ -40,8 +40,11 @@ def flow_file_upload(
     from prefect_shell import ShellOperation
 
     # Generate upload_exclude_folders.txt
-    exclude_filename = Path(__file__).parent /f"upload_exclude_folders_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
-    with open(exclude_filename, "w") as f:
+    exclude_filename = (
+        f"upload_exclude_folders_{datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')}.txt"
+    )
+    exclude_path = Path(src_dir) / exclude_filename
+    with open(exclude_path, "w") as f:
         # Add .DS_Store to exclude list
         f.write(".DS_Store\n")
         # Add other subdirectories
@@ -50,9 +53,9 @@ def flow_file_upload(
 
     # Potentially long running so using a context manager
     if max_age == -1:
-        command = f"rclone copy -v --no-traverse {src_dir} {dest_dir} --exclude-from {str(exclude_filename)}" 
+        command = f"rclone copy -v --no-traverse {src_dir} {dest_dir} --exclude-from {str(exclude_path)}" 
     else:
-        command = f"rclone copy -v --max-age 2h --no-traverse {src_dir} {dest_dir} --exclude-from {str(exclude_filename)}" 
+        command = f"rclone copy -v --max-age 2h --no-traverse {src_dir} {dest_dir} --exclude-from {str(exclude_path)}" 
     print("command:", command)
     with ShellOperation(commands=[command], working_dir=src_dir) as file_upload_operation:
 
@@ -66,7 +69,7 @@ def flow_file_upload(
         file_upload_process.fetch_result()
 
     # Remove the exclude list file after upload
-    Path(exclude_filename).unlink(missing_ok=True)
+    exclude_path.unlink(missing_ok=True)
 
 
 @task(log_prints=True)

@@ -7,7 +7,7 @@ source:
     branch: rewrite_2026_cleanup
 
 default_work_pool_name: local
-entrypoint_root: echodataflow/rewrite
+entrypoint_root: echodataflow/flows
 flows:
   raw2Sv:
     module: flows_acoustics
@@ -25,14 +25,14 @@ flows:
     interval: 20
     inject_time_offset: true
   file_upload_acoustics:
-    module: helpers
+    module: flows_helper
     deployment_name: file-upload-acoustics_leg2
     flow_alias: file_upload
     interval: 10
     apply_separately: true
     work_pool_name: local
   file_upload_trawl:
-    module: helpers
+    module: flows_helper
     deployment_name: file-upload-trawl_20250902
     flow_alias: file_upload
     interval: 10
