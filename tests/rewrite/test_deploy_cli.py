@@ -63,9 +63,9 @@ def test_main_dispatches_run_args(monkeypatch, install_prefect_stubs):
             "--default-work-pool-name",
             "local",
             "--param-config",
-            "src/echodataflow/rewrite/config_ship.yaml",
+            "recipe/params/config_ship.yaml",
             "--deploy-spec",
-            "src/echodataflow/rewrite/deploy_ship.yaml",
+            "recipe/deploy/deploy_ship.yaml",
             "--source-mode",
             "git",
             "--local-source-root",
@@ -77,8 +77,8 @@ def test_main_dispatches_run_args(monkeypatch, install_prefect_stubs):
     module.main()
 
     assert os.environ["PREFECT_SOURCE_MODE"] == "git"
-    assert captured["param_cfg_path"] == Path("src/echodataflow/rewrite/config_ship.yaml")
-    assert captured["deploy_cfg_path"] == Path("src/echodataflow/rewrite/deploy_ship.yaml")
+    assert captured["param_cfg_path"] == Path("recipe/params/config_ship.yaml")
+    assert captured["deploy_cfg_path"] == Path("recipe/deploy/deploy_ship.yaml")
     assert captured["module_prefix"] == "echodataflow.flows"
     assert captured["source_mode"] == "git"
     assert captured["run_concurrency_setup"] is False
