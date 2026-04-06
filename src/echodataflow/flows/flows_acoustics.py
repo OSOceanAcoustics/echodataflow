@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from importlib.resources import files
 from pathlib import Path
 import datetime
 import asyncio
@@ -94,10 +95,13 @@ def get_MVBS_tensor(ds_in, freq_wanted=[120000, 38000, 18000]):
 
 # Load binary hake models with weights
 def get_hake_model(model_path: str) -> BinaryHakeModel:
+    placeholder_score_dir = Path(
+        str(files("echodataflow.assets") / "placeholder_score_tensor_dir")
+    )
     binary_hake_model = _load_binary_hake_model_class()
     model = binary_hake_model(
         "placeholder_experiment_name",
-        Path("placeholder_score_tensor_dir"),
+        placeholder_score_dir,
         "placeholder_tensor_log_dir",
         0,
     ).eval()
