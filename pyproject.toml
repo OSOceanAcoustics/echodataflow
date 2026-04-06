@@ -1,23 +1,94 @@
 [build-system]
 requires = [
-    "setuptools >= 48",
-    "setuptools_scm[toml] >= 4, <6",
-    "setuptools_scm_git_archive",
+    "setuptools >= 64",
+    "setuptools_scm[toml] >= 6",
     "wheel >= 0.29.0",
-    "setuptools-git-versioning"
 ]
 build-backend = 'setuptools.build_meta'
+
+[project]
+name = "echodataflow"
+description = "Echosounder data processing pipeline orchestration"
+readme = { file = "README.md", content-type = "text/markdown" }
+requires-python = ">=3.12"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Wu-Jung Lee", email = "leewujung@gmail.com" },
+    { name = "Landung Setiawan", email = "landungs@uw.edu" },
+]
+maintainers = [
+    { name = "Wu-Jung Lee", email = "leewujung@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "echopype>=0.6.3",
+    "geopandas",
+    "ipykernel",
+    "prefect[shell,dask]",
+    "pydantic",
+]
+dynamic = ["version"]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+    "pytest-flake8",
+    "pytest-xdist",
+    "pytest-mock",
+]
+lint = [
+    "black",
+    "check-manifest",
+    "flake8",
+    "flake8-builtins",
+    "flake8-comprehensions",
+    "flake8-mutable",
+    "flake8-print",
+    "isort",
+    "mypy",
+    "numpydoc",
+    "pre-commit",
+    "pylint",
+]
+docs = [
+    "sphinx",
+    "sphinx-automodapi",
+]
+
+[project.scripts]
+echodataflow = "echodataflow.echodataflow_cli:main"
+
+[project.urls]
+Homepage = "https://github.com/OSOceanAcoustics/echodataflow"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools_scm]
 fallback_version = "unknown"
 local_scheme = "no-local-version"
-write_to = "echodataflow/version.py"
+version_file = "src/echodataflow/version.py"
 
 [tool.black]
 line-length = 100
 
 [tool.pytest.ini_options]
-testpaths = ["echodataflow/tests/flow_tests"]
+testpaths = ["tests"]
 addopts = "--cov=./ --cov-report=term --cov-report=xml"
 filterwarnings = [
     "ignore::DeprecationWarning"

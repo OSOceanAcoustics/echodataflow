@@ -1,0 +1,33 @@
+init:
+  counter_raw_copy: 0
+
+flows:
+  ingest_haul:
+    path_vm_local: "/media/volume/shimada_202506_volume/integration" # path to local integrated data
+    path_bio_files: "agr230002-bucket01/prefect_sh2506_test/trawl" # path to cloud trawl data
+    cred_file: "/home/exouser/.config/rclone/rclone.conf"
+    file_haul_info_all: haul_info_all.csv
+    file_specimen_all: specimen_all.csv
+    file_length_all: length_all.csv
+    file_length_count_all: length_count_all.csv
+    file_stratum_mean: stratum_mean.csv
+  ingest_NASC:
+    path_vm_local: "/media/volume/shimada_202506_volume/integration" # path to local integrated data
+    path_NASC_files: "agr230002-bucket01/prefect_sh2506_test/acoustics/NASC" # path to cloud acoustic data
+    cred_file: "/home/exouser/.config/rclone/rclone.conf"
+    file_NASC_all: NASC_all.csv
+    file_stratum_mean: stratum_mean.csv
+    file_NASC_all_grid: NASC_all_griddify.geojson
+    num_NASC_reprocess: 1
+    new_file_num_limit: -1
+  update_grid:
+    path_vm_local: "/media/volume/shimada_202506_volume/integration" # path to local integrated data
+    file_NASC_all_grid: NASC_all_griddify.geojson
+    file_stratum_mean: stratum_mean.csv
+  update_cache_MVBS:
+    slice_mins: 180
+    path_cache: "/media/volume/shimada_202506_volume/viz_data_cache"
+    path_MVBS: "agr230002-bucket01/prefect_sh2506_test/acoustics/MVBS"
+    cred_file: "/home/exouser/.config/rclone/rclone.conf"
+    file_MVBS_csv: MVBS_files.csv
+    file_MVBS_zarr: latest_MVBS.zarr

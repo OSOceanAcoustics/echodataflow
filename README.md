@@ -23,7 +23,7 @@ This guide will walk you through the initial steps to set up and run your Echoda
 To keep your Echodataflow environment isolated, it's recommended to create a virtual environment using Conda or Python's built-in `venv` module. Here's an example using Conda:
 
 ```bash
-conda create --name echodataflow-env
+conda create --name echodataflow-env -c conda-forge python=3.12 pip
 conda activate echodataflow-env
 ```
 
@@ -47,6 +47,12 @@ Navigate to the project directory you've just cloned and install the Echodataflo
 ```bash
 cd <project_directory>
 pip install -e .
+```
+
+For development dependencies defined in `pyproject.toml`, install optional groups:
+
+```bash
+python -m pip install -e .[test,lint,docs]
 ```
 
 ## 4. Echodataflow and Prefect Initialization
@@ -108,4 +114,4 @@ data  = echodataflow_start(dataset_config=dataset_config, pipeline_config=pipeli
 
 ## License
 
-Licensed under the MIT License; you may not use this file except in compliance with the License. You may obtain a copy of the License [here](./LICENSE).
+Echodataflow is licensed under the open source [Apache 2.0 license](https://opensource.org/license/Apache-2.0).

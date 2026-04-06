@@ -1,0 +1,48 @@
+init:  # TODO: consider moving this section to deploy_ship.yaml
+  counter_raw_copy: 0
+
+flows:
+  raw2Sv:
+    exclude_before: "2025-06-17T20:00:00+00:00" # "2025-06-13T10:00:00+00:00"  # use ISO8601 format: if UTC use +00:00 or Z
+    exclude_raw_file:
+      - "IWCPS-D20250617-T175659.raw"
+      - "IWCPS-D20250711-T212420.raw"
+      - "IWCPS-D20250901-T145533.raw"
+    parallel: False
+    encode_mode: power
+    waveform_mode: CW
+    depth_offset: 7
+    sonar_model: EK80
+    nmea_sentence: GGA
+    filename_pattern: "IWCPS*.raw"
+    path_raw: "/Users/feresa/mnt_qnap/Leg 2"
+    path_main: "/Volumes/sh2506_ext1/leg2"
+    file_Sv_csv: Sv_files.csv
+  create_MVBS:
+    slice_mins: 20
+    num_slices: 3
+    path_main: "/Volumes/sh2506_ext1/leg2"
+    file_Sv_csv: Sv_files.csv
+    file_MVBS_csv: MVBS_files.csv
+  predict_hake:
+    slice_mins: 40
+    num_slices: 3
+    temperature: 0.5
+    softmax_threshold: 0.5
+    path_main: "/Volumes/sh2506_ext1/leg2"
+    file_MVBS_csv: MVBS_files.csv
+    file_prediction_csv: prediction_files.csv
+  file_upload_acoustics:
+    src_dir: "/Volumes/sh2506_ext1/leg2"
+    dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506_test/acoustics"
+    exclude_subdirs:
+      - Sv
+    max_age: 2
+  file_upload_trawl:
+    src_dir: "/Users/feresa/mnt_qnap_clams/nwc"
+    dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506_test/trawl"
+    exclude_subdirs:
+      - backups
+      - "temp AB stuff"
+      - "How to run CLAMS reports.docx"
+    max_age: -1
