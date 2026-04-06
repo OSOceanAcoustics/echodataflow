@@ -24,7 +24,7 @@ from prefect import runtime
 from prefect.variables import Variable
 
 from .helpers import deployment_already_running
-from .utils import (
+from ..utils.utils import (
     # get_MVBS_tensor,
     # get_hake_model,
     round_up_mins,
