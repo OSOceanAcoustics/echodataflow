@@ -56,6 +56,7 @@ def clone_config(config):
 def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefect_stubs):
     sink = {"from_source": [], "deployments": [], "applied": []}
     stubs = install_prefect_stubs(sink=sink)
+    (tmp_path / "echodataflow" / "flows").mkdir(parents=True)
     monkeypatch.setitem(sys.modules, "pandas", types.ModuleType("pandas"))
     monkeypatch.setitem(sys.modules, "s3fs", types.ModuleType("s3fs"))
 
@@ -70,9 +71,9 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     monkeypatch.setitem(sys.modules, "flows_biology", flows_biology)
     monkeypatch.setitem(sys.modules, "flows_integration", flows_integration)
     monkeypatch.setitem(sys.modules, "flows_viz_cloud", flows_viz_cloud)
-    monkeypatch.setitem(sys.modules, "echodataflow.rewrite.flows_biology", flows_biology)
-    monkeypatch.setitem(sys.modules, "echodataflow.rewrite.flows_integration", flows_integration)
-    monkeypatch.setitem(sys.modules, "echodataflow.rewrite.flows_viz_cloud", flows_viz_cloud)
+    monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_biology", flows_biology)
+    monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_integration", flows_integration)
+    monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_viz_cloud", flows_viz_cloud)
 
     param_cfg = {
         "init": {"counter_raw_copy": 0},
@@ -86,22 +87,20 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     deploy_cfg = {
         "flow_start_time": None,
         "default_work_pool_name": "local",
+        "entrypoint_root": "echodataflow/flows",
         "flows": {
             "ingest_haul": {
                 "module": "flows_biology",
-                "entrypoint": "flows_biology.py:flow_ingest_haul",
                 "deployment_name": "ingest_haul",
                 "interval": 5,
             },
             "ingest_NASC": {
                 "module": "flows_integration",
-                "entrypoint": "flows_integration.py:flow_ingest_NASC",
                 "deployment_name": "ingest_NASC",
                 "interval": 7,
             },
             "update_grid": {
                 "module": "flows_integration",
-                "entrypoint": "flows_integration.py:flow_update_grid",
                 "deployment_name": "update_grid",
                 "triggers": [
                     {"expect": "haul.ingested", "resource_name": "ingest_haul"},
@@ -110,7 +109,6 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
             },
             "update_cache_MVBS": {
                 "module": "flows_viz_cloud",
-                "entrypoint": "flows_viz_cloud.py:flow_update_cache_MVBS",
                 "deployment_name": "update_cache_MVBS",
                 "interval": 10,
                 "cron_offset": 3,
@@ -137,12 +135,24 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     module._run_from_specs(
         param_cfg_path=Path("config_cloud.yaml"),
         deploy_cfg_path=Path("deploy_cloud.yaml"),
-        module_prefix="echodataflow.rewrite",
+        module_prefix="echodataflow.flows",
         source_mode="local",
         run_concurrency_setup=False,
         local_source_root=tmp_path,
         default_work_pool_name="local",
     )
+
+    expected_entrypoints = {
+        "ingest_haul": "echodataflow/flows/flows_biology.py:flow_ingest_haul",
+        "ingest_NASC": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        "update_grid": "echodataflow/flows/flows_integration.py:flow_update_grid",
+        "update_cache_MVBS": "echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
+    }
+    actual_entrypoints = {
+        item["flow_name"].removeprefix("flow_"): item["entrypoint"]
+        for item in sink["from_source"]
+    }
+    assert actual_entrypoints == expected_entrypoints
 
     assert sink["deploy_call"]["kwargs"]["work_pool_name"] == "local"
     assert len(sink["deployments"]) == 4
@@ -166,19 +176,20 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
 def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect_stubs):
     sink = {"from_source": [], "deployments": [], "applied": []}
     stubs = install_prefect_stubs(sink=sink)
+    (tmp_path / "echodataflow" / "flows").mkdir(parents=True)
 
     flows_acoustics = types.ModuleType("flows_acoustics")
     flows_acoustics.flow_raw2Sv = FakeFlow("flow_raw2Sv", sink)
     flows_acoustics.flow_create_MVBS = FakeFlow("flow_create_MVBS", sink)
     flows_acoustics.flow_predict_hake = FakeFlow("flow_predict_hake", sink)
 
-    helpers_mod = types.ModuleType("helpers")
-    helpers_mod.flow_file_upload = FakeFlow("flow_file_upload", sink)
+    flows_helper_mod = types.ModuleType("flows_helper")
+    flows_helper_mod.flow_file_upload = FakeFlow("flow_file_upload", sink)
 
     monkeypatch.setitem(sys.modules, "flows_acoustics", flows_acoustics)
-    monkeypatch.setitem(sys.modules, "helpers", helpers_mod)
-    monkeypatch.setitem(sys.modules, "echodataflow.rewrite.flows_acoustics", flows_acoustics)
-    monkeypatch.setitem(sys.modules, "echodataflow.rewrite.helpers", helpers_mod)
+    monkeypatch.setitem(sys.modules, "flows_helper", flows_helper_mod)
+    monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_acoustics", flows_acoustics)
+    monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_helper", flows_helper_mod)
 
     param_cfg = {
         "init": {"counter_raw_copy": 0},
@@ -193,16 +204,15 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     deploy_cfg = {
         "flow_start_time": None,
         "default_work_pool_name": "local",
+        "entrypoint_root": "echodataflow/flows",
         "flows": {
             "raw2Sv": {
                 "module": "flows_acoustics",
-                "entrypoint": "flows_acoustics.py:flow_raw2Sv",
                 "deployment_name": "raw2Sv_leg2",
                 "interval": 5,
             },
             "create_MVBS": {
                 "module": "flows_acoustics",
-                "entrypoint": "flows_acoustics.py:flow_create_MVBS",
                 "deployment_name": "create-MVBS_leg2",
                 "interval": 10,
                 "cron_offset": 3,
@@ -210,14 +220,12 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
             },
             "predict_hake": {
                 "module": "flows_acoustics",
-                "entrypoint": "flows_acoustics.py:flow_predict_hake",
                 "deployment_name": "predict-hake_leg2",
                 "interval": 20,
                 "inject_time_offset": True,
             },
             "file_upload_acoustics": {
-                "module": "helpers",
-                "entrypoint": "helpers.py:flow_file_upload",
+                "module": "flows_helper",
                 "deployment_name": "file-upload-acoustics_leg2",
                 "flow_alias": "file_upload",
                 "interval": 10,
@@ -225,8 +233,7 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
                 "work_pool_name": "local",
             },
             "file_upload_trawl": {
-                "module": "helpers",
-                "entrypoint": "helpers.py:flow_file_upload",
+                "module": "flows_helper",
                 "deployment_name": "file-upload-trawl_20250902",
                 "flow_alias": "file_upload",
                 "interval": 10,
@@ -254,12 +261,24 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     module._run_from_specs(
         param_cfg_path=Path("config_ship.yaml"),
         deploy_cfg_path=Path("deploy_ship.yaml"),
-        module_prefix="echodataflow.rewrite",
+        module_prefix="echodataflow.flows",
         source_mode="local",
         run_concurrency_setup=False,
         local_source_root=tmp_path,
         default_work_pool_name="local",
     )
+
+    expected_entrypoints = {
+        "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
+        "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
+        "predict_hake": "echodataflow/flows/flows_acoustics.py:flow_predict_hake",
+        "file_upload": "echodataflow/flows/flows_helper.py:flow_file_upload",
+    }
+    actual_entrypoints = {
+        item["flow_name"].removeprefix("flow_"): item["entrypoint"]
+        for item in sink["from_source"]
+    }
+    assert actual_entrypoints == expected_entrypoints
 
     assert sink["deploy_call"]["kwargs"]["work_pool_name"] == "local"
     assert len(sink["deployments"]) == 5

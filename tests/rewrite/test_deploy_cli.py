@@ -79,7 +79,7 @@ def test_main_dispatches_run_args(monkeypatch, install_prefect_stubs):
     assert os.environ["PREFECT_SOURCE_MODE"] == "git"
     assert captured["param_cfg_path"] == Path("src/echodataflow/rewrite/config_ship.yaml")
     assert captured["deploy_cfg_path"] == Path("src/echodataflow/rewrite/deploy_ship.yaml")
-    assert captured["module_prefix"] == "echodataflow.rewrite"
+    assert captured["module_prefix"] == "echodataflow.flows"
     assert captured["source_mode"] == "git"
     assert captured["run_concurrency_setup"] is False
     assert captured["local_source_root"] == Path("/tmp/local-root")
@@ -90,7 +90,7 @@ def test_validate_local_source_layout_missing_entrypoint_root(
 ):
     module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
 
-    deploy_cfg = {"entrypoint_root": "echodataflow/rewrite"}
+    deploy_cfg = {"entrypoint_root": "echodataflow/flows"}
 
     with pytest.raises(ValueError, match="entrypoint_root"):
         module._validate_local_source_layout(tmp_path, deploy_cfg)
@@ -100,7 +100,7 @@ def test_import_module_falls_back_when_prefixed_module_missing(
     monkeypatch, install_prefect_stubs
 ):
     module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
-    prefixed = "echodataflow.rewrite.flows_acoustics"
+    prefixed = "echodataflow.flows.flows_acoustics"
 
     def fake_import(name):
         if name == prefixed:
@@ -115,7 +115,7 @@ def test_import_module_falls_back_when_prefixed_module_missing(
     mock_import = Mock(side_effect=fake_import)
     monkeypatch.setattr(_importlib, "import_module", mock_import)
 
-    result = module._import_module("flows_acoustics", "echodataflow.rewrite")
+    result = module._import_module("flows_acoustics", "echodataflow.flows")
 
     assert result == "ok"
     assert mock_import.mock_calls == [
@@ -128,7 +128,7 @@ def test_import_module_raises_nested_dependency_error(monkeypatch, install_prefe
     module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
 
     def fake_import(name):
-        if name == "echodataflow.rewrite.flows_biology":
+        if name == "echodataflow.flows.flows_biology":
             raise ModuleNotFoundError("No module named 'pandas'", name="pandas")
         raise AssertionError(f"unexpected import: {name}")
 
@@ -139,6 +139,6 @@ def test_import_module_raises_nested_dependency_error(monkeypatch, install_prefe
     monkeypatch.setattr(_importlib, "import_module", mock_import)
 
     with pytest.raises(ModuleNotFoundError, match="pandas"):
-        module._import_module("flows_biology", "echodataflow.rewrite")
+        module._import_module("flows_biology", "echodataflow.flows")
 
-    assert mock_import.mock_calls == [call("echodataflow.rewrite.flows_biology")]
+    assert mock_import.mock_calls == [call("echodataflow.flows.flows_biology")]
