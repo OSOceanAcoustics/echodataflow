@@ -143,6 +143,4 @@ version.py
 _archive
 prefect.toml
 temp_model
-src/echodataflow/rewrite/prototype_notebooks/
 src/echodataflow/services/prototype_misc/
-src/echodataflow/rewrite/upload_exclude_folders.txt
