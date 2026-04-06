@@ -36,5 +36,6 @@ flows:
     deployment_name: file-upload-trawl_20250902
     flow_alias: file_upload
     interval: 10
+    cron_offset: 3
     apply_separately: true
     work_pool_name: local
