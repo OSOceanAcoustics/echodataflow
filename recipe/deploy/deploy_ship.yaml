@@ -1,0 +1,44 @@
+flow_start_time: #"2025-07-04T16:13:00+00:00"
+
+source:
+  mode: git
+  git:
+    url: https://github.com/OSOceanAcoustics/echodataflow.git
+    branch: rewrite_2026_cleanup
+
+default_work_pool_name: local
+flows:
+  copy_raw:
+    module: flows_helper
+    deployment_name: copy_raw
+    interval: 2
+  raw2Sv:
+    module: flows_acoustics
+    deployment_name: raw2Sv_leg2
+    interval: 5
+  create_MVBS:
+    module: flows_acoustics
+    deployment_name: create-MVBS_leg2
+    interval: 10
+    cron_offset: 3
+    inject_time_offset: true
+  predict_hake:
+    module: flows_acoustics
+    deployment_name: predict-hake_leg2
+    interval: 20
+    inject_time_offset: true
+  file_upload_acoustics:
+    module: flows_helper
+    deployment_name: file-upload-acoustics_leg2
+    flow_alias: file_upload
+    interval: 10
+    apply_separately: true
+    work_pool_name: local
+  file_upload_trawl:
+    module: flows_helper
+    deployment_name: file-upload-trawl_20250902
+    flow_alias: file_upload
+    interval: 10
+    cron_offset: 3
+    apply_separately: true
+    work_pool_name: local

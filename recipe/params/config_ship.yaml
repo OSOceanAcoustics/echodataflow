@@ -1,0 +1,52 @@
+init:  # TODO: consider moving this section to deploy_ship.yaml
+  counter_raw_copy: 0
+
+flows:
+  copy_raw:
+    path_raw_txt: "/Users/wujung/code_git/echodataflow/_archive/temp_20260406/SH2306_raw_files.txt"  # list of raw files in S3
+    path_s3: "data/raw/Bell_M._Shimada/SH2306/EK80"  # S3 path for raw files
+    path_copy: "/Users/wujung/code_git/echodataflow/_archive/temp_20260406/temp_data/raw"  # path to copy raw data to    
+  raw2Sv:
+    exclude_before: # "2025-06-17T20:00:00+00:00" # "2025-06-13T10:00:00+00:00"  # use ISO8601 format: if UTC use +00:00 or Z
+    exclude_raw_file:
+      - "IWCPS-D20250617-T175659.raw"
+      - "IWCPS-D20250711-T212420.raw"
+      - "IWCPS-D20250901-T145533.raw"
+    parallel: False
+    encode_mode: power
+    waveform_mode: CW
+    depth_offset: 7
+    sonar_model: EK80
+    nmea_sentence: GGA
+    filename_pattern: "Hake*.raw"
+    path_raw: "/Users/wujung/code_git/echodataflow/_archive/temp_20260406/temp_data/raw"
+    path_main: "/Users/wujung/code_git/echodataflow/_archive/temp_20260406/temp_data"
+    file_Sv_csv: Sv_files.csv
+  create_MVBS:
+    slice_mins: 20
+    num_slices: 3
+    path_main: "/Users/wujung/code_git/echodataflow/_archive/temp_20260406/temp_data"
+    file_Sv_csv: Sv_files.csv
+    file_MVBS_csv: MVBS_files.csv
+  predict_hake:
+    slice_mins: 40
+    num_slices: 3
+    temperature: 0.5
+    softmax_threshold: 0.5
+    path_main: "/Users/wujung/code_git/echodataflow/_archive/temp_20260406/temp_data"
+    file_MVBS_csv: MVBS_files.csv
+    file_prediction_csv: prediction_files.csv
+  file_upload_acoustics:
+    src_dir: "/Users/wujung/code_git/echodataflow/_archive/temp_20260406/temp_data"
+    dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506_test/acoustics"
+    exclude_subdirs:
+      - Sv
+    max_age: 2
+  file_upload_trawl:
+    src_dir: "/Users/wujung/code_git/echodataflow/_archive/temp_20260401/temp_bio_2025"
+    dest_dir: "osn_sdsc_hake:/agr230002-bucket01/prefect_sh2506_test/trawl"
+    exclude_subdirs:
+      - backups
+      - "temp AB stuff"
+      - "How to run CLAMS reports.docx"
+    max_age: -1

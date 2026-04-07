@@ -1,0 +1,32 @@
+flow_start_time: null
+
+source:
+  mode: git
+  git:
+    url: https://github.com/OSOceanAcoustics/echodataflow.git
+    branch: rewrite_2026_cleanup
+
+default_work_pool_name: local
+flows:
+  ingest_haul:
+    module: flows_biology
+    deployment_name: ingest_haul
+    interval: 5
+  ingest_NASC:
+    module: flows_integration
+    deployment_name: ingest_NASC
+    interval: 5
+  update_grid:
+    module: flows_integration
+    deployment_name: update_grid
+    triggers:
+      - expect: haul.ingested
+        resource_name: ingest_haul
+      - expect: nasc.ingested
+        resource_name: ingest_NASC
+  update_cache_MVBS:
+    module: flows_viz_cloud
+    deployment_name: update_cache_MVBS
+    interval: 10
+    cron_offset: 3
+    inject_time_offset: true
