@@ -87,7 +87,6 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     deploy_cfg = {
         "flow_start_time": None,
         "default_work_pool_name": "local",
-        "entrypoint_root": "echodataflow/flows",
         "flows": {
             "ingest_haul": {
                 "module": "flows_biology",
@@ -138,7 +137,6 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
         module_prefix="echodataflow.flows",
         source_mode="local",
         run_concurrency_setup=False,
-        local_source_root=tmp_path,
         default_work_pool_name="local",
     )
 
@@ -204,7 +202,6 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     deploy_cfg = {
         "flow_start_time": None,
         "default_work_pool_name": "local",
-        "entrypoint_root": "echodataflow/flows",
         "flows": {
             "raw2Sv": {
                 "module": "flows_acoustics",
@@ -264,7 +261,6 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
         module_prefix="echodataflow.flows",
         source_mode="local",
         run_concurrency_setup=False,
-        local_source_root=tmp_path,
         default_work_pool_name="local",
     )
 

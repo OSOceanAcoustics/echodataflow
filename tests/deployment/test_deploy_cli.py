@@ -68,8 +68,6 @@ def test_main_dispatches_run_args(monkeypatch, install_prefect_stubs):
             "recipe/deploy/deploy_ship.yaml",
             "--source-mode",
             "git",
-            "--local-source-root",
-            "/tmp/local-root",
             "--no-use-concurrency",
         ],
     )
@@ -82,31 +80,6 @@ def test_main_dispatches_run_args(monkeypatch, install_prefect_stubs):
     assert captured["module_prefix"] == "echodataflow.flows"
     assert captured["source_mode"] == "git"
     assert captured["run_concurrency_setup"] is False
-    assert captured["local_source_root"] == Path("/tmp/local-root")
-
-
-def test_validate_local_source_layout_missing_entrypoint_root(
-    install_prefect_stubs, tmp_path
-):
-    module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
-
-    deploy_cfg = {"entrypoint_root": "echodataflow/flows"}
-
-    with pytest.raises(ValueError, match="entrypoint_root"):
-        module._validate_local_source_layout(tmp_path, deploy_cfg)
-
-
-def test_validate_local_source_layout_accepts_dot_entrypoint_root(
-    install_prefect_stubs, tmp_path
-):
-    module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
-
-    (tmp_path / "echodataflow" / "flows").mkdir(parents=True)
-    deploy_cfg = {"entrypoint_root": "echodataflow.flows"}
-
-    resolved = module._validate_local_source_layout(tmp_path, deploy_cfg)
-
-    assert resolved == tmp_path.resolve()
 
 
 def test_import_module_falls_back_when_prefixed_module_missing(

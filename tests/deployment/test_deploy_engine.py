@@ -71,12 +71,12 @@ def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_st
     }
 
 
-def test_build_specs_accepts_dot_style_entrypoint_root(install_prefect_stubs):
+def test_build_specs_rejects_entrypoint_root_override(install_prefect_stubs):
     install_prefect_stubs()
     engine = importlib.import_module("echodataflow.deployment.deployment_engine")
 
     deploy_cfg = {
-        "entrypoint_root": "echodataflow.flows",
+        "entrypoint_root": "echodataflow/flows",
         "flows": {
             "raw2Sv": {
                 "module": "flows_acoustics",
@@ -86,7 +86,7 @@ def test_build_specs_accepts_dot_style_entrypoint_root(install_prefect_stubs):
     }
     registry = {"flows_acoustics": types.ModuleType("flows_acoustics")}
 
-    with pytest.raises(ValueError, match="slash-style"):
+    with pytest.raises(ValueError, match="no longer supported"):
         engine.build_specs_from_deploy_spec(
             deploy_cfg=deploy_cfg,
             module_registry=registry,

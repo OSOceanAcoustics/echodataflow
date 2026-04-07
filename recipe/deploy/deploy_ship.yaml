@@ -7,7 +7,6 @@ source:
     branch: rewrite_2026_cleanup
 
 default_work_pool_name: local
-entrypoint_root: echodataflow/flows
 flows:
   copy_raw:
     module: flows_helper

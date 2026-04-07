@@ -16,6 +16,9 @@ from prefect.variables import Variable
 from yaml import safe_load
 
 
+DEFAULT_ENTRYPOINT_ROOT = "echodataflow/flows"
+
+
 @dataclass(frozen=True)
 class DeploymentSpec:
     flow_key: str
@@ -86,7 +89,7 @@ def _default_local_source_root() -> Path:
     raise ValueError("Could not infer local source root from 'echodataflow' package")
 
 
-def _validate_local_source_layout(local_source_root: Path, deploy_cfg: dict[str, Any]) -> Path:
+def _validate_local_source_layout(local_source_root: Path) -> Path:
     """
     Validate the local source root and entrypoint exists 
     and return the root to use for local deployments.
@@ -95,14 +98,12 @@ def _validate_local_source_layout(local_source_root: Path, deploy_cfg: dict[str,
     if not root.exists() or not root.is_dir():
         raise ValueError(f"Local source root does not exist or is not a directory: {root}")
 
-    entrypoint_root = deploy_cfg.get("entrypoint_root")
-    if isinstance(entrypoint_root, str) and entrypoint_root:
-        candidate = root / entrypoint_root
-        if not candidate.exists() or not candidate.is_dir():
-            raise ValueError(
-                "Configured entrypoint_root was not found under local source root: "
-                f"entrypoint_root={entrypoint_root!r}, local_source_root={root}"
-            )
+    candidate = root / DEFAULT_ENTRYPOINT_ROOT
+    if not candidate.exists() or not candidate.is_dir():
+        raise ValueError(
+            "Required entrypoint directory was not found under local source root: "
+            f"entrypoint_root={DEFAULT_ENTRYPOINT_ROOT!r}, local_source_root={root}"
+        )
 
     return root
 
@@ -131,7 +132,7 @@ def resolve_deployment_source(
         source_mode_origin = "default:local"
 
     if mode == "local":
-        default_local_dir = _validate_local_source_layout(_default_local_source_root(), deploy_cfg)
+        default_local_dir = _validate_local_source_layout(_default_local_source_root())
         source = str(default_local_dir)
         if log_context:
             print(
@@ -256,14 +257,8 @@ def build_specs_from_deploy_spec(
     deploy_cfg: dict[str, Any],
     module_registry: dict[str, Any],
 ) -> list[DeploymentSpec]:
+
     specs: list[DeploymentSpec] = []
-    entrypoint_root = str(deploy_cfg.get("entrypoint_root", "")).strip("/")
-    if entrypoint_root and "." in entrypoint_root and "/" not in entrypoint_root:
-        raise ValueError(
-            "entrypoint_root must use slash-style package paths, "
-            "for example 'echodataflow/flows'"
-        )
-    entrypoint_file_root = entrypoint_root
 
     for flow_key, deploy_meta in deploy_cfg.get("flows", {}).items():
         if not isinstance(deploy_meta, dict):
@@ -271,14 +266,10 @@ def build_specs_from_deploy_spec(
 
         module_name = deploy_meta["module"]
         flow_name = deploy_meta.get("flow_alias") or flow_key
-        default_entrypoint_file = (
-            f"{entrypoint_file_root}/{module_name}.py"
-            if entrypoint_file_root
-            else f"{module_name}.py"
-        )
+        
         entrypoint = deploy_meta.get(
             "entrypoint",
-            f"{default_entrypoint_file}:flow_{flow_name}",
+            f"{DEFAULT_ENTRYPOINT_ROOT}/{module_name}.py:flow_{flow_name}",
         )
         if module_name not in module_registry:
             available = ", ".join(sorted(module_registry)) or "<none>"
