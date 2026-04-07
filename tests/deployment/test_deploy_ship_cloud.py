@@ -130,11 +130,31 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     monkeypatch.setattr(module, "load_config", fake_load_config)
     monkeypatch.setattr(module, "resolve_deployment_source", lambda **_kwargs: "local-source")
 
+    # Create the filtered flows mapping
+    cloud_deploy_cfg = clone_config(deploy_cfg)
+    filtered = {}
+    for flow_key in cloud_deploy_cfg["flows"].keys():
+        module_name = cloud_deploy_cfg["flows"][flow_key]["module"]
+        flow_alias = cloud_deploy_cfg["flows"][flow_key].get("flow_alias") or flow_key
+        flow_name = f"flow_{flow_alias}"
+        flow_module = sys.modules[f"echodataflow.flows.{module_name}"]
+        flow_obj = getattr(flow_module, flow_name)
+        entrypoint = f"echodataflow/flows/{module_name}.py:{flow_name}"
+        filtered[flow_key] = {
+            "flow_obj": flow_obj,
+            "module_name": module_name,
+            "flow_module": flow_module,
+            "entrypoint": entrypoint,
+        }
+    
+    # Mock the discovery functions in the deploy_cli module
+    monkeypatch.setattr(module, "discover_all_flows", lambda: filtered)
+    monkeypatch.setattr(module, "filter_flows_for_deploy", lambda all_flows, cfg: {k: filtered[k] for k in cfg["flows"].keys()})
+
     stubs["FakeVariable"].calls = []
     module._run_from_specs(
         param_cfg_path=Path("config_cloud.yaml"),
         deploy_cfg_path=Path("deploy_cloud.yaml"),
-        module_prefix="echodataflow.flows",
         source_mode="local",
         run_concurrency_setup=False,
         default_work_pool_name="local",
@@ -254,11 +274,31 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     monkeypatch.setattr(module, "load_config", fake_load_config)
     monkeypatch.setattr(module, "resolve_deployment_source", lambda **_kwargs: "local-source")
 
+    # Create the filtered flows mapping
+    ship_deploy_cfg = clone_config(deploy_cfg)
+    filtered = {}
+    for flow_key in ship_deploy_cfg["flows"].keys():
+        module_name = ship_deploy_cfg["flows"][flow_key]["module"]
+        flow_alias = ship_deploy_cfg["flows"][flow_key].get("flow_alias") or flow_key
+        flow_name = f"flow_{flow_alias}"
+        flow_module = sys.modules[f"echodataflow.flows.{module_name}"]
+        flow_obj = getattr(flow_module, flow_name)
+        entrypoint = f"echodataflow/flows/{module_name}.py:{flow_name}"
+        filtered[flow_key] = {
+            "flow_obj": flow_obj,
+            "module_name": module_name,
+            "flow_module": flow_module,
+            "entrypoint": entrypoint,
+        }
+    
+    # Mock the discovery functions in the deploy_cli module
+    monkeypatch.setattr(module, "discover_all_flows", lambda: filtered)
+    monkeypatch.setattr(module, "filter_flows_for_deploy", lambda all_flows, cfg: {k: filtered[k] for k in cfg["flows"].keys()})
+
     stubs["FakeVariable"].calls = []
     module._run_from_specs(
         param_cfg_path=Path("config_ship.yaml"),
         deploy_cfg_path=Path("deploy_ship.yaml"),
-        module_prefix="echodataflow.flows",
         source_mode="local",
         run_concurrency_setup=False,
         default_work_pool_name="local",

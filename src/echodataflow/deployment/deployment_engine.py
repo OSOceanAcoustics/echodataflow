@@ -23,7 +23,7 @@ class DeploymentSpec:
     flow_key: str
     deployment_name: str
     entrypoint: str
-    flow_module: ModuleType | None = None
+    flow_obj: Flow[..., Any] | None = None
     flow_alias: str | None = None
     cron_offset: int = 0
     apply_separately: bool = False
@@ -31,37 +31,83 @@ class DeploymentSpec:
     triggers: list[dict[str, Any]] | None = None
 
 
-def _discover_flow_map(flow_module: ModuleType) -> dict[str, Flow[..., Any]]:
-    """Find available flows in a module and return a mapping of flow_name -> flow_object."""
-    discovered: dict[str, Flow[..., Any]] = {}
-
-    for attr_name in dir(flow_module):
-        if not attr_name.startswith("flow_"):
+def discover_all_flows() -> dict[str, dict[str, Any]]:
+    """
+    Discover all flow_* functions from all modules in echodataflow.flows folder.
+    Returns mapping: flow_name -> {"flow_obj", "module_name", "entrypoint"}
+    """
+    import os
+    
+    flows_pkg_spec = importlib.util.find_spec("echodataflow.flows") # this points to __init__.py
+    if flows_pkg_spec is None or flows_pkg_spec.origin is None:
+        raise ValueError("Could not locate echodataflow.flows package")
+    
+    flows_dir = Path(flows_pkg_spec.origin).parent  # this points to src/echodataflow/flows
+    discovered: dict[str, dict[str, Any]] = {}
+    
+    # Find all .py files in flows directory (excluding __init__.py)
+    for py_file in flows_dir.glob("*.py"):
+        if py_file.name.startswith("_"):
             continue
-
-        flow_name = attr_name.removeprefix("flow_")
-        discovered[flow_name] = cast(Flow[..., Any], getattr(flow_module, attr_name))
-
+        
+        module_name = py_file.stem  # filename without .py
+        try:
+            flow_module = importlib.import_module(f"echodataflow.flows.{module_name}")
+        except ImportError as e:
+            raise ImportError(f"Failed to import echodataflow.flows.{module_name}: {e}")
+        
+        # Find all flow_* attributes in the module
+        for attr_name in dir(flow_module):
+            if not attr_name.startswith("flow_"):
+                continue
+            
+            flow_name = attr_name.removeprefix("flow_")
+            flow_obj = cast(Flow[..., Any], getattr(flow_module, attr_name))
+            entrypoint = f"{DEFAULT_ENTRYPOINT_ROOT}/{module_name}.py:{attr_name}"
+            
+            discovered[flow_name] = {
+                "flow_obj": flow_obj,
+                "module_name": module_name,
+                "flow_module": flow_module,
+                "entrypoint": entrypoint,
+            }
+    
     return discovered
 
 
-def resolve_flow(spec: DeploymentSpec) -> Flow[..., Any]:
-    if spec.flow_module is None:
-        raise ValueError(
-            f"Deployment spec '{spec.deployment_name}' must provide flow_module"
-        )
+def filter_flows_for_deploy(all_flows: dict[str, dict[str, Any]], deploy_cfg: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """
+    Filter discovered flows to only those specified in deploy config.
+    Build a flow-name mapping keyed by `flow_<name>` from discovered flows,
+    then resolve deploy entries by `flow_<flow_key>` or `flow_<flow_alias>`.
+    Returns mapping keyed by deploy flow_key to discovered flow metadata.
+    """
+    filtered: dict[str, dict[str, Any]] = {}
+    flow_name_map = {f"flow_{name}": flow_info for name, flow_info in all_flows.items()}
+    
+    for flow_key, deploy_meta in deploy_cfg.get("flows", {}).items():
+        requested_name = f"flow_{flow_key}"
+        alias_name: str | None = None
+        if isinstance(deploy_meta, dict):
+            flow_alias = deploy_meta.get("flow_alias")
+            if isinstance(flow_alias, str) and flow_alias:
+                alias_name = f"flow_{flow_alias}"
 
-    flow_name = spec.flow_alias or spec.flow_key
-    discovered = _discover_flow_map(spec.flow_module)  # find available flows in flow_module
+        matched_name = requested_name
+        if matched_name not in flow_name_map and alias_name is not None:
+            matched_name = alias_name
 
-    if flow_name not in discovered:
-        available = ", ".join(sorted(discovered)) or "<none>"
-        raise AttributeError(
-            f"Flow library '{spec.flow_module.__name__}' has no discovered flow for "
-            f"'{flow_name}'. Available flows: {available}"
-        )
-
-    return discovered[flow_name]
+        if matched_name not in flow_name_map:
+            available = ", ".join(sorted(flow_name_map)) or "<none>"
+            raise KeyError(
+                f"Flow '{flow_key}' not found in discovered flows "
+                f"(checked {requested_name!r}"
+                f"{f' and {alias_name!r}' if alias_name else ''}). "
+                f"Available flows: {available}"
+            )
+        filtered[flow_key] = flow_name_map[matched_name]
+    
+    return filtered
 
 
 def load_config(config_path: Path) -> dict[str, Any]:
@@ -255,35 +301,29 @@ def validate_flow_coverage(
 def build_deploy_specs(
     *,
     deploy_cfg: dict[str, Any],
-    module_registry: dict[str, Any],
+    filtered_flows: dict[str, dict[str, Any]],
 ) -> list[DeploymentSpec]:
-
+    """
+    Build deployment specs from deploy config and pre-filtered flows mapping.
+    """
     specs: list[DeploymentSpec] = []
 
     for flow_key, deploy_meta in deploy_cfg.get("flows", {}).items():
         if not isinstance(deploy_meta, dict):
             continue
 
-        module_name = deploy_meta["module"]
-        flow_name = deploy_meta.get("flow_alias") or flow_key
-        
-        entrypoint = deploy_meta.get(
-            "entrypoint",
-            f"{DEFAULT_ENTRYPOINT_ROOT}/{module_name}.py:flow_{flow_name}",
-        )
-        if module_name not in module_registry:
-            available = ", ".join(sorted(module_registry)) or "<none>"
-            raise KeyError(
-                f"Unknown module '{module_name}' for flow '{flow_key}'. "
-                f"Available modules: {available}"
-            )
+        if flow_key not in filtered_flows:
+            continue
+
+        flow_info = filtered_flows[flow_key]
+        entrypoint = deploy_meta.get("entrypoint") or flow_info["entrypoint"]
 
         specs.append(
             DeploymentSpec(
                 flow_key=flow_key,
                 deployment_name=deploy_meta.get("deployment_name", flow_key),
                 entrypoint=entrypoint,
-                flow_module=module_registry[module_name],
+                flow_obj=flow_info["flow_obj"],
                 flow_alias=deploy_meta.get("flow_alias"),
                 cron_offset=deploy_meta.get("cron_offset", 0),
                 apply_separately=deploy_meta.get("apply_separately", False),
@@ -311,7 +351,9 @@ def create_deployments(
     standalone: list[RunnerDeployment] = []
 
     for spec in specs:
-        flow_obj = resolve_flow(spec)
+        if spec.flow_obj is None:
+            raise ValueError(f"Deployment spec '{spec.deployment_name}' has no resolved flow")
+        flow_obj = spec.flow_obj
         deployment_kwargs: dict[str, Any] = {
             "name": spec.deployment_name,
             "parameters": sanitize_parameters(flows_params[spec.flow_key]),

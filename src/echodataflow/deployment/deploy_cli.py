@@ -13,10 +13,10 @@ from typing import Any
 from prefect import deploy
 from yaml import safe_load
 
-from echodataflow.deployment.core import DEFAULT_MODULE_PREFIX
-
 
 from echodataflow.deployment.deployment_engine import (
+    discover_all_flows,
+    filter_flows_for_deploy,
     build_deploy_specs,
     create_deployments,
     load_config,
@@ -26,28 +26,18 @@ from echodataflow.deployment.deployment_engine import (
 )
 
 
-def _build_module_registry(deploy_cfg: dict[str, Any], module_prefix: str) -> dict[str, Any]:
-    """Build a registry of imported modules specified in deploy config."""
-    flows_cfg = deploy_cfg.get("flows", {})
-    if not isinstance(flows_cfg, dict):
-        raise ValueError("Deploy config must contain a top-level 'flows' mapping")
-
-    registry: dict[str, Any] = {}
-    for flow_meta in flows_cfg.values():
-        if not isinstance(flow_meta, dict): # skip if flow_meta is not a dict
+def _run_concurrency_setup(filtered_flows: dict[str, dict[str, Any]]) -> None:
+    """Run set_concurrency_limit for modules with flows in filtered_flows."""
+    seen_modules = set()
+    
+    for flow_info in filtered_flows.values():
+        flow_module = flow_info["flow_module"]
+        module_name = id(flow_module)  # use object id to track unique modules
+        if module_name in seen_modules:
             continue
-        module_name = flow_meta.get("module")
-        if not isinstance(module_name, str): # skip if module_name not specified or not a string
-            continue
-        if module_name in registry: # skip already imported modules
-            continue
-        registry[module_name] = importlib.import_module(f"{module_prefix}.{module_name}")
-    return registry
-
-
-def _run_concurrency_setup(module_registry: dict[str, Any]) -> None:
-    for module in module_registry.values():
-        setup_fn = getattr(module, "set_concurrency_limit", None)
+        seen_modules.add(module_name)
+        
+        setup_fn = getattr(flow_module, "set_concurrency_limit", None)
         if not callable(setup_fn):
             continue
 
@@ -75,12 +65,13 @@ def _run_from_specs(
     # Set prefect variables
     set_prefect_variables(deploy_cfg, param_cfg)
 
-    # Build a registry of imported modules specified in deploy config, 
-    # to be used for resolving flow entrypoints in create_deployments
-    module_registry = _build_module_registry(deploy_cfg, module_prefix=DEFAULT_MODULE_PREFIX)
+    # Discover all flows and filter to those in deploy config
+    all_flows = discover_all_flows()
+    filtered_flows = filter_flows_for_deploy(all_flows, deploy_cfg)
     if run_concurrency_setup:
-        _run_concurrency_setup(module_registry)
+        _run_concurrency_setup(filtered_flows)
 
+    # Set up deployment source: git or local
     source = resolve_deployment_source(
         deploy_cfg=deploy_cfg,
         source_mode_override=source_mode,
@@ -93,7 +84,7 @@ def _run_from_specs(
 
     specs = build_deploy_specs(
         deploy_cfg=deploy_cfg,
-        module_registry=module_registry,
+        filtered_flows=filtered_flows,
     )
     grouped, standalone = create_deployments(
         specs=specs,
