@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import importlib
-import importlib.util
 import inspect
 import os
 from pathlib import Path
@@ -67,26 +66,6 @@ def _maybe_run_concurrency_setup(module_registry: dict[str, Any]) -> None:
             setup_fn()
 
 
-def _default_local_source_root() -> Path:
-    """Infer local source root from installed echodataflow package location."""
-    spec = importlib.util.find_spec("echodataflow")
-    if spec is None:
-        raise ValueError("Could not locate installed 'echodataflow' package")
-
-    # Package installs point to .../<root>/echodataflow/__init__.py
-    # Local source root should be <root>
-    if spec.origin:
-        return Path(spec.origin).resolve().parent.parent
-
-    # Namespace package fallback
-    if spec.submodule_search_locations:
-        first = next(iter(spec.submodule_search_locations), None)
-        if first:
-            return Path(first).resolve().parent
-
-    raise ValueError("Could not infer local source root from 'echodataflow' package")
-
-
 def _run_from_specs(
     *,
     param_cfg_path: Path,
@@ -111,13 +90,9 @@ def _run_from_specs(
     if run_concurrency_setup:
         _maybe_run_concurrency_setup(module_registry)
 
-    # Get "flows" subpackage location
-    default_local_dir = local_source_root or _default_local_source_root()  # location of the installed echodataflow package
-    default_local_dir = default_local_dir / "echodataflow/flows"  # default to the "flows" subpackage within echodataflow
-
     source = resolve_deployment_source(
         deploy_cfg=deploy_cfg,
-        default_local_dir=default_local_dir,
+        local_source_root=local_source_root,
         source_mode_override=source_mode,
         log_context="deploy_cli",
     )

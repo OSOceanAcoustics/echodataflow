@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Any, cast
+import importlib.util
 
 from prefect.deployments.runner import RunnerDeployment
 from prefect.events import DeploymentEventTrigger
@@ -65,12 +66,56 @@ def load_config(config_path: Path) -> dict[str, Any]:
         return safe_load(file)
 
 
+def _default_local_source_root() -> Path:
+    """Infer local source root from installed echodataflow package location."""
+    spec = importlib.util.find_spec("echodataflow")
+    if spec is None:
+        raise ValueError("Could not locate installed 'echodataflow' package")
+
+    # Package installs point to .../<root>/echodataflow/__init__.py
+    # Local source root should be <root>
+    if spec.origin:
+        return Path(spec.origin).resolve().parent.parent
+
+    # Namespace package fallback
+    if spec.submodule_search_locations:
+        first = next(iter(spec.submodule_search_locations), None)
+        if first:
+            return Path(first).resolve().parent
+
+    raise ValueError("Could not infer local source root from 'echodataflow' package")
+
+
+def _validate_local_source_layout(local_source_root: Path, deploy_cfg: dict[str, Any]) -> Path:
+    """
+    Validate the local source root and entrypoint exists 
+    and return the root to use for local deployments.
+    """
+    root = local_source_root.resolve()
+    if not root.exists() or not root.is_dir():
+        raise ValueError(f"Local source root does not exist or is not a directory: {root}")
+
+    entrypoint_root = deploy_cfg.get("entrypoint_root")
+    if isinstance(entrypoint_root, str) and entrypoint_root:
+        candidate = root / entrypoint_root
+        if not candidate.exists() or not candidate.is_dir():
+            raise ValueError(
+                "Configured entrypoint_root was not found under local source root: "
+                f"entrypoint_root={entrypoint_root!r}, local_source_root={root}"
+            )
+
+    return root
+
+
 def resolve_deployment_source(
     deploy_cfg: dict[str, Any],
-    default_local_dir: Path,
+    local_source_root: Path,
     source_mode_override: str | None = None,
     log_context: str | None = None,
 ) -> Any:
+    """
+    Resolve deployment source based on deploy config and environment variable override.
+    """
     source_cfg = deploy_cfg.get("source", {})
     if source_cfg is None:
         source_cfg = {}
@@ -87,6 +132,8 @@ def resolve_deployment_source(
         source_mode_origin = "default:local"
 
     if mode == "local":
+        default_local_dir = local_source_root or _default_local_source_root()
+        default_local_dir = _validate_local_source_layout(default_local_dir, deploy_cfg)
         source = str(default_local_dir)
         if log_context:
             print(
