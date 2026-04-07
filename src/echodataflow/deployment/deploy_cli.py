@@ -87,39 +87,6 @@ def _default_local_source_root() -> Path:
     raise ValueError("Could not infer local source root from 'echodataflow' package")
 
 
-def _effective_source_mode(deploy_cfg: dict[str, Any], source_mode_override: str | None) -> str:
-    if source_mode_override:
-        return source_mode_override
-
-    source_cfg = deploy_cfg.get("source", {})
-    if isinstance(source_cfg, dict):
-        mode = source_cfg.get("mode")
-        if isinstance(mode, str) and mode:
-            return mode
-
-    return "local"
-
-
-def _validate_local_source_layout(local_source_root: Path, deploy_cfg: dict[str, Any]) -> Path:
-    root = local_source_root.resolve()
-    if not root.exists() or not root.is_dir():
-        raise ValueError(f"Local source root does not exist or is not a directory: {root}")
-
-    entrypoint_root = deploy_cfg.get("entrypoint_root")
-    if isinstance(entrypoint_root, str) and entrypoint_root:
-        normalized_entrypoint_root = entrypoint_root.strip("/")
-        if "/" not in normalized_entrypoint_root:
-            normalized_entrypoint_root = normalized_entrypoint_root.replace(".", "/")
-        candidate = root / normalized_entrypoint_root
-        if not candidate.exists() or not candidate.is_dir():
-            raise ValueError(
-                "Configured entrypoint_root was not found under local source root: "
-                f"entrypoint_root={entrypoint_root!r}, local_source_root={root}"
-            )
-
-    return root
-
-
 def _run_from_specs(
     *,
     param_cfg_path: Path,
@@ -144,9 +111,9 @@ def _run_from_specs(
     if run_concurrency_setup:
         _maybe_run_concurrency_setup(module_registry)
 
-    default_local_dir = local_source_root or _default_local_source_root()
-    if _effective_source_mode(deploy_cfg, source_mode) == "local":
-        default_local_dir = _validate_local_source_layout(default_local_dir, deploy_cfg)
+    # Get "flows" subpackage location
+    default_local_dir = local_source_root or _default_local_source_root()  # location of the installed echodataflow package
+    default_local_dir = default_local_dir / "echodataflow/flows"  # default to the "flows" subpackage within echodataflow
 
     source = resolve_deployment_source(
         deploy_cfg=deploy_cfg,

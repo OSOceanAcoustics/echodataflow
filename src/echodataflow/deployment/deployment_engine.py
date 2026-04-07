@@ -75,18 +75,19 @@ def resolve_deployment_source(
     if source_cfg is None:
         source_cfg = {}
 
+    # Priority: 1) env var override, 2) deploy config setting, 3) default to local
     mode = (source_mode_override or source_cfg.get("mode") or "local").lower()
-    source_mode_origin = (
-        "env:PREFECT_SOURCE_MODE"
-        if source_mode_override
-        else "deploy_cfg.source.mode"
-        if source_cfg.get("mode")
-        else "default:local"
-    )
+
+    # Capture the origin of source mode
+    if source_mode_override:
+        source_mode_origin = "env:PREFECT_SOURCE_MODE"
+    elif source_cfg.get("mode"):
+        source_mode_origin = "deploy_cfg.source.mode"
+    else:
+        source_mode_origin = "default:local"
 
     if mode == "local":
-        local_path = source_cfg.get("local_path")
-        source = str(local_path) if local_path else str(default_local_dir)
+        source = str(default_local_dir)
         if log_context:
             print(
                 f"[{log_context}] source_mode={mode} "
@@ -102,10 +103,10 @@ def resolve_deployment_source(
         if not url:
             raise ValueError("Deploy source.git.url is required when source mode is 'git'")
 
-        # Import lazily so tests and local-only runs do not require Git storage objects.
+        # Import lazily so tests and local-only runs do not require Git storage objects
         from prefect.runner.storage import GitRepository
 
-        branch = git_cfg.get("branch", "main")
+        branch = git_cfg.get("branch", "main")  # default to the "main" branch unless specified
         source = GitRepository(url=url, branch=branch)
         if log_context:
             print(
