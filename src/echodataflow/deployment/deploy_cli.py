@@ -73,7 +73,6 @@ def _run_from_specs(
     module_prefix: str | None,
     source_mode: str | None,
     run_concurrency_setup: bool,
-    local_source_root: Path | None,
     default_work_pool_name: str = "local",
 ) -> None:
     # Load configs
@@ -92,7 +91,6 @@ def _run_from_specs(
 
     source = resolve_deployment_source(
         deploy_cfg=deploy_cfg,
-        local_source_root=local_source_root,
         source_mode_override=source_mode,
         log_context="deploy_cli",
     )
@@ -158,15 +156,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path to deploy_*.yaml (deployment spec).",
     )
     run_parser.add_argument(
-        "--local-source-root",
-        type=Path,
-        default=None,
-        help=(
-            "Base directory to use when source mode resolves to local. "
-            "If omitted, inferred from installed echodataflow package location."
-        ),
-    )
-    run_parser.add_argument(
         "--use-concurrency",
         action=argparse.BooleanOptionalAction,
         default=True,
@@ -193,7 +182,6 @@ def main() -> None:
             module_prefix=module_prefix,
             source_mode=source_mode,
             run_concurrency_setup=args.use_concurrency,
-            local_source_root=args.local_source_root,
             default_work_pool_name=args.default_work_pool_name,
         )
         return

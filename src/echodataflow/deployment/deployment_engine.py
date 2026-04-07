@@ -109,7 +109,6 @@ def _validate_local_source_layout(local_source_root: Path, deploy_cfg: dict[str,
 
 def resolve_deployment_source(
     deploy_cfg: dict[str, Any],
-    local_source_root: Path,
     source_mode_override: str | None = None,
     log_context: str | None = None,
 ) -> Any:
@@ -132,8 +131,7 @@ def resolve_deployment_source(
         source_mode_origin = "default:local"
 
     if mode == "local":
-        default_local_dir = local_source_root or _default_local_source_root()
-        default_local_dir = _validate_local_source_layout(default_local_dir, deploy_cfg)
+        default_local_dir = _validate_local_source_layout(_default_local_source_root(), deploy_cfg)
         source = str(default_local_dir)
         if log_context:
             print(
