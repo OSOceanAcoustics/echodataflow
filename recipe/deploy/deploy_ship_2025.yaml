@@ -1,4 +1,4 @@
-flow_start_time: #"2025-07-04T16:13:00+00:00"
+flow_start_time: "2025-07-04T16:13:00+00:00"
 
 source:
   mode: git
