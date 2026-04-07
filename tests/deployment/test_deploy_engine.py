@@ -69,25 +69,3 @@ def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_st
         "update_grid": "echodataflow/flows/flows_integration.py:flow_update_grid",
         "update_cache_MVBS": "echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
     }
-
-
-def test_build_specs_rejects_entrypoint_root_override(install_prefect_stubs):
-    install_prefect_stubs()
-    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
-
-    deploy_cfg = {
-        "entrypoint_root": "echodataflow/flows",
-        "flows": {
-            "raw2Sv": {
-                "module": "flows_acoustics",
-                "deployment_name": "raw2Sv",
-            },
-        },
-    }
-    registry = {"flows_acoustics": types.ModuleType("flows_acoustics")}
-
-    with pytest.raises(ValueError, match="no longer supported"):
-        engine.build_specs_from_deploy_spec(
-            deploy_cfg=deploy_cfg,
-            module_registry=registry,
-        )

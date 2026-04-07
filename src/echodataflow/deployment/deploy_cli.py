@@ -13,8 +13,11 @@ from typing import Any
 from prefect import deploy
 from yaml import safe_load
 
+from echodataflow.deployment.core import DEFAULT_MODULE_PREFIX
+
+
 from echodataflow.deployment.deployment_engine import (
-    build_specs_from_deploy_spec,
+    build_deploy_specs,
     create_deployments,
     load_config,
     resolve_deployment_source,
@@ -23,38 +26,26 @@ from echodataflow.deployment.deployment_engine import (
 )
 
 
-def _import_module(module_name: str, module_prefix: str | None) -> Any:
-    if module_prefix:
-        prefixed_name = f"{module_prefix}.{module_name}"
-        try:
-            return importlib.import_module(prefixed_name)
-        except ModuleNotFoundError as exc:
-            # Only fall back to bare import when the prefixed module itself is missing.
-            # If a dependency imported within that module is missing, surface the real error.
-            if exc.name != prefixed_name:
-                raise
-    return importlib.import_module(module_name)
-
-
-def _build_module_registry(deploy_cfg: dict[str, Any], module_prefix: str | None) -> dict[str, Any]:
-    flows = deploy_cfg.get("flows", {})
-    if not isinstance(flows, dict):
+def _build_module_registry(deploy_cfg: dict[str, Any], module_prefix: str) -> dict[str, Any]:
+    """Build a registry of imported modules specified in deploy config."""
+    flows_cfg = deploy_cfg.get("flows", {})
+    if not isinstance(flows_cfg, dict):
         raise ValueError("Deploy config must contain a top-level 'flows' mapping")
 
     registry: dict[str, Any] = {}
-    for flow_meta in flows.values():
-        if not isinstance(flow_meta, dict):
+    for flow_meta in flows_cfg.values():
+        if not isinstance(flow_meta, dict): # skip if flow_meta is not a dict
             continue
         module_name = flow_meta.get("module")
-        if not isinstance(module_name, str):
+        if not isinstance(module_name, str): # skip if module_name not specified or not a string
             continue
-        if module_name in registry:
+        if module_name in registry: # skip already imported modules
             continue
-        registry[module_name] = _import_module(module_name, module_prefix)
+        registry[module_name] = importlib.import_module(f"{module_prefix}.{module_name}")
     return registry
 
 
-def _maybe_run_concurrency_setup(module_registry: dict[str, Any]) -> None:
+def _run_concurrency_setup(module_registry: dict[str, Any]) -> None:
     for module in module_registry.values():
         setup_fn = getattr(module, "set_concurrency_limit", None)
         if not callable(setup_fn):
@@ -70,7 +61,6 @@ def _run_from_specs(
     *,
     param_cfg_path: Path,
     deploy_cfg_path: Path,
-    module_prefix: str | None,
     source_mode: str | None,
     run_concurrency_setup: bool,
     default_work_pool_name: str = "local",
@@ -85,9 +75,11 @@ def _run_from_specs(
     # Set prefect variables
     set_prefect_variables(deploy_cfg, param_cfg)
 
-    module_registry = _build_module_registry(deploy_cfg, module_prefix)
+    # Build a registry of imported modules specified in deploy config, 
+    # to be used for resolving flow entrypoints in create_deployments
+    module_registry = _build_module_registry(deploy_cfg, module_prefix=DEFAULT_MODULE_PREFIX)
     if run_concurrency_setup:
-        _maybe_run_concurrency_setup(module_registry)
+        _run_concurrency_setup(module_registry)
 
     source = resolve_deployment_source(
         deploy_cfg=deploy_cfg,
@@ -99,7 +91,7 @@ def _run_from_specs(
     # unless specified for individual flow
     default_work_pool_name = deploy_cfg.get("default_work_pool_name", default_work_pool_name)
 
-    specs = build_specs_from_deploy_spec(
+    specs = build_deploy_specs(
         deploy_cfg=deploy_cfg,
         module_registry=module_registry,
     )
@@ -173,13 +165,10 @@ def main() -> None:
     if source_mode is not None:
         os.environ["PREFECT_SOURCE_MODE"] = source_mode
 
-    module_prefix = "echodataflow.flows"
-
     if args.target == "run":
         _run_from_specs(
             param_cfg_path=args.param_config,
             deploy_cfg_path=args.deploy_spec,
-            module_prefix=module_prefix,
             source_mode=source_mode,
             run_concurrency_setup=args.use_concurrency,
             default_work_pool_name=args.default_work_pool_name,

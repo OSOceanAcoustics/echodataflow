@@ -15,8 +15,7 @@ from prefect.flows import Flow
 from prefect.variables import Variable
 from yaml import safe_load
 
-
-DEFAULT_ENTRYPOINT_ROOT = "echodataflow/flows"
+from echodataflow.deployment.core import DEFAULT_ENTRYPOINT_ROOT
 
 
 @dataclass(frozen=True)
@@ -33,6 +32,7 @@ class DeploymentSpec:
 
 
 def _discover_flow_map(flow_module: ModuleType) -> dict[str, Flow[..., Any]]:
+    """Find available flows in a module and return a mapping of flow_name -> flow_object."""
     discovered: dict[str, Flow[..., Any]] = {}
 
     for attr_name in dir(flow_module):
@@ -252,7 +252,7 @@ def validate_flow_coverage(
         raise ValueError("Flow coverage mismatch. " + " | ".join(errors))
 
 
-def build_specs_from_deploy_spec(
+def build_deploy_specs(
     *,
     deploy_cfg: dict[str, Any],
     module_registry: dict[str, Any],
