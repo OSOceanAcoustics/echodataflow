@@ -18,7 +18,7 @@ flows:
     depth_offset: 7
     sonar_model: EK80
     nmea_sentence: GGA
-    filename_pattern: "IWCPS*.raw"
+    filename_pattern: "Hake*.raw"
     path_raw: "/Users/wujung/code_git/echodataflow/_archive/temp_20260406/temp_data/raw"
     path_main: "/Users/wujung/code_git/echodataflow/_archive/temp_20260406/temp_data"
     file_Sv_csv: Sv_files.csv

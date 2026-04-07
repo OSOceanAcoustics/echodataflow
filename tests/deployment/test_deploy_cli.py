@@ -96,6 +96,19 @@ def test_validate_local_source_layout_missing_entrypoint_root(
         module._validate_local_source_layout(tmp_path, deploy_cfg)
 
 
+def test_validate_local_source_layout_accepts_dot_entrypoint_root(
+    install_prefect_stubs, tmp_path
+):
+    module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
+
+    (tmp_path / "echodataflow" / "flows").mkdir(parents=True)
+    deploy_cfg = {"entrypoint_root": "echodataflow.flows"}
+
+    resolved = module._validate_local_source_layout(tmp_path, deploy_cfg)
+
+    assert resolved == tmp_path.resolve()
+
+
 def test_import_module_falls_back_when_prefixed_module_missing(
     monkeypatch, install_prefect_stubs
 ):

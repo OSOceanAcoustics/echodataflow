@@ -107,7 +107,10 @@ def _validate_local_source_layout(local_source_root: Path, deploy_cfg: dict[str,
 
     entrypoint_root = deploy_cfg.get("entrypoint_root")
     if isinstance(entrypoint_root, str) and entrypoint_root:
-        candidate = root / entrypoint_root
+        normalized_entrypoint_root = entrypoint_root.strip("/")
+        if "/" not in normalized_entrypoint_root:
+            normalized_entrypoint_root = normalized_entrypoint_root.replace(".", "/")
+        candidate = root / normalized_entrypoint_root
         if not candidate.exists() or not candidate.is_dir():
             raise ValueError(
                 "Configured entrypoint_root was not found under local source root: "

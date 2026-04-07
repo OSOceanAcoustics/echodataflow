@@ -24,8 +24,8 @@ from prefect.states import Cancelled, Failed
 from prefect import runtime
 from prefect.variables import Variable
 
-from .flows_helper import deployment_already_running
-from ..utils.utils import (
+from echodataflow.flows.flows_helper import deployment_already_running
+from echodataflow.utils.utils import (
     # get_MVBS_tensor,
     # get_hake_model,
     round_up_mins,

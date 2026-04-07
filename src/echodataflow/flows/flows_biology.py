@@ -5,7 +5,7 @@ import pandas as pd
 
 import configparser, s3fs
 
-from ..utils.const import TS_L_PARAMS, INFO_DATAFRAME_MAPPING
+from echodataflow.utils.const import TS_L_PARAMS, INFO_DATAFRAME_MAPPING
 
 from prefect import task, flow
 from prefect.events import emit_event

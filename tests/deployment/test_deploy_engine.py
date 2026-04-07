@@ -2,6 +2,8 @@ import importlib
 import types
 from pathlib import Path
 
+import pytest
+
 
 def test_validate_flow_coverage(install_prefect_stubs):
     install_prefect_stubs()
@@ -15,7 +17,6 @@ def test_validate_flow_coverage(install_prefect_stubs):
 
     # flow_b missing from deploy — should raise
     deploy_cfg_missing = {"flows": {"flow_a": {}}}
-    import pytest
     with pytest.raises(ValueError, match="flow_b"):
         engine.validate_flow_coverage(param_cfg, deploy_cfg_missing)
 
@@ -55,6 +56,7 @@ def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_st
     cloud_entrypoints = {spec.flow_key: spec.entrypoint for spec in cloud_specs}
 
     assert ship_entrypoints == {
+        "copy_raw": "echodataflow/flows/flows_helper.py:flow_copy_raw",
         "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
         "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
         "predict_hake": "echodataflow/flows/flows_acoustics.py:flow_predict_hake",
@@ -67,3 +69,25 @@ def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_st
         "update_grid": "echodataflow/flows/flows_integration.py:flow_update_grid",
         "update_cache_MVBS": "echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
     }
+
+
+def test_build_specs_accepts_dot_style_entrypoint_root(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    deploy_cfg = {
+        "entrypoint_root": "echodataflow.flows",
+        "flows": {
+            "raw2Sv": {
+                "module": "flows_acoustics",
+                "deployment_name": "raw2Sv",
+            },
+        },
+    }
+    registry = {"flows_acoustics": types.ModuleType("flows_acoustics")}
+
+    with pytest.raises(ValueError, match="slash-style"):
+        engine.build_specs_from_deploy_spec(
+            deploy_cfg=deploy_cfg,
+            module_registry=registry,
+        )
