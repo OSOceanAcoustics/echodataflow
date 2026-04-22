@@ -1,116 +1,89 @@
-<div>
+<!-- <div>
   <a href="https://echodataflow.readthedocs.io/en/latest/?badge=latest">
     <img src="https://readthedocs.org/projects/echodataflow/badge/?version=latest"/>
   </a>
   <a href="https://codecov.io/gh/OSOceanAcoustics/echodataflow" > 
  <img src="https://codecov.io/gh/OSOceanAcoustics/echodataflow/graph/badge.svg?token=YTMVVHG585"/> 
  </a>
-</div>
+</div> -->
 
 # Echodataflow: Streamlined Data Pipeline Orchestration
 
-Welcome to **Echodataflow**! Echodataflow is a powerful data pipeline orchestration tool designed to simplify and enhance the execution of data processing tasks. Leveraging the capabilities of [Prefect 2.0](https://www.prefect.io/) and YAML configuration files, Echodataflow caters to the needs of scientific research and data analysis. It provides an efficient way to define, configure, and execute complex data processing workflows.
-
-Echodataflow integrates with [**Echopype**](https://github.com/OSOceanAcoustics/echopype), a renowned package for sonar data analysis, to provide a versatile solution for researchers, analysts, and engineers. With Echodataflow, users can seamlessly process and analyze sonar data using a modular and user-friendly approach.
+Echodataflow streamlines echosounder data processing by combining [Prefect](https://www.prefect.io/)-based pipeline orchestration, YAML configuration, and [Echopype](https://github.com/OSOceanAcoustics/echopype) into a modular tool for defining, configuring, and executing workflows.
 
 
-# Getting Started with Echodataflow
-
-This guide will walk you through the initial steps to set up and run your Echodataflow pipelines.
-
-## 1. Create a Virtual Environment
-
-To keep your Echodataflow environment isolated, it's recommended to create a virtual environment using Conda or Python's built-in `venv` module. Here's an example using Conda:
-
-```bash
-conda create --name echodataflow-env -c conda-forge python=3.12 pip
-conda activate echodataflow-env
-```
-
-Or, using Python's venv:
-
-```bash
-python -m venv echodataflow-env
-source echodataflow-env/bin/activate  # On Windows, use `echodataflow-env\Scripts\activate`
-```
-
-## 2. Clone the Project
-Now that you have a virtual environment set up, you can clone the Echodataflow project repository to your local machine using the following command:
-
-```bash
-git clone <repository_url>
-```
-
-## 3. Install the Package
-Navigate to the project directory you've just cloned and install the Echodataflow package. The -e flag is crucial as it enables editable mode, which is especially helpful during development and testing. Now, take a moment and let the echodataflow do its thing while you enjoy your coffee.
-
-```bash
-cd <project_directory>
-pip install -e .
-```
-
-For development dependencies defined in `pyproject.toml`, install optional groups:
-
-```bash
-python -m pip install -e .[test,lint,docs]
-```
-
-## 4. Echodataflow and Prefect Initialization
-
-To kickstart your journey with Echodataflow and Prefect, follow these simple initialization steps:
-
-### 4.1 Initializing Echodataflow
-Begin by initializing Echodataflow with the following command:
-
-```bash
-echodataflow init
-```
-This command sets up the groundwork for your Echodataflow environment, preparing it for seamless usage.
-
-### 4.2 Initializing Prefect
-For Prefect, initialization involves a few extra steps, including secure authentication. Enter the following command to initiate the Prefect authentication process:
-
-- If you have a Prefect Cloud account, provide your Prefect API key to securely link your account. Type your API key when prompted and press Enter.
-
-```bash
-prefect cloud login
-```
-
-- If you don't have a Prefect Cloud account yet, you can use local prefect account. This is especially useful for those who are just starting out and want to explore Prefect without an account.
-
-```bash
-prefect profiles create echodataflow-local
-```
-
-The initialization process will ensure that both Echodataflow and Prefect are properly set up and ready for you to dive into your cloud-based workflows.
-
-## 5. Configure Blocks
-Echodataflow utilizes the concept of [blocks](./docs/configuration/blocks.md) which are secure containers for storing credentials and sensitive data. If you're running the entire flow locally, feel free to bypass this step.To set up your cloud credentials, configure blocks according to your cloud provider. For detailed instructions, refer to the [Blocks Configuration Guide](./docs/configuration/blocks.md#creating-credential-blocks).
-
-## 6. Edit the Pipeline Configuration
-Open the [pipeline.yaml](./docs/configuration/pipeline.md) file. This YAML configuration file defines the processes you want to execute as part of your pipeline. Customize it by adding the necessary stages and functions from echopype that you wish to run.
-
-## 7. Define Data Sources and Destinations
-Customize the [datastore.yaml](./docs/configuration/datastore.md) file to define the source and destination for your pipeline's data. This is where Echodataflow will fetch and store data as it executes the pipeline.
-
-## 8. Execute the Pipeline
-You're now ready to execute your Echodataflow pipeline! Use the echodataflow_start function, which is a central piece of Echodataflow, to kick off your pipeline. Import this function from Echodataflow and provide the paths or URLs of the configuration files. You can also pass additional options or storage options as needed. Here's an example:
-
-Customize the paths, block name, storage type, and options based on your requirements.
+**Note:** Echodataflow v.0.1.x have been deprecated. We will release v0.2.0 soon!
 
 
-```python
-from echodataflow import echodataflow_start, StorageType, load_block
 
-dataset_config = # url or path of datastore.yaml
-pipeline_config = # url or path of pipeline.yaml
-logfile_config = # url or path of logging.yaml (Optional)
+## Installation
 
-aws = load_block(name="<block_name>", type=<StorageType>)
+1. Set up a computing environment using Conda:
+   ```bash
+   conda create --name echodataflow -c conda-forge python=3.12
+   conda activate echodataflow
+   ```
 
-options = {"storage_options_override": False} # Enabling this assigns the block for universal use, avoiding the need for repetitive configurations when employing a single credential block throughout the application.
-data  = echodataflow_start(dataset_config=dataset_config, pipeline_config=pipeline_config, logging_config=logfile_config, storage_options=aws, options=options)
-```
+2. If you would like to run Echodataflow as an installed package, 
+   install it from the repo like below:
+   ```bash
+   pip install git+https://github.com/OSOceanAcoustics/echodataflow.git  # install from repo
+   ```
+   If you instead would like to install Echodataflow to develop it,
+   clone the repo and install it like below:
+   ```bash
+   git clone git+https://github.com/OSOceanAcoustics/echodataflow.git  # clone the repo
+   pip install -e .[test,lint,docs]  # install in editable mode with dev tools
+   ```
+   
+
+
+## Running the edge pipeline
+
+1. Start the local Prefect server:
+   ```bash
+   prefect server start
+   ```
+
+2. In a new terminal, create and run a work pool:
+   ```bash
+   prefect worker start --pool "local"
+   ```
+
+3. Download the recipes from the [echodataflow-recipes repository](https://github.com/OSOceanAcoustics/echodataflow-recipes) by clonining it to your computer:
+   ```
+   cd REPO_DIRECTORY  # switch to where you want the recipes repo to sit
+   git clone https://github.com/OSOceanAcoustics/echodataflow-recipes.git
+   ```
+
+4. Deploy and run the ship pipeline:
+   ```bash
+   python -m echodataflow.deployment.deploy_cli run --default-work-pool-name local --param-config REPO_DIRECTORY/recipes/params/config_ship_2025.yaml --deploy-spec REPO_DIRECTORY/recipes/deploy/deploy_ship_2025.yaml --source-mode local
+   ```
+
+
+## Running the cloud pipeline
+
+1. Start a cloud virtual machine using the Linux platform
+
+2. Start up a system service that runs a Prefect worker
+
+3. Establish connection with the cloud Prefect server
+
+4. Download the recipes from the [echodataflow-recipes repository](https://github.com/OSOceanAcoustics/echodataflow-recipes) by clonining it to your computer:
+   ```
+   cd REPO_DIRECTORY  # switch to where you want the recipes repo to sit
+   git clone https://github.com/OSOceanAcoustics/echodataflow-recipes.git
+   ```
+
+5. Deploy and run the ship pipeline:
+   ```bash
+   python -m echodataflow.deployment.deploy_cli run --default-work-pool-name local --param-config REPO_DIRECTORY/recipes/params/config_cloud_2025.yaml --deploy-spec REPO_DIRECTORY/recipes/deploy/deploy_cloud_2025.yaml --source-mode local
+   ```
+
+6. Start up system services that hosts the 2 sets of visualization
+
+
 
 ## License
 

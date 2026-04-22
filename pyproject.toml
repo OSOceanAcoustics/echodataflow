@@ -14,6 +14,7 @@ requires-python = ">=3.12"
 license = { text = "Apache-2.0" }
 authors = [
     { name = "Wu-Jung Lee", email = "leewujung@gmail.com" },
+    { name = "Soham Butala", email = "sohambutala7@gmail.com" },
     { name = "Landung Setiawan", email = "landungs@uw.edu" },
 ]
 maintainers = [
@@ -25,21 +26,38 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
-    "echopype>=0.6.3",
+    "boto3",
+    "bokeh",
+    "cartopy",
+    "echopype>=0.11.0",
+    "echoshader",
     "geopandas",
-    "ipykernel",
+    "geopy",
+    "geoviews",
+    "holoviews",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "panel",
     "prefect[shell,dask]",
-    "pydantic",
+    "PyYAML",
+    "s3fs",
+    "shapely",
+    "torch",
+    "xarray",
 ]
 dynamic = ["version"]
 
 [project.optional-dependencies]
+notebook = [
+    "ipykernel",
+]
 test = [
     "pytest",
     "pytest-cov",
@@ -62,6 +80,10 @@ lint = [
     "pylint",
 ]
 docs = [
+    "jupyter-book",
+    "matplotlib",
+    "nbsphinx",
+    "recommonmark",
     "sphinx",
     "sphinx-automodapi",
 ]
