@@ -13,6 +13,7 @@ import xarray as xr
 import numpy as np
 
 import echopype as ep
+import echoregions as er
 
 import boto3
 from botocore import UNSIGNED
@@ -27,12 +28,13 @@ from prefect.variables import Variable
 
 from echodataflow.flows.flows_helper import deployment_already_running
 from echodataflow.utils.utils import (
-    # get_MVBS_tensor,
-    # get_hake_model,
     round_up_mins,
     get_slice_start_end_times,
     extract_datetime_from_filename,
 )
+
+from segmentation_inference.model import binary_hake_model
+from segmentation_inference.utils import get_MVBS_tensor
 
 import torch
 
@@ -54,58 +56,9 @@ async def set_concurrency_limit():
 ep.utils.log.verbose()
 
 
-def _load_binary_hake_model_class():
-    from src.model.BinaryHakeModel import BinaryHakeModel
-
-    return BinaryHakeModel
-
-
-def get_MVBS_tensor(ds_in, freq_wanted=[120000, 38000, 18000]):
-    # Find the right channel sequence
-    ch_wanted = [int((np.abs(ds_in["frequency_nominal"]-freq)).argmin()) for freq in freq_wanted]
-
-    # Crucial for model prediction:
-    # - order of dimension (channel, depth, ping_time)
-    # - depth slice up to 590 m
-    mvbs_tensor = torch.tensor(
-        (
-            ds_in["Sv"]
-            .transpose("channel", "depth", "ping_time")
-            .isel(channel=ch_wanted).sel(depth=slice(None, 590)).values
-        ),
-        dtype=torch.float32
-    )
-
-    # Clip to Sv range
-    mvbs_tensor_clip = torch.clip(
-        mvbs_tensor.clone().detach().to(torch.float16),
-        min=-70,
-        max=-36,
-    )
-
-    # Replace NaN values with min Sv
-    mvbs_tensor_clip[torch.isnan(mvbs_tensor_clip)] = -70
-
-    # Normalize and conver to float
-    mvbs_tensor_clip_normalized = (
-        (mvbs_tensor_clip - (-70.0)) / (-36.0 - (-70.0)) * 255.0
-    )
-    
-    return mvbs_tensor_clip_normalized.unsqueeze(0).float()
-
-
 # Load binary hake models with weights
-def get_hake_model(model_path: str) -> BinaryHakeModel:
-    placeholder_score_dir = Path(
-        str(files("echodataflow.assets") / "placeholder_score_tensor_dir")
-    )
-    binary_hake_model = _load_binary_hake_model_class()
-    model = binary_hake_model(
-        "placeholder_experiment_name",
-        placeholder_score_dir,
-        "placeholder_tensor_log_dir",
-        0,
-    ).eval()
+def get_hake_model(model_path: str) -> binary_hake_model:
+    model = binary_hake_model().eval()
     model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu'))["state_dict"])
     return model
 
@@ -269,7 +222,6 @@ def flow_raw2Sv(
             results,
             columns=["raw_filename", "Sv_filename", "first_ping_time", "last_ping_time"]
         )
-        print(df_new)
         
         # Concatenate with existing df_Sv and save
         df_Sv = pd.concat([df_Sv, df_new], ignore_index=True)
@@ -347,7 +299,7 @@ def task_raw2Sv(
     return (
         out_path.name, 
         pd.to_datetime(ds_Sv["ping_time"][0].values),
-        pd.to_datetime(ds_Sv["ping_time"][-1].values)
+        pd.to_datetime(ds_Sv["ping_time"][-1].values),
     )
 
 
@@ -565,7 +517,6 @@ def task_create_MVBS(
     )
 
     # Save to zarr: 1 chunk along each dimension
-    print("MVBS filename:", MVBS_filename)
     logger.info(f"Saving MVBS to {MVBS_filename}")
     ds_MVBS.chunk({"channel": -1, "ping_time": -1, "depth": -1}).to_zarr(
         store=Path(path_MVBS_zarrr) / MVBS_filename,  # existing file will be overwritten
@@ -576,7 +527,7 @@ def task_create_MVBS(
 
     return (
         pd.to_datetime(ds_MVBS["ping_time"][0].values),
-        pd.to_datetime(ds_MVBS["ping_time"][-1].values)
+        pd.to_datetime(ds_MVBS["ping_time"][-1].values),
     )
 
 
@@ -587,6 +538,8 @@ async def flow_predict_hake(
     num_slices: int = 3,
     temperature: float = 0.5,
     softmax_threshold: float = 0.5,
+    max_depth: float = 590.0,
+    path_weight: str = "",
     path_main: str = "",
     file_MVBS_csv: str = "",
     file_prediction_csv: str = ""
@@ -604,14 +557,15 @@ async def flow_predict_hake(
         The number of slices to create.
     temperature : float
         Temperature parameter for softmax scaling in prediction.
+    softmax_threshold : float
+        Threshold to determine hake presence.
+    max_depth : float
+        Max depth to predict hake.
     """
     logger = get_run_logger()
 
-    # Load binary hake models with weights
-    model_epoch = 85
-    model_folder = "/Users/feresa/code_git/echodataflow/temp_model/model_160_epochs/model_weights"
-    model_path = f"{model_folder}/binary_hake_model_1.0m_bottom_offset_1.0m_depth_2017_2019_epoch_{model_epoch:03d}.ckpt"
-    model = get_hake_model(model_path)
+    # Load binary hake model with weights
+    model = get_hake_model(path_weight)
 
     # Set end_time to current time - time_offset_seconds
     end_time = round_up_mins(
@@ -637,16 +591,20 @@ async def flow_predict_hake(
     file_prediction_csv = Path(path_main) / file_prediction_csv
     path_MVBS_zarr = Path(path_main) / "MVBS"
     path_prediction_zarr = Path(path_main) / "prediction"
+    path_prediction_evr = Path(path_main) / "EVR"
     path_NASC_zarr = Path(path_main) / "NASC"
     if not path_MVBS_zarr.exists():
         raise ValueError("MVBS zarr store does not exist, check create_MVBS flow!")
     if not path_prediction_zarr.exists():
         path_prediction_zarr.mkdir(parents=True, exist_ok=True)
+    if not path_prediction_evr.exists():
+        path_prediction_evr.mkdir(parents=True, exist_ok=True)
     if not path_NASC_zarr.exists():
         path_NASC_zarr.mkdir(parents=True, exist_ok=True)
     # convert back to string to pass into task
     path_MVBS_zarr = str(path_MVBS_zarr)
     path_prediction_zarr = str(path_prediction_zarr)
+    path_prediction_evr = str(path_prediction_evr)
     path_NASC_zarr = str(path_NASC_zarr)
 
     # Load Sv and MVBS info dataframes
@@ -673,7 +631,15 @@ async def flow_predict_hake(
 
     if not file_prediction_csv.exists():
         df_prediction = pd.DataFrame(
-            columns=["prediction_filename_postfix", "score_filename", "softmax_filename", "first_ping_time", "last_ping_time"]
+            columns=[
+                "prediction_filename_postfix",
+                "score_filename",
+                "softmax_filename",
+                "prediction_filename",
+                "evr_filename",
+                "first_ping_time",
+                "last_ping_time"
+            ]
         )
         df_prediction.to_csv(file_prediction_csv)
     else:
@@ -721,10 +687,12 @@ async def flow_predict_hake(
             (
                 # used for task_compute_NASC_direct
                 ds_MVBS_combine,
-                da_score_softmax,
+                da_predict_hake,
                 # used for book keeping
                 score_filename,
                 softmax_filename,
+                prediction_filename,
+                evr_filename,
                 first_ping_time,
                 last_ping_time
             ) = task_predict_hake.with_options(
@@ -737,8 +705,11 @@ async def flow_predict_hake(
                 end_time=end_time[snum],
                 model=model,
                 temperature=temperature,
+                softmax_threshold=softmax_threshold,
+                max_depth=max_depth,
                 path_MVBS_zarr=path_MVBS_zarr,
                 path_prediction_zarr=path_prediction_zarr,
+                path_prediction_evr=path_prediction_evr,
             )
 
             # Compute NASC directly from the prediction
@@ -748,8 +719,7 @@ async def flow_predict_hake(
             )(
                 NASC_filename=f"NASC_{predict_filename_postfix}.zarr",
                 ds_MVBS_combine=ds_MVBS_combine,
-                da_score_softmax=da_score_softmax,
-                softmax_threshold=softmax_threshold,
+                da_predict_hake=da_predict_hake,
                 path_NASC_zarr=path_NASC_zarr,  # use the same path as predictions
             )
 
@@ -761,7 +731,15 @@ async def flow_predict_hake(
             else:
                 logger.info(f"Adding new prediction file {predict_filename_postfix} to tracking dataframe")
                 idx_to_add = len(df_prediction)
-            df_prediction.loc[idx_to_add] = [predict_filename_postfix, score_filename, softmax_filename, first_ping_time, last_ping_time]
+            df_prediction.loc[idx_to_add] = [
+                predict_filename_postfix,
+                score_filename,
+                softmax_filename,
+                prediction_filename,
+                evr_filename,
+                first_ping_time,
+                last_ping_time,
+            ]
         except Exception as e:
             errors.append(e)
             logger.error(f"Error during prediction for slice {snum+1}: {e}")
@@ -786,10 +764,13 @@ def task_predict_hake(
     MVBS_filenames: list[str],
     start_time: pd.Timestamp,
     end_time: pd.Timestamp,
-    model: BinaryHakeModel,
+    model: binary_hake_model,
     temperature: int = 0.5,
+    softmax_threshold: float = 0.5,
+    max_depth: float = 590.0,
     path_MVBS_zarr: str = "PATH_TO_MVBS_ZARR",
     path_prediction_zarr: str = "PATH_TO_PREDICTION_ZARR",
+    path_prediction_evr: str = "PATH_TO_PREDICTION_EVR",
 ):
     """
     Predict on a single MVBS file.
@@ -811,7 +792,12 @@ def task_predict_hake(
         The trained model to use for prediction.
     temperature : float
         Temperature parameter for softmax scaling in prediction.
+    softmax_threshold : float
+        Threshold to determine hake presence.
+    max_depth : float
+        Max depth to predict hake.
     """
+    logger = get_run_logger()
     # Remove timezone info for slicing
     start_time = start_time.replace(tzinfo=None)
     end_time = end_time.replace(tzinfo=None)
@@ -828,23 +814,24 @@ def task_predict_hake(
     ).sel(
         # slice start/end, end exclusive
         ping_time=slice(start_time, end_time-pd.to_timedelta("10milliseconds")),
-        depth=slice(None, 590)  # slice to what the model expects
+        depth=slice(None, max_depth)  # slice to what the model expects
     )
 
     # Prepare input tensor: slice depth and ensure order of coordinates
     input_tensor = get_MVBS_tensor(ds_MVBS_combine)
 
     # Predict using the model
-    score_tensor = model(input_tensor).detach().squeeze(0)
-    score_tensor_softmax = torch.nn.functional.softmax(score_tensor / temperature, dim=0)
+    output_dict = model.forward(input_tensor, softmax_temperature=temperature)
+    score_tensor = output_dict["interpolated_output"].detach()
+    score_tensor_softmax = output_dict["softmax_output"].detach()
 
     # Assemble output DataArrays
     da_score = xr.DataArray(
         score_tensor,
         coords={
             "scatterer_class": ["background", "hake"],
-            "depth": ds_MVBS_combine["depth"].values,
-            "ping_time": ds_MVBS_combine["ping_time"].values,
+            "depth": ds_MVBS_combine["depth"],
+            "ping_time": ds_MVBS_combine["ping_time"],
         },
         name="score",
     )
@@ -852,15 +839,23 @@ def task_predict_hake(
         score_tensor_softmax,
         coords={
             "scatterer_class": ["background", "hake"],
-            "depth": ds_MVBS_combine["depth"].values,
-            "ping_time": ds_MVBS_combine["ping_time"].values,
+            "depth": ds_MVBS_combine["depth"],
+            "ping_time": ds_MVBS_combine["ping_time"],
         },
         name="softmax_score",
     )
+    da_predict_hake = (
+        da_score_softmax
+        .sel(scatterer_class="hake")  # only need hake class
+        .transpose("ping_time", "depth")  # TODO: remove once update echopype to 0.10.2
+        .drop_vars("scatterer_class")
+    ) > softmax_threshold
+    da_predict_hake.name = "hake_prediction"
 
     # Save to zarr
     score_filename = f"score_{predict_filename_postfix}.zarr"
     softmax_filename = f"softmax_{predict_filename_postfix}.zarr"
+    prediction_filename = f"prediction_{predict_filename_postfix}.zarr"
     da_score.chunk({"scatterer_class": -1, "ping_time": -1, "depth": -1}).to_zarr(
         store=Path(path_prediction_zarr) / score_filename,
         mode="w",
@@ -871,14 +866,32 @@ def task_predict_hake(
         mode="w",
         consolidated=True,
     )
+    da_predict_hake.chunk({"ping_time": -1, "depth": -1}).to_zarr(
+        store=Path(path_prediction_zarr) / prediction_filename,
+        mode="w",
+        consolidated=True,
+    )
+
+    # Save to evr
+    evr_filename = f"prediction_{predict_filename_postfix}.evr"
+    er.write_evr(
+        Path(path_prediction_evr) / evr_filename,
+        da_predict_hake,
+        region_classification="hake",
+    )
 
     return (
         ds_MVBS_combine,
-        da_score_softmax,
+        da_predict_hake,
         score_filename,
         softmax_filename,
-        pd.to_datetime(ds_MVBS_combine["ping_time"][0].values),
-        pd.to_datetime(ds_MVBS_combine["ping_time"][-1].values)
+        prediction_filename,
+        evr_filename,
+        # Need to enforce UTC as df_prediction for which these values will be
+        # put into is already read in as UTC (if it already exists before this
+        # flow).
+        pd.to_datetime(ds_MVBS_combine["ping_time"][0].values, utc=True),
+        pd.to_datetime(ds_MVBS_combine["ping_time"][-1].values, utc=True),
     )
 
 
@@ -886,24 +899,15 @@ def task_predict_hake(
 def task_compute_NASC(
     NASC_filename: str,
     ds_MVBS_combine: xr.Dataset,
-    da_score_softmax: xr.DataArray,
-    softmax_threshold: float = 0.5,
+    da_predict_hake: xr.DataArray,
     path_NASC_zarr: str = "PATH_TO_SAVE_NASC_ZARR",
 ):
     logger = get_run_logger()
 
-    # Prepare softmax score dimensions for apply_mask
-    da_score_softmax = (
-        da_score_softmax
-        .sel(scatterer_class="hake")  # only need hake class
-        .transpose("ping_time", "depth")  # TODO: remove once update echopype to 0.10.2
-        .drop_vars("scatterer_class")
-    )
-
     # Apply mask based on threshold
     ds_MVBS_combine_masked = ep.mask.apply_mask(
         source_ds=ds_MVBS_combine,
-        mask=da_score_softmax > softmax_threshold,
+        mask=da_predict_hake,
         var_name="Sv",
         fill_value=np.nan,
     )

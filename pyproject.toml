@@ -49,7 +49,6 @@ dependencies = [
     "PyYAML",
     "s3fs",
     "shapely",
-    "torch",
     "xarray",
 ]
 dynamic = ["version"]
