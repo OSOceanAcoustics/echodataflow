@@ -55,9 +55,9 @@ def flow_file_upload(
 
     # Potentially long running so using a context manager
     if max_age == -1:
-        command = f"rclone copy -v --no-traverse --s3-no-check-bucket {src_dir} {dest_dir} --exclude-from {str(exclude_path)}" 
+        command = f"rclone copy -v --no-traverse {src_dir} {dest_dir} --exclude-from {str(exclude_path)}" 
     else:
-        command = f"rclone copy -v --max-age {max_age}h --no-traverse --s3-no-check-bucket {src_dir} {dest_dir} --exclude-from {str(exclude_path)}" 
+        command = f"rclone copy -v --max-age {max_age}h --no-traverse {src_dir} {dest_dir} --exclude-from {str(exclude_path)}" 
     with ShellOperation(commands=[command], working_dir=src_dir) as file_upload_operation:
 
         # Trigger runs the process in the background
