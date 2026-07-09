@@ -40,6 +40,8 @@ Echodataflow streamlines echosounder data processing by combining [Prefect](http
 
 ## Running the edge pipeline
 
+Note: Starting the server and running work pool is unnecessary if local Mac Prefect background services are running.
+
 1. Start the local Prefect server:
    ```shell
    prefect server start
