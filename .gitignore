@@ -144,3 +144,4 @@ _archive
 prefect.toml
 temp_model
 src/echodataflow/services/prototype_misc/
+mount/
