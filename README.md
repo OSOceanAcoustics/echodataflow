@@ -35,8 +35,14 @@ Echodataflow streamlines echosounder data processing by combining [Prefect](http
    git clone git+https://github.com/echostack-org/echodataflow.git  # clone the repo
    pip install -e ".[test,lint,docs]"  # install in editable mode with dev tools
    ```
-   
 
+3. Pip install segmentation inference package
+   ```bash
+   cd ..
+   git clone git+https://github.com/uw-echospace/segmentation_inference.git  # clone the repo
+   cd segmentation inference
+   pip install -e .
+   ```
 
 ## Running the edge pipeline
 
