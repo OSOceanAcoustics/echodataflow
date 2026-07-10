@@ -204,7 +204,7 @@ test_server = pn.serve(
     {
         "multi_freq_echogram": multi_freq_app,
         "tricolor_echogram": tricolor_app,
-        "tricolor_echogram_with_hake_contour": tricolor_with_contour_app,
+        "tricolor_contour_echogram": tricolor_with_contour_app,
     },
     port=1802,
     websocket_origin="*",

@@ -158,45 +158,31 @@ def flow_update_cache_contours(
         num_slices=1,
     )
 
-    logger.info(
-        f"Using time range:\n"
-        f"- start: {start_time[0]}\n"
-        f"- end: {end_time[0]}"
-    )
-
-    # Connect to object storage
+    # Get cloud bucket
     config = configparser.ConfigParser()
     config.read(cred_file)
-
     fs = s3fs.S3FileSystem(
         key=config["osn_sdsc_hake"]["access_key_id"],
         secret=config["osn_sdsc_hake"]["secret_access_key"],
-        client_kwargs={
-            "endpoint_url": config["osn_sdsc_hake"]["endpoint"],
-        },
+        client_kwargs={"endpoint_url": config["osn_sdsc_hake"]["endpoint"]},
     )
 
     # Find EVR files
     evr_files = fs.glob(f"{path_EVR}/*.evr")
-
     selected_evr = []
-
     for evr_file in evr_files:
         filename = Path(evr_file).stem
-
         # Example filename:
         # prediction_20260710T182000
         timestamp = datetime.datetime.strptime(
             filename.split("_")[-1],
             "%Y%m%dT%H%M%S",
         ).replace(tzinfo=datetime.timezone.utc)
-
         # Subset for time range
         if start_time[0] <= timestamp <= end_time[0]:
             selected_evr.append(
                 (timestamp, evr_file)
             )
-
     selected_evr.sort(key=lambda x: x[0])
 
     logger.info(
@@ -211,17 +197,14 @@ def flow_update_cache_contours(
 
     if len(selected_evr) == 0:
         logger.info(
-            "EVR cache not updated: no EVR files in specified time range"
+            "Contours cache not updated: no EVR files in specified time range"
         )
     else:
         # Read EVRs and collect dataframes
         contours_dfs = []
-
         for _, evr_file in selected_evr:
             logger.info(f"Reading EVR: {evr_file}")
-
             regions = er.read_evr(evr_file)
-
             contours_dfs.append(
                 regions.data
             )
@@ -233,19 +216,11 @@ def flow_update_cache_contours(
         )
 
         logger.info(
-            f"Merged {len(df_contours)} contour regions"
+            f"Merged and saving {len(df_contours)} contour regions"
         )
-
         # Save CSV cache
         output_file = Path(path_cache) / file_contours_csv
-
-        logger.info(
-            f"Saving contour cache: {output_file}"
-        )
-
         df_contours.to_csv(
             output_file,
             index=False,
         )
-
-        logger.info("Contour cache update complete")
