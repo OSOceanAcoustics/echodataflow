@@ -129,7 +129,7 @@ def flow_update_cache_MVBS(
 
 
 @flow()
-def flow_update_cache_EVR(
+def flow_update_cache_contours(
     time_offset_seconds: float = 0.0,
     slice_mins: int = 180,
     path_cache: str = "PATH_TO_DATA_CACHE",
