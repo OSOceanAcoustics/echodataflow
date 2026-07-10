@@ -136,7 +136,7 @@ def create_contour_overlay():
             }
         )
 
-    contour_hv = hv.Path(
+    contours_hv = hv.Path(
         hv_paths,
         kdims=["time", "depth"],
     ).opts(
@@ -144,7 +144,7 @@ def create_contour_overlay():
         line_width=5,
     )
 
-    return contour_hv
+    return contours_hv
 
 
 def update_cache_tricolor_with_contour():
@@ -168,9 +168,9 @@ def update_cache_tricolor_with_contour():
         )
     )
 
-    contour_hv = create_contour_overlay()
+    contours_hv = create_contour_overlay()
 
-    return tricolor * contour_hv
+    return tricolor * contours_hv
 
 
 def tricolor_with_contour_app():
