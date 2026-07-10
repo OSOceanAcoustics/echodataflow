@@ -1,6 +1,7 @@
 from pathlib import Path
 import datetime
 import configparser
+import tempfile
 
 import pandas as pd
 import xarray as xr
@@ -202,12 +203,33 @@ def flow_update_cache_contours(
     else:
         # Read EVRs and collect dataframes
         contours_dfs = []
-        for _, evr_file in selected_evr:
-            logger.info(f"Reading EVR: {evr_file}")
-            regions = er.read_evr(evr_file)
-            contours_dfs.append(
-                regions.data
-            )
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+
+            for _, evr_file in selected_evr:
+                logger.info(f"Downloading EVR: {evr_file}")
+
+                local_evr = tmp_path / Path(evr_file).name
+
+                fs.get(
+                    evr_file,
+                    str(local_evr),
+                )
+
+                logger.info(f"Reading local EVR: {local_evr}")
+
+                try:
+                    regions = er.read_evr(str(local_evr))
+
+                    contours_dfs.append(
+                        regions.data
+                    )
+
+                finally:
+                    if local_evr.exists():
+                        local_evr.unlink()
+                        logger.info(f"Removed temporary EVR: {local_evr}")
 
         # Merge all regions
         df_contours = pd.concat(
@@ -218,8 +240,10 @@ def flow_update_cache_contours(
         logger.info(
             f"Merged and saving {len(df_contours)} contour regions"
         )
+
         # Save CSV cache
         output_file = Path(path_cache) / file_contours_csv
+
         df_contours.to_csv(
             output_file,
             index=False,

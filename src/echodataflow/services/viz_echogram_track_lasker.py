@@ -7,6 +7,7 @@ from holoviews import opts
 import holoviews as hv
 import echoshader
 import pandas as pd
+import numpy as np
 
 # Configure Panel to prevent automatic refreshes
 pn.config.autoreload = False
@@ -113,9 +114,9 @@ def tricolor_app():
     return plot_pane
 
 
-def create_contour_overlay():
+def create_contours_overlay():
     """
-    Convert contours dataframe into HoloViews paths.
+    Convert hake contours dataframe into HoloViews paths.
     """
 
     contours_df = pd.read_csv(
@@ -123,25 +124,45 @@ def create_contour_overlay():
     )
 
     # Convert string representations back to arrays
-    contours_df["time"] = contours_df["time"].apply(ast.literal_eval)
-    contours_df["depth"] = contours_df["depth"].apply(ast.literal_eval)
+    contours_df["depth"] = contours_df["depth"].apply(
+        lambda x: np.fromstring(
+            x.strip("[]"),
+            sep=" "
+        )
+    )
+    contours_df["time"] = contours_df["time"].apply(
+        lambda x: np.array(
+            x.strip("[]").replace("'", "").split()
+        )
+    )
 
+    # Set to datetime
+    contours_df["time"] = contours_df["time"].apply(
+        lambda x: pd.to_datetime(x)
+    )
+
+    # Create holoviews path object
     hv_paths = []
-
     for _, row in contours_df.iterrows():
+        time = list(row["time"])
+        depth = list(row["depth"])
+
+        # Close contour by appending first point to the end
+        time.append(time[0])
+        depth.append(depth[0])
+
         hv_paths.append(
             {
-                "time": row["time"],
-                "depth": row["depth"],
+                "ping_time": time,
+                "depth": depth,
             }
         )
-
     contours_hv = hv.Path(
         hv_paths,
-        kdims=["time", "depth"],
+        kdims=["ping_time", "depth"],
     ).opts(
         color="magenta",
-        line_width=5,
+        line_width=3,
     )
 
     return contours_hv
@@ -166,10 +187,8 @@ def update_cache_tricolor_with_contour():
             width=1200, height=600,
             tools=["pan", "box_zoom", "wheel_zoom", "reset"],
         )
-    )
-
-    contours_hv = create_contour_overlay()
-
+    )()
+    contours_hv = create_contours_overlay()
     return tricolor * contours_hv
 
 
