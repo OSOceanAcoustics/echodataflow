@@ -7,7 +7,7 @@ import echoshader
 # Configure Panel to prevent automatic refreshes
 pn.config.autoreload = False
 
-path_MVBS = Path("/media/volume/shimada_202506_volume/viz_data_cache_2026/drixo16")
+path_MVBS = Path("/media/volume/shimada_202506_volume/viz_data_cache_2026/dyson_2026")
 
 
 def update_cache_multi_freq():
@@ -15,9 +15,15 @@ def update_cache_multi_freq():
     Load latest MVBS data and create multi-frequency echograms.
     """
     ds_MVBS = xr.open_zarr(path_MVBS / "latest_MVBS.zarr")
-    ch_wanted = [ch for ch in ds_MVBS["channel"].values if ch.endswith("_1")]
     egram = ds_MVBS.eshader.echogram(
-        channel=ch_wanted,
+        channel=[
+            "WBT 998500-15 ES18-11mk2_1",
+            "WBT 978217-15 ES38-7_1",
+            "WBT 978213-15 ES70-7C_1",
+            "WBT 976714-15 ES120-7C_1",
+            "WBT 978208-15 ES200-7C_1",
+            "WBT 976726-15 ES333-7C_1"
+        ],
         vmin=-70,
         vmax=-36,
         cmap="viridis",
@@ -71,7 +77,7 @@ def update_cache_tricolor():
         vmax=-36,
         rgb_composite=True,
         opts=opts.RGB(
-            width=1000, height=400,
+            width=1200, height=600,
             tools=["pan", "box_zoom", "wheel_zoom", "reset"],
         )
     )
@@ -110,7 +116,7 @@ test_server = pn.serve(
         "multi_freq_echogram": multi_freq_app,
         "tricolor_echogram": tricolor_app,
     },
-    port=1802,
+    port=1803,
     websocket_origin="*",
     admin=True,
     show=False,
