@@ -6,6 +6,8 @@ import pandas as pd
 import xarray as xr
 import s3fs
 
+import echoregions as er
+
 from prefect import flow, get_run_logger
 
 from echodataflow.utils.utils import round_up_mins, get_slice_start_end_times
@@ -124,3 +126,126 @@ def flow_update_cache_MVBS(
             mode="w",
             consolidated=True,
         )
+
+
+@flow()
+def flow_update_cache_EVR(
+    time_offset_seconds: float = 0.0,
+    slice_mins: int = 180,
+    path_cache: str = "PATH_TO_DATA_CACHE",
+    path_EVR: str = "PATH_TO_EVR_DATA_STORE",
+    cred_file: str = "PATH_TO_CREDENTIALS_FILE",
+    file_contours_csv: str = "latest_contours.csv",
+):
+    logger = get_run_logger()
+
+    # Set end time
+    end_time = (
+        datetime.datetime.now(datetime.timezone.utc)
+        - datetime.timedelta(seconds=time_offset_seconds)
+    )
+
+    logger.info(
+        "flow started with parameters:\n"
+        f"- end_time: {end_time}\n"
+        f"- slice_mins: {slice_mins}\n"
+    )
+
+    # Compute slice time range
+    start_time, end_time = get_slice_start_end_times(
+        end_time=end_time,
+        slice_mins=slice_mins,
+        num_slices=1,
+    )
+
+    logger.info(
+        f"Using time range:\n"
+        f"- start: {start_time[0]}\n"
+        f"- end: {end_time[0]}"
+    )
+
+    # Connect to object storage
+    config = configparser.ConfigParser()
+    config.read(cred_file)
+
+    fs = s3fs.S3FileSystem(
+        key=config["osn_sdsc_hake"]["access_key_id"],
+        secret=config["osn_sdsc_hake"]["secret_access_key"],
+        client_kwargs={
+            "endpoint_url": config["osn_sdsc_hake"]["endpoint"],
+        },
+    )
+
+    # Find EVR files
+    evr_files = fs.glob(f"{path_EVR}/*.evr")
+
+    selected_evr = []
+
+    for evr_file in evr_files:
+        filename = Path(evr_file).stem
+
+        # Example filename:
+        # prediction_20260710T182000
+        timestamp = datetime.datetime.strptime(
+            filename.split("_")[-1],
+            "%Y%m%dT%H%M%S",
+        ).replace(tzinfo=datetime.timezone.utc)
+
+        # Subset for time range
+        if start_time[0] <= timestamp <= end_time[0]:
+            selected_evr.append(
+                (timestamp, evr_file)
+            )
+
+    selected_evr.sort(key=lambda x: x[0])
+
+    logger.info(
+        f"Found {len(selected_evr)} EVR files in time range:\n"
+        + "".join(
+            [
+                f"- {Path(f).name} ({t})\n"
+                for t, f in selected_evr
+            ]
+        )
+    )
+
+    if len(selected_evr) == 0:
+        logger.info(
+            "EVR cache not updated: no EVR files in specified time range"
+        )
+    else:
+        # Read EVRs and collect dataframes
+        contours_dfs = []
+
+        for _, evr_file in selected_evr:
+            logger.info(f"Reading EVR: {evr_file}")
+
+            regions = er.read_evr(evr_file)
+
+            contours_dfs.append(
+                regions.data
+            )
+
+        # Merge all regions
+        df_contours = pd.concat(
+            contours_dfs,
+            ignore_index=True,
+        )
+
+        logger.info(
+            f"Merged {len(df_contours)} contour regions"
+        )
+
+        # Save CSV cache
+        output_file = Path(path_cache) / file_contours_csv
+
+        logger.info(
+            f"Saving contour cache: {output_file}"
+        )
+
+        df_contours.to_csv(
+            output_file,
+            index=False,
+        )
+
+        logger.info("Contour cache update complete")
