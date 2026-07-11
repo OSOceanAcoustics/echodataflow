@@ -133,6 +133,9 @@ def flow_update_cache_MVBS(
 def flow_update_cache_contours(
     time_offset_seconds: float = 0.0,
     slice_mins: int = 180,
+    # `avoid_latest_minutes` subtracts from end time
+    # allows enough MVBS slices to accumulate prior to prediction contour showing on vis
+    avoid_latest_mins: int = 20,
     path_cache: str = "PATH_TO_DATA_CACHE",
     path_EVR: str = "PATH_TO_EVR_DATA_STORE",
     cred_file: str = "PATH_TO_CREDENTIALS_FILE",
@@ -144,6 +147,7 @@ def flow_update_cache_contours(
     end_time = (
         datetime.datetime.now(datetime.timezone.utc)
         - datetime.timedelta(seconds=time_offset_seconds)
+        - datetime.timedelta(minutes=avoid_latest_mins)
     )
 
     logger.info(
