@@ -138,7 +138,7 @@ def create_contours_overlay():
 
     # Set to datetime
     contours_df["time"] = contours_df["time"].apply(
-        lambda x: pd.to_datetime(x)
+        lambda x: pd.to_datetime(x).to_numpy(dtype="datetime64[ns]")
     )
 
     # Create holoviews path object
