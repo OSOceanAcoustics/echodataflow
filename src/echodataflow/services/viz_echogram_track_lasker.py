@@ -168,36 +168,14 @@ def create_contours_overlay():
     return contours_hv
 
 
-def update_cache_tricolor_with_contour():
-    """
-    Load latest MVBS data and create tricolor echogram.
-    """
-    ds_MVBS = xr.open_zarr(path_latest / "latest_MVBS.zarr")
-
-    tricolor = ds_MVBS.eshader.echogram(
-        channel=[
-            "WBT 987753-15 ES120-7C_ES",
-            "WBT 987763-15 ES38-7_ES",
-            "WBT 987760-15 ES18_ES",
-        ],
-        vmin=-70,
-        vmax=-36,
-        rgb_composite=True,
-        opts=opts.RGB(
-            width=1200, height=600,
-            tools=["pan", "box_zoom", "wheel_zoom", "reset"],
-        )
-    )()
-    contours_hv = create_contours_overlay()
-    return tricolor * contours_hv
-
-
 def tricolor_with_contour_app():
     """
     Plot tricolor echogram with regular updates.
     """
     # Create initial plot
-    tricolor_with_contour = update_cache_tricolor_with_contour()
+    tricolor = update_cache_tricolor()
+    contours_hv = create_contours_overlay()
+    tricolor_with_contour = tricolor() * contours_hv
     plot_pane = pn.pane.HoloViews(tricolor_with_contour)
     
     # Simple update function that only runs every 10 minutes
