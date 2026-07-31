@@ -57,6 +57,14 @@ Note: Starting the server and running work pool is unnecessary if local Mac Pref
    ```shell
    prefect worker start --pool "local"
    ```
+   If you run into the error below:
+   ```shell
+   ValueError: `PREFECT_API_URL` must be set to start a Worker.
+   ```
+   Run:
+   ```shell
+   prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
+   ```
 
 3. In a new terminal, download the recipes from the [echodataflow-recipes repository](https://github.com/echostack-org/echodataflow-recipes) by clonining it to your computer:
    ```
@@ -64,7 +72,7 @@ Note: Starting the server and running work pool is unnecessary if local Mac Pref
    git clone https://github.com/echostack-org/echodataflow-recipes.git
    ```
 
-4. Deploy and run the ship pipeline:
+4. Deploy and run the edge pipeline:
    ```shell
    python -m echodataflow.deployment.deploy_cli run \
    --source-mode local \

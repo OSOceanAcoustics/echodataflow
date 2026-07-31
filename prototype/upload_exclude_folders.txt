@@ -1,3 +1,0 @@
-bio_csv_stage/**
-nasc_zarr_stage/**
-nasc_zarr_stage_fake/**
