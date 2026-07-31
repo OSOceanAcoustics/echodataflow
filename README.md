@@ -27,22 +27,24 @@ Echodataflow streamlines echosounder data processing by combining [Prefect](http
 2. If you would like to run Echodataflow as an installed package, 
    install it from the repo like below:
    ```bash
-   pip install git+https://github.com/echostack-org/echodataflow.git  # install from repo
+   pip install https://github.com/echostack-org/echodataflow.git  # install from repo
    ```
+   This installs the `echodataflow-deploy` command, which can be run from any directory.
    If you instead would like to install Echodataflow to develop it,
    clone the repo and install it like below:
    ```bash
-   git clone git+https://github.com/echostack-org/echodataflow.git  # clone the repo
+   git clone https://github.com/echostack-org/echodataflow.git  # clone the repo
    pip install -e ".[test,lint,docs]"  # install in editable mode with dev tools
    ```
 
-3. Pip install segmentation inference package
+3. Pip install the `segmentation_inference` package that contains a version of the hake segmentation model.
    ```bash
    cd ..
-   git clone git+https://github.com/uw-echospace/segmentation_inference.git  # clone the repo
-   cd segmentation inference
+   git clone https://github.com/uw-echospace/segmentation_inference.git  # clone the repo
+   cd segmentation_inference
    pip install -e .
    ```
+
 
 ## Running the edge pipeline
 
@@ -74,7 +76,7 @@ Note: Starting the server and running work pool is unnecessary if local Mac Pref
 
 4. Deploy and run the edge pipeline:
    ```shell
-   python -m echodataflow.deployment.deploy_cli run \
+   echodataflow-deploy run \
    --source-mode local \
    --default-work-pool-name local \
    --param-config REPO_DIRECTORY/recipes/params/params_{MISSION_NAME}.yaml \
@@ -98,7 +100,7 @@ Note: Starting the server and running work pool is unnecessary if local Mac Pref
 
 5. Deploy and run the cloud pipeline:
    ```bash
-   python -m echodataflow.deployment.deploy_cli run \
+   echodataflow-deploy run \
    --source-mode local \
    --default-work-pool-name local \
    --param-config REPO_DIRECTORY/recipes/params/params_{MISSION_NAME}.yaml \
