@@ -234,13 +234,9 @@ def _compute_time_offset_seconds(flow_start_time: str | None) -> float:
 
 def set_prefect_variables(
     deploy_cfg: dict[str, Any],
-    param_cfg: dict[str, Any],
 ) -> None:
-    """Set Prefect Variables from deploy and param specifications."""
+    """Set Prefect Variables from deploy specifications."""
     Variable.set("flow_start_time", deploy_cfg.get("flow_start_time"), overwrite=True)
-    
-    init_dict = param_cfg.get("init", {})
-    Variable.set("counter_raw_copy", init_dict.get("counter_raw_copy"), overwrite=True)
 
 
 def build_cron(interval: int | None, cron_offset: int = 0) -> str | None:

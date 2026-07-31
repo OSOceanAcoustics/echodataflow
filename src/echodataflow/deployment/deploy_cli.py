@@ -63,7 +63,7 @@ def _run_from_specs(
     validate_flow_coverage(param_cfg, deploy_cfg)
 
     # Set prefect variables
-    set_prefect_variables(deploy_cfg, param_cfg)
+    set_prefect_variables(deploy_cfg)
 
     # Discover all flows and filter to those in deploy config
     all_flows = discover_all_flows()

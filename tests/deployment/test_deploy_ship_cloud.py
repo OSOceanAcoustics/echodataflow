@@ -76,7 +76,6 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_viz_cloud", flows_viz_cloud)
 
     param_cfg = {
-        "init": {"counter_raw_copy": 0},
         "flows": {
             "ingest_haul": {"x": 1},
             "ingest_NASC": {"y": 2},
@@ -210,7 +209,6 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_helper", flows_helper_mod)
 
     param_cfg = {
-        "init": {"counter_raw_copy": 0},
         "flows": {
             "raw2Sv": {"a": 1},
             "create_MVBS": {"b": 2},
