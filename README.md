@@ -35,10 +35,18 @@ Echodataflow streamlines echosounder data processing by combining [Prefect](http
    git clone git+https://github.com/echostack-org/echodataflow.git  # clone the repo
    pip install -e ".[test,lint,docs]"  # install in editable mode with dev tools
    ```
-   
 
+3. Pip install segmentation inference package
+   ```bash
+   cd ..
+   git clone git+https://github.com/uw-echospace/segmentation_inference.git  # clone the repo
+   cd segmentation inference
+   pip install -e .
+   ```
 
 ## Running the edge pipeline
+
+Note: Starting the server and running work pool is unnecessary if local Mac Prefect background services are running.
 
 1. Start the local Prefect server:
    ```shell
@@ -58,7 +66,7 @@ Echodataflow streamlines echosounder data processing by combining [Prefect](http
    prefect config set PREFECT_API_URL=http://127.0.0.1:4200/api
    ```
 
-3. Download the recipes from the [echodataflow-recipes repository](https://github.com/echostack-org/echodataflow-recipes) by cloning it to your computer:
+3. In a new terminal, download the recipes from the [echodataflow-recipes repository](https://github.com/echostack-org/echodataflow-recipes) by clonining it to your computer:
    ```
    cd REPO_DIRECTORY  # switch to where you want the recipes repo to sit
    git clone https://github.com/echostack-org/echodataflow-recipes.git
@@ -100,7 +108,7 @@ Echodataflow streamlines echosounder data processing by combining [Prefect](http
 6. Start up system services that hosts the 2 sets of visualization
 
 
-## Running Local Prefect Services on macOS (launchd)
+## Running Local Prefect and auto mounting services on macOS (launchd)
 
 To run a local Prefect server and worker as background services on macOS, you can
 use launchd with the provided plist templates:
@@ -111,12 +119,15 @@ use launchd with the provided plist templates:
 These templates intentionally use direct one-line `ProgramArguments` commands, similar
 to `.service` `ExecStart` usage, with no wrapper shell script required.
 
+Included is a template and subsequent commands for auto mounting an SMB volume. These can be omitted if the volume is stable.
+
 1. Copy and customize the templates for your user:
    ```shell
    mkdir -p ~/.config/echodataflow ~/Library/LaunchAgents ~/.local/var/log/echodataflow
-   cp src/echodataflow/services/services.env.example ~/.config/echodataflow/services.env
+   cp src/echodataflow/services/services.env.example_local ~/.config/echodataflow/services.env
    cp src/echodataflow/services/deploy_prefect_server.launchd.plist ~/Library/LaunchAgents/org.echodataflow.prefect-server.plist
    cp src/echodataflow/services/deploy_prefect_worker.launchd.plist ~/Library/LaunchAgents/org.echodataflow.prefect-worker.plist
+   cp src/echodataflow/services/auto_mount.launchd.plist ~/Library/LaunchAgents/org.echodataflow.auto-mount.plist
    ```
 
 2. Edit `~/.config/echodataflow/services.env` as needed:
@@ -125,13 +136,16 @@ to `.service` `ExecStart` usage, with no wrapper shell script required.
    - Adjust `MAMBA_BIN`
    - Adjust `PREFECT_POOL`
    - Adjust `PREFECT_API_URL`
+   - Adjust SMB parameters as needed
 
 3. Load and start services:
    ```shell
    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/org.echodataflow.prefect-server.plist
    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/org.echodataflow.prefect-worker.plist
+   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/org.echodataflow.auto-mount.plist
    launchctl kickstart -k gui/$(id -u)/org.echodataflow.prefect-server
    launchctl kickstart -k gui/$(id -u)/org.echodataflow.prefect-worker
+   launchctl kickstart -k gui/$(id -u)/org.echodataflow.auto-mount
    ```
 
 4. Check status and logs:
@@ -139,15 +153,18 @@ to `.service` `ExecStart` usage, with no wrapper shell script required.
    # make sure "state = running" and "runs" not increasing
    launchctl print gui/$(id -u)/org.echodataflow.prefect-server
    launchctl print gui/$(id -u)/org.echodataflow.prefect-worker
+   launchctl print gui/$(id -u)/org.echodataflow.auto-mount
    # -f to follow logs in real time
    tail -n 100 ~/.local/var/log/echodataflow/prefect-server.err.log
    tail -n 100 ~/.local/var/log/echodataflow/prefect-worker.err.log
+   tail -n 100 ~/.local/var/log/echodataflow/auto-mount.err.log
    ```
 
 5. To stop and unload services:
    ```shell
    launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/org.echodataflow.prefect-server.plist
    launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/org.echodataflow.prefect-worker.plist
+   launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/org.echodataflow.auto-mount.plist
    ```
 
 6. SQLite health checks (local Prefect server):
