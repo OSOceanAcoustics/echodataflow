@@ -1,5 +1,6 @@
 from pathlib import Path
 import datetime
+import asyncio
 
 import pandas as pd
 
@@ -7,7 +8,7 @@ import boto3
 from botocore import UNSIGNED
 from botocore.config import Config
 
-from prefect import flow, task, get_client
+from prefect import flow, task, get_client, runtime
 from prefect import runtime
 from prefect.client.schemas.filters import FlowRunFilter
 from prefect.states import Cancelled
@@ -95,34 +96,65 @@ async def deployment_already_running() -> bool:
             return False
 
 
+def _var_key() -> str:
+    deployment_id = runtime.deployment.id or "no_deployment"
+    return f"prev_start_time_{deployment_id}"
+
+
 @flow(log_prints=True)
 def flow_copy_raw(
-    path_raw_txt: str = "",
+    time_offset_seconds: float = 0.0,
+    path_raw_list: str = "",
     path_copy: str = "",
-    path_s3: str = "",
+    s3_bucket = "noaa-wcsd-pds",
+    exclude_before: str|None = None,
 ):
     print("Copy raw files to simulate data generation")
     print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
-    counter = Variable.get("counter_raw_copy", default=None)
 
     # Get filename from dataframe
     df_raw = pd.read_csv(
-        path_raw_txt,
-        sep=r"\s+",  # multiple spaces as delimiter
-        header=None,  # no header
-        names=["date", "time", "size", "filename"]  # assign column names
+        path_raw_list,
+        date_format="ISO8601",
+        parse_dates=["timestamp"],
     )
+    if df_raw["timestamp"].dt.tz is None:
+        df_raw["timestamp"] = df_raw["timestamp"].dt.tz_localize("UTC")
 
-    filename = df_raw.iloc[counter]["filename"]
-    print(f"Copying file #{counter}: {filename}")
+    # Set flow execution time to current time - time_offset_seconds
+    flow_time_curr = (
+        datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds)
+    ).astimezone(datetime.timezone.utc)  # convert to UTC
+    print(f"Simulated flow run start time: {flow_time_curr}")
+
+    # Get previous flow execution time from Prefect variable, if it exists
+    flow_time_prev = Variable.get(_var_key(), default=None)
+    flow_time_prev = pd.to_datetime(flow_time_prev, utc=True) if flow_time_prev else None
+    print(f"Previous run start time: {flow_time_prev}")
+
+    # Find the last files that would have been generated
+    # between the previous and current flow execution times
+    idx_wanted = df_raw["timestamp"] < flow_time_curr
+    if exclude_before is not None:
+        exclude_before_datetime = pd.to_datetime(exclude_before, utc=True)
+        idx_wanted &= df_raw["timestamp"] > exclude_before_datetime
+    if flow_time_prev is not None:
+        idx_wanted &= df_raw["timestamp"] > flow_time_prev
+    df_raw = df_raw[idx_wanted]
+
+    if df_raw.empty:
+        print("No new files generated since the last flow execution. Skipping file copy.")
+        return
 
     # Configure anonymous access
     s3 = boto3.client('s3', config=Config(signature_version=UNSIGNED))
-    
-    # Copy file
-    bucket = "noaa-wcsd-pds"
-    path_s3 = f"{path_s3}/{filename}"    
-    s3.download_file(bucket, path_s3, Path(path_copy) / f"{filename}")
 
-    # Increment ocunter
-    Variable.set("counter_raw_copy", value=counter+1, overwrite=True)
+    # Download all files in the filtered dataframe
+    for index, row in df_raw.iterrows():
+        filename = Path(row["s3_path"]).name  # raw filename
+        print(f"Copying {filename} to {path_copy}")
+        s3.download_file(s3_bucket, row["s3_path"], Path(path_copy) / f"{filename}")
+
+    # Store the current flow execution time in a Prefect variable for future reference
+    Variable.set(_var_key(), flow_time_curr.isoformat(), overwrite=True)
+
