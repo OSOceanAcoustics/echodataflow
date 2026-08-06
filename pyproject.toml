@@ -43,6 +43,7 @@ dependencies = [
     "holoviews",
     "matplotlib",
     "numpy",
+    "openpyxl",
     "pandas",
     "panel",
     "prefect[shell,dask]",
