@@ -1,6 +1,7 @@
 from pathlib import Path
 import datetime
 import asyncio
+import re
 
 import pandas as pd
 
@@ -95,9 +96,16 @@ async def deployment_already_running() -> bool:
             return False
 
 
-def _var_key() -> str:
+def _var_key(prefix: str) -> str:
     deployment_id = runtime.deployment.id or "no_deployment"
-    return f"prev_start_time_{deployment_id}"
+    return f"{prefix}_{deployment_id}"
+
+
+def _iter_s3_keys(s3_client, s3_bucket: str, prefix: str):
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=s3_bucket, Prefix=prefix):
+        for obj in page.get("Contents", []):
+            yield obj["Key"]
 
 
 @flow(log_prints=True)
@@ -127,7 +135,7 @@ def flow_copy_raw(
     print(f"Simulated flow run start time: {flow_time_curr}")
 
     # Get previous flow execution time from Prefect variable, if it exists
-    flow_time_prev = Variable.get(_var_key(), default=None)
+    flow_time_prev = Variable.get(_var_key(prefix="prev_start_time"), default=None)
     flow_time_prev = pd.to_datetime(flow_time_prev, utc=True) if flow_time_prev else None
     print(f"Previous run start time: {flow_time_prev}")
 
@@ -155,5 +163,83 @@ def flow_copy_raw(
         s3.download_file(s3_bucket, row["s3_path"], Path(path_copy) / f"{filename}")
 
     # Store the current flow execution time in a Prefect variable for future reference
-    Variable.set(_var_key(), flow_time_curr.isoformat(), overwrite=True)
+    Variable.set(_var_key(prefix="prev_start_time"), flow_time_curr.isoformat(), overwrite=True)
 
+
+@flow(log_prints=True)
+def flow_copy_trawl_data(
+    path_copy: str = "",
+    s3_bucket: str = "agr230002-bucket01",
+    s3_prefix: str = "prefect_sh2506_test/trawl",
+    trawl_folders: list[str] = ["CatchPercentages", "LengthFreq", "NetConfig", "Specimens"],
+    start_trawl_num: int = 1,
+    trawl_num_step: int = 1,
+    endpoint_url: str = "https://sdsc.osn.xsede.org",
+):
+    """
+    Copy trawl files for the next trawl number from OSN S3 into local folders.
+
+    Each run increments an internal trawl number state (001, 002, ...), then
+    downloads files matching that number from each folder under s3_prefix.
+    Missing folders for the current trawl number are skipped.
+    """
+    print("Copy trawl files to simulate trawl data generation")
+    print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
+
+    # Determine next trawl number from Prefect variable state.
+    trawl_num_prev = Variable.get(_var_key(prefix="prev_trawl_num"), default=None)
+    trawl_num_curr = start_trawl_num if trawl_num_prev is None else int(trawl_num_prev) + trawl_num_step
+    trawl_num_str = f"{trawl_num_curr:03d}"
+    print(f"Previous trawl number: {trawl_num_prev}")
+    print(f"Current trawl number: {trawl_num_str}")
+
+    # Configure anonymous access to OSN endpoint.
+    s3 = boto3.client(
+        "s3",
+        endpoint_url=endpoint_url,
+        config=Config(signature_version=UNSIGNED),
+    )
+
+    path_copy_local = Path(path_copy)
+    path_copy_local.mkdir(parents=True, exist_ok=True)
+
+    # Match files where trawl number appears as an isolated token, e.g. _001_ or 001_.
+    trawl_num_pattern = re.compile(rf"(^|_){trawl_num_str}(_|\\b)")
+    total_downloaded = 0
+
+    for folder in trawl_folders:
+        folder_prefix = f"{s3_prefix.rstrip('/')}/{folder}/"
+        matching_keys = []
+
+        for key in _iter_s3_keys(s3, s3_bucket, folder_prefix):
+            filename = Path(key).name
+            if not filename.lower().endswith(".xlsx"):
+                continue
+            if filename.startswith("~$"):
+                continue
+            if trawl_num_pattern.search(filename) is None:
+                continue
+            matching_keys.append(key)
+
+        if len(matching_keys) == 0:
+            print(f"No matching files for trawl {trawl_num_str} in {folder}; skipping.")
+            continue
+
+        matching_keys = sorted(matching_keys)
+        print(
+            f"Matching files for trawl {trawl_num_str} in {folder}:\n"
+            + "".join([f"- {key}\n" for key in matching_keys])
+        )
+        folder_dest = path_copy_local / folder
+        folder_dest.mkdir(parents=True, exist_ok=True)
+
+        for key in matching_keys:
+            filename = Path(key).name
+            local_path = folder_dest / filename
+            print(f"Copying {key} to {local_path}")
+            s3.download_file(s3_bucket, key, local_path)
+            total_downloaded += 1
+
+    # Store the current trawl number for next flow execution.
+    Variable.set(_var_key(prefix="prev_trawl_num"), str(trawl_num_curr), overwrite=True)
+    print(f"Flow complete. Downloaded {total_downloaded} files for trawl {trawl_num_str}.")
