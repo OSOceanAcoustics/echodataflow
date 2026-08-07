@@ -165,7 +165,6 @@ def _validate_local_source_layout(local_source_root: Path) -> Path:
 
 def resolve_deployment_source(
     deploy_cfg: dict[str, Any],
-    source_mode_override: str | None = None,
     log_context: str | None = None,
 ) -> Any:
     """
@@ -175,13 +174,10 @@ def resolve_deployment_source(
     if source_cfg is None:
         source_cfg = {}
 
-    # Priority: 1) env var override, 2) deploy config setting, 3) default to local
-    mode = (source_mode_override or source_cfg.get("mode") or "local").lower()
+    # Priority: 1) deploy config setting, 2) default to local
+    mode = (source_cfg.get("mode") or "local").lower()
 
-    # Capture the origin of source mode
-    if source_mode_override:
-        source_mode_origin = "env:PREFECT_SOURCE_MODE"
-    elif source_cfg.get("mode"):
+    if source_cfg.get("mode"):
         source_mode_origin = "deploy_cfg.source.mode"
     else:
         source_mode_origin = "default:local"

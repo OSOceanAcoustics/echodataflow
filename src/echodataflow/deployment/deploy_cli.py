@@ -6,7 +6,6 @@ import argparse
 import asyncio
 import importlib
 import inspect
-import os
 from pathlib import Path
 from typing import Any
 
@@ -52,7 +51,6 @@ def _run_from_specs(
     *,
     param_cfg_path: Path,
     deploy_cfg_path: Path,
-    source_mode_override: str | None,
     run_concurrency_setup: bool,
     default_work_pool_name: str = "local",
 ) -> None:
@@ -75,7 +73,6 @@ def _run_from_specs(
     # Set up deployment source: git or local
     source = resolve_deployment_source(
         deploy_cfg=deploy_cfg,
-        source_mode_override=source_mode_override,
         log_context="deploy_cli",
     )
 
@@ -111,15 +108,6 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Run deployments from explicit YAML file paths.",
     )
     run_parser.add_argument(
-        "--source-mode",
-        choices=("local", "git"),
-        default=None,
-        help=(
-            "Temporarily override source selection for this run. "
-            "Maps to PREFECT_SOURCE_MODE."
-        ),
-    )
-    run_parser.add_argument(
         "--default-work-pool-name",
         required=True,
         default="local",
@@ -153,15 +141,10 @@ def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
 
-    source_mode_override = args.source_mode
-    if source_mode_override is not None:
-        os.environ["PREFECT_SOURCE_MODE"] = source_mode_override
-
     if args.target == "run":
         _run_from_specs(
             param_cfg_path=args.param_config,
             deploy_cfg_path=args.deploy_spec,
-            source_mode_override=source_mode_override,
             run_concurrency_setup=args.use_concurrency,
             default_work_pool_name=args.default_work_pool_name,
         )
