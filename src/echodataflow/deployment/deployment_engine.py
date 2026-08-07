@@ -245,11 +245,6 @@ def build_cron(interval: int | None, cron_offset: int = 0) -> str | None:
     return f"*/{interval} * * * *"
 
 
-# TODO: decide if want to keep this
-def sanitize_parameters(flow_cfg: dict[str, Any]) -> dict[str, Any]:
-    return dict(flow_cfg)
-
-
 def build_triggers(trigger_items: list[dict[str, Any]]) -> list[Any]:
     return [
         DeploymentEventTrigger(
@@ -401,7 +396,7 @@ def create_deployments(
         flow_obj = spec.flow_obj
         deployment_kwargs: dict[str, Any] = {
             "name": spec.deployment_name,
-            "parameters": sanitize_parameters(flows_params[spec.flow_key]),
+            "parameters": dict(flows_params[spec.flow_key]),
         }
 
         # Inject time_offset_seconds if this flow is marked for it
