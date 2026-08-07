@@ -144,6 +144,7 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
         filtered[flow_key] = {
             "flow_obj": flow_obj,
             "module_name": module_name,
+            "flow_attr_name": flow_name,
             "flow_module": flow_module,
             "entrypoint": entrypoint,
         }
@@ -162,8 +163,8 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     )
 
     expected_entrypoints = {
-        "ingest_haul": "echodataflow/flows/flows_biology.py:flow_ingest_haul",
-        "ingest_NASC": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        "ingest_haul": "echodataflow/flows/flows_helper.py:flow_emit_events_wrapper",
+        "ingest_NASC": "echodataflow/flows/flows_helper.py:flow_emit_events_wrapper",
         "update_grid": "echodataflow/flows/flows_integration.py:flow_update_grid",
         "update_cache_MVBS": "echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
     }
@@ -289,6 +290,7 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
         filtered[flow_key] = {
             "flow_obj": flow_obj,
             "module_name": module_name,
+            "flow_attr_name": flow_name,
             "flow_module": flow_module,
             "entrypoint": entrypoint,
         }

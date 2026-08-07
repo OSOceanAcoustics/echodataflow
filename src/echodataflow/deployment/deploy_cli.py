@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from prefect import deploy
+from prefect.variables import Variable
+
 from yaml import safe_load
 
 
@@ -21,7 +23,6 @@ from echodataflow.deployment.deployment_engine import (
     create_deployments,
     load_config,
     resolve_deployment_source,
-    set_prefect_variables,
     validate_flow_coverage,
 )
 
@@ -51,7 +52,7 @@ def _run_from_specs(
     *,
     param_cfg_path: Path,
     deploy_cfg_path: Path,
-    source_mode: str | None,
+    source_mode_override: str | None,
     run_concurrency_setup: bool,
     default_work_pool_name: str = "local",
 ) -> None:
@@ -62,8 +63,8 @@ def _run_from_specs(
     # Validate the pair of configs contain the same flows
     validate_flow_coverage(param_cfg, deploy_cfg)
 
-    # Set prefect variables
-    set_prefect_variables(deploy_cfg)
+    # Set "flow_start_time" as a Prefect variable
+    Variable.set("flow_start_time", deploy_cfg.get("flow_start_time"), overwrite=True)
 
     # Discover all flows and filter to those in deploy config
     all_flows = discover_all_flows()
@@ -74,7 +75,7 @@ def _run_from_specs(
     # Set up deployment source: git or local
     source = resolve_deployment_source(
         deploy_cfg=deploy_cfg,
-        source_mode_override=source_mode,
+        source_mode_override=source_mode_override,
         log_context="deploy_cli",
     )
 
@@ -152,15 +153,15 @@ def main() -> None:
     parser = _build_parser()
     args = parser.parse_args()
 
-    source_mode = args.source_mode
-    if source_mode is not None:
-        os.environ["PREFECT_SOURCE_MODE"] = source_mode
+    source_mode_override = args.source_mode
+    if source_mode_override is not None:
+        os.environ["PREFECT_SOURCE_MODE"] = source_mode_override
 
     if args.target == "run":
         _run_from_specs(
             param_cfg_path=args.param_config,
             deploy_cfg_path=args.deploy_spec,
-            source_mode=source_mode,
+            source_mode_override=source_mode_override,
             run_concurrency_setup=args.use_concurrency,
             default_work_pool_name=args.default_work_pool_name,
         )

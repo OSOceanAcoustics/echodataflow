@@ -34,11 +34,13 @@ def test_filter_flows_for_deploy_uses_flow_alias_fallback(install_prefect_stubs)
         "copy_raw": {
             "flow_obj": object(),
             "module_name": "flows_helper",
+            "flow_attr_name": "flow_copy_raw",
             "entrypoint": "echodataflow/flows/flows_helper.py:flow_copy_raw",
         },
         "file_upload": {
             "flow_obj": object(),
             "module_name": "flows_helper",
+            "flow_attr_name": "flow_file_upload",
             "entrypoint": "echodataflow/flows/flows_helper.py:flow_file_upload",
         },
     }
@@ -67,6 +69,7 @@ def test_filter_flows_for_deploy_raises_when_key_and_alias_missing(install_prefe
         "copy_raw": {
             "flow_obj": object(),
             "module_name": "flows_helper",
+            "flow_attr_name": "flow_copy_raw",
             "entrypoint": "echodataflow/flows/flows_helper.py:flow_copy_raw",
         }
     }
@@ -100,6 +103,7 @@ def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_st
         ship_flows[flow_key] = {
             "flow_obj": object(),
             "module_name": module_name,
+            "flow_attr_name": f"flow_{flow_alias}",
             "entrypoint": entrypoint,
         }
 
@@ -111,6 +115,7 @@ def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_st
         cloud_flows[flow_key] = {
             "flow_obj": object(),
             "module_name": module_name,
+            "flow_attr_name": f"flow_{flow_alias}",
             "entrypoint": entrypoint,
         }
 
@@ -158,11 +163,40 @@ def test_build_deploy_specs_rejects_empty_emit_events(install_prefect_stubs):
         "ingest_NASC": {
             "flow_obj": object(),
             "module_name": "flows_integration",
+            "flow_attr_name": "flow_ingest_NASC",
             "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
 
     with pytest.raises(ValueError, match="at least one event name"):
+        engine.build_deploy_specs(
+            deploy_cfg=deploy_cfg,
+            filtered_flows=filtered_flows,
+        )
+
+
+def test_build_deploy_specs_rejects_entrypoint_override(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    deploy_cfg = {
+        "flows": {
+            "ingest_NASC": {
+                "deployment_name": "ingest_NASC",
+                "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+            }
+        }
+    }
+    filtered_flows = {
+        "ingest_NASC": {
+            "flow_obj": object(),
+            "module_name": "flows_integration",
+            "flow_attr_name": "flow_ingest_NASC",
+            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        }
+    }
+
+    with pytest.raises(ValueError, match="entrypoint is not supported"):
         engine.build_deploy_specs(
             deploy_cfg=deploy_cfg,
             filtered_flows=filtered_flows,

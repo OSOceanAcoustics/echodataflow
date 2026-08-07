@@ -17,12 +17,16 @@ from yaml import safe_load
 
 from echodataflow.deployment.core import DEFAULT_ENTRYPOINT_ROOT
 
+DEFAULT_EMIT_EVENTS_ENTRYPOINT = "echodataflow/flows/flows_helper.py:flow_emit_events_wrapper"
+
 
 @dataclass(frozen=True)
 class DeploymentSpec:
     flow_key: str
     deployment_name: str
     entrypoint: str
+    target_flow_module: str
+    target_flow_name: str
     flow_obj: Flow[..., Any] | None = None
     flow_alias: str | None = None
     cron_offset: int = 0
@@ -35,10 +39,9 @@ class DeploymentSpec:
 def discover_all_flows() -> dict[str, dict[str, Any]]:
     """
     Discover all flow_* functions from all modules in echodataflow.flows folder.
-    Returns mapping: flow_name -> {"flow_obj", "module_name", "entrypoint"}
+    Returns mapping: flow_name -> {"flow_obj", "module_name", "flow_attr_name", "entrypoint", "flow_module"}
     """
-    import os
-    
+
     flows_pkg_spec = importlib.util.find_spec("echodataflow.flows") # this points to __init__.py
     if flows_pkg_spec is None or flows_pkg_spec.origin is None:
         raise ValueError("Could not locate echodataflow.flows package")
@@ -58,41 +61,46 @@ def discover_all_flows() -> dict[str, dict[str, Any]]:
             raise ImportError(f"Failed to import echodataflow.flows.{module_name}: {e}")
         
         # Find all flow_* attributes in the module
-        for attr_name in dir(flow_module):
-            if not attr_name.startswith("flow_"):
+        for flow_attr_name in dir(flow_module):
+            if not flow_attr_name.startswith("flow_"):
                 continue
-            
-            flow_name = attr_name.removeprefix("flow_")
-            flow_obj = cast(Flow[..., Any], getattr(flow_module, attr_name))
-            entrypoint = f"{DEFAULT_ENTRYPOINT_ROOT}/{module_name}.py:{attr_name}"
+
+            flow_name = flow_attr_name.removeprefix("flow_")
+            flow_obj = cast(Flow[..., Any], getattr(flow_module, flow_attr_name))
+            entrypoint = f"{DEFAULT_ENTRYPOINT_ROOT}/{module_name}.py:{flow_attr_name}"
             
             discovered[flow_name] = {
-                "flow_obj": flow_obj,
-                "module_name": module_name,
-                "flow_module": flow_module,
-                "entrypoint": entrypoint,
+                "module_name": module_name,  # the module name as string
+                "flow_attr_name": flow_attr_name,  # flow function name including flow_ prefix
+                "flow_module": flow_module,  # the actual module object, useful for concurrency setup
+                "flow_obj": flow_obj,  # the actual Flow object
+                "entrypoint": entrypoint,  # the entrypoint string for deployment
             }
     
     return discovered
 
 
-def filter_flows_for_deploy(all_flows: dict[str, dict[str, Any]], deploy_cfg: dict[str, Any]) -> dict[str, dict[str, Any]]:
+def filter_flows_for_deploy(
+    all_flows: dict[str, dict[str, Any]],
+    deploy_cfg: dict[str, Any]
+) -> dict[str, dict[str, Any]]:
     """
     Filter discovered flows to only those specified in deploy config.
     Build a flow-name mapping keyed by `flow_<name>` from discovered flows,
-    then resolve deploy entries by `flow_<flow_key>` or `flow_<flow_alias>`.
-    Returns mapping keyed by deploy flow_key to discovered flow metadata.
+    then resolve deploy entries by `flow_<key>` or `flow_<alias>`.
+    Returns mapping keyed by deploy flow_<key> to discovered flow info.
     """
     filtered: dict[str, dict[str, Any]] = {}
     flow_name_map = {f"flow_{name}": flow_info for name, flow_info in all_flows.items()}
     
-    for flow_key, deploy_meta in deploy_cfg.get("flows", {}).items():
-        requested_name = f"flow_{flow_key}"
+    for key, deploy_meta in deploy_cfg.get("flows", {}).items():
+        requested_name = f"flow_{key}"  # flow function name: 
+                                             # either flow_<key> or flow_<alias>
         alias_name: str | None = None
         if isinstance(deploy_meta, dict):
-            flow_alias = deploy_meta.get("flow_alias")
-            if isinstance(flow_alias, str) and flow_alias:
-                alias_name = f"flow_{flow_alias}"
+            alias = deploy_meta.get("flow_alias")
+            if isinstance(alias, str) and alias:
+                alias_name = f"flow_{alias}"
 
         matched_name = requested_name
         if matched_name not in flow_name_map and alias_name is not None:
@@ -101,12 +109,12 @@ def filter_flows_for_deploy(all_flows: dict[str, dict[str, Any]], deploy_cfg: di
         if matched_name not in flow_name_map:
             available = ", ".join(sorted(flow_name_map)) or "<none>"
             raise KeyError(
-                f"Flow '{flow_key}' not found in discovered flows "
+                f"Flow '{key}' not found in discovered flows "
                 f"(checked {requested_name!r}"
                 f"{f' and {alias_name!r}' if alias_name else ''}). "
                 f"Available flows: {available}"
             )
-        filtered[flow_key] = flow_name_map[matched_name]
+        filtered[key] = flow_name_map[matched_name]
     
     return filtered
 
@@ -116,7 +124,7 @@ def load_config(config_path: Path) -> dict[str, Any]:
         return safe_load(file)
 
 
-def _default_local_source_root() -> Path:
+def _infer_local_source_root() -> Path:
     """Infer local source root from installed echodataflow package location."""
     spec = importlib.util.find_spec("echodataflow")
     if spec is None:
@@ -179,7 +187,7 @@ def resolve_deployment_source(
         source_mode_origin = "default:local"
 
     if mode == "local":
-        default_local_dir = _validate_local_source_layout(_default_local_source_root())
+        default_local_dir = _validate_local_source_layout(_infer_local_source_root())
         source = str(default_local_dir)
         if log_context:
             print(
@@ -231,13 +239,6 @@ def _compute_time_offset_seconds(flow_start_time: str | None) -> float:
         - datetime.datetime.fromisoformat(flow_start_time).astimezone(datetime.timezone.utc)
     )
     return curr_time_offset.total_seconds()
-
-
-def set_prefect_variables(
-    deploy_cfg: dict[str, Any],
-) -> None:
-    """Set Prefect Variables from deploy specifications."""
-    Variable.set("flow_start_time", deploy_cfg.get("flow_start_time"), overwrite=True)
 
 
 def build_cron(interval: int | None, cron_offset: int = 0) -> str | None:
@@ -343,25 +344,33 @@ def build_deploy_specs(
     """
     specs: list[DeploymentSpec] = []
 
-    for flow_key, deploy_meta in deploy_cfg.get("flows", {}).items():
+    for key, deploy_meta in deploy_cfg.get("flows", {}).items():
         if not isinstance(deploy_meta, dict):
             continue
 
-        if flow_key not in filtered_flows:
+        if key not in filtered_flows:
             continue
 
-        flow_info = filtered_flows[flow_key]
-        entrypoint = deploy_meta.get("entrypoint") or flow_info["entrypoint"]
+        # Disallow specifying entrypoint in deploy config
+        if "entrypoint" in deploy_meta:
+            raise ValueError(
+                f"deploy_cfg.flows.{key}.entrypoint is not supported; "
+                "entrypoint is discovered from the flow module"
+            )
+
+        flow_info = filtered_flows[key]
         emit_events = validate_emit_events(
             deploy_meta.get("emit_events"),
-            flow_key=flow_key,
+            flow_key=key,
         )
 
         specs.append(
             DeploymentSpec(
-                flow_key=flow_key,
-                deployment_name=deploy_meta.get("deployment_name", flow_key),
-                entrypoint=entrypoint,
+                flow_key=key,
+                deployment_name=deploy_meta.get("deployment_name", key),
+                entrypoint=flow_info["entrypoint"],
+                target_flow_module=flow_info["module_name"],
+                target_flow_name=flow_info["flow_attr_name"],
                 flow_obj=flow_info["flow_obj"],
                 flow_alias=deploy_meta.get("flow_alias"),
                 cron_offset=deploy_meta.get("cron_offset", 0),
@@ -403,10 +412,17 @@ def create_deployments(
         if spec.flow_key in time_offset_targets:
             deployment_kwargs["parameters"]["time_offset_seconds"] = time_offset_seconds
 
-        # Inject emitted event names into flow parameters when configured.
+        # If emit_events is configured, run the generic wrapper flow instead.
         if spec.emit_events is not None:
+            deployment_kwargs["parameters"]["flow_module"] = spec.target_flow_module
+            deployment_kwargs["parameters"]["flow_name"] = spec.target_flow_name
             deployment_kwargs["parameters"]["emit_events"] = spec.emit_events
+            spec_entrypoint = DEFAULT_EMIT_EVENTS_ENTRYPOINT
+        else:
+            spec_entrypoint = spec.entrypoint
 
+        # Build triggers or cron schedule for the deployment
+        # TODO: raise error if both triggers and cron are specified in deploy config
         if spec.triggers is not None:
             deployment_kwargs["triggers"] = build_triggers(spec.triggers)
         else:
@@ -421,7 +437,7 @@ def create_deployments(
         deployment = (
             flow_obj.from_source(
                 source=source,
-                entrypoint=spec.entrypoint,
+                entrypoint=spec_entrypoint,
             ).to_deployment(**deployment_kwargs)
         )
 
