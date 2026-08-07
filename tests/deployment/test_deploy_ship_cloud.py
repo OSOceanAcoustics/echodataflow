@@ -91,11 +91,13 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
                 "module": "flows_biology",
                 "deployment_name": "ingest_haul",
                 "interval": 5,
+                "emit_events": ["haul.ingested"],
             },
             "ingest_NASC": {
                 "module": "flows_integration",
                 "deployment_name": "ingest_NASC",
                 "interval": 7,
+                "emit_events": ["nasc.ingested"],
             },
             "update_grid": {
                 "module": "flows_integration",
@@ -187,6 +189,8 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     ingest_nasc = next(d for d in sink["deployments"] if d["name"] == "ingest_NASC")
     assert ingest_haul["cron"] == "*/5 * * * *"
     assert ingest_nasc["cron"] == "*/7 * * * *"
+    assert ingest_haul["parameters"]["emit_events"] == ["haul.ingested"]
+    assert ingest_nasc["parameters"]["emit_events"] == ["nasc.ingested"]
 
 
 

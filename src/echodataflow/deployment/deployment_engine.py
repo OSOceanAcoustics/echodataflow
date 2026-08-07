@@ -29,6 +29,7 @@ class DeploymentSpec:
     apply_separately: bool = False
     work_pool_name: str | None = None
     triggers: list[dict[str, Any]] | None = None
+    emit_events: list[str] | None = None
 
 
 def discover_all_flows() -> dict[str, dict[str, Any]]:
@@ -264,6 +265,44 @@ def build_triggers(trigger_items: list[dict[str, Any]]) -> list[Any]:
     ]
 
 
+def validate_emit_events(
+    emit_events: Any,
+    *,
+    flow_key: str,
+) -> list[str] | None:
+    """
+    Validate emitted event names from deploy config.
+
+    When configured, emit_events must be a non-empty list of non-empty strings.
+    """
+    if emit_events is None:
+        return None
+
+    if not isinstance(emit_events, list):
+        raise ValueError(
+            f"deploy_cfg.flows.{flow_key}.emit_events must be a list of event names"
+        )
+    if len(emit_events) == 0:
+        raise ValueError(
+            f"deploy_cfg.flows.{flow_key}.emit_events must contain at least one event name"
+        )
+
+    sanitized_events: list[str] = []
+    for event_name in emit_events:
+        if not isinstance(event_name, str):
+            raise ValueError(
+                f"deploy_cfg.flows.{flow_key}.emit_events entries must be strings"
+            )
+        event_name = event_name.strip()
+        if not event_name:
+            raise ValueError(
+                f"deploy_cfg.flows.{flow_key}.emit_events entries must be non-empty"
+            )
+        sanitized_events.append(event_name)
+
+    return sanitized_events
+
+
 def validate_flow_coverage(
     param_cfg: dict[str, Any],
     deploy_cfg: dict[str, Any],
@@ -313,6 +352,10 @@ def build_deploy_specs(
 
         flow_info = filtered_flows[flow_key]
         entrypoint = deploy_meta.get("entrypoint") or flow_info["entrypoint"]
+        emit_events = validate_emit_events(
+            deploy_meta.get("emit_events"),
+            flow_key=flow_key,
+        )
 
         specs.append(
             DeploymentSpec(
@@ -325,6 +368,7 @@ def build_deploy_specs(
                 apply_separately=deploy_meta.get("apply_separately", False),
                 work_pool_name=deploy_meta.get("work_pool_name"),
                 triggers=deploy_meta.get("triggers"),
+                emit_events=emit_events,
             )
         )
 
@@ -358,6 +402,10 @@ def create_deployments(
         # Inject time_offset_seconds if this flow is marked for it
         if spec.flow_key in time_offset_targets:
             deployment_kwargs["parameters"]["time_offset_seconds"] = time_offset_seconds
+
+        # Inject emitted event names into flow parameters when configured.
+        if spec.emit_events is not None:
+            deployment_kwargs["parameters"]["emit_events"] = spec.emit_events
 
         if spec.triggers is not None:
             deployment_kwargs["triggers"] = build_triggers(spec.triggers)

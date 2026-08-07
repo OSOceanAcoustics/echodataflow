@@ -133,6 +133,7 @@ def flow_ingest_NASC(
     file_NASC_all_grid: str = "NASC_all_griddify.geojson",
     num_NASC_reprocess: int = 1,
     new_file_num_limit: int = 50,
+    emit_events: list[str] | None = None,
 ):
     """
     Ingest NASC data from zarr files and combine into a single DataFrame.
@@ -257,11 +258,13 @@ def flow_ingest_NASC(
         )
         gdf_NASC.to_file(Path(path_vm_local) / file_NASC_all_grid, driver="GeoJSON")
 
-        # Emit custom event when new NASC files are processed
-        emit_event(
-            event="nasc.ingested",
-            resource={"prefect.resource.id": "ingest_NASC"}
-        )
+        # Emit one or more custom events when new NASC files are processed.
+        emit_events = emit_events or ["nasc.ingested"]
+        for event_name in emit_events:
+            emit_event(
+                event=event_name,
+                resource={"prefect.resource.id": "ingest_NASC"}
+            )
 
         # TODO: add error handling
 

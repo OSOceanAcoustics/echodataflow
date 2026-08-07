@@ -195,6 +195,7 @@ def flow_ingest_haul(
     file_length_all: str = "length_all.csv",
     file_length_count_all: str = "length_count_all.csv",
     file_stratum_mean: str = "stratum_mean.csv",
+    emit_events: list[str] | None = None,
 ):
 
     # Assemble full paths
@@ -348,8 +349,10 @@ def flow_ingest_haul(
         )
         df_stratum.to_csv(file_stratum_mean)
 
-        # Emit custom event when new hauls are processed
-        emit_event(
-            event="haul.ingested",
-            resource={"prefect.resource.id": "ingest_haul"}
-        )
+        # Emit one or more custom events when new hauls are processed.
+        emit_events = emit_events or ["haul.ingested"]
+        for event_name in emit_events:
+            emit_event(
+                event=event_name,
+                resource={"prefect.resource.id": "ingest_haul"}
+            )

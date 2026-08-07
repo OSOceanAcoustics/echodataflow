@@ -140,3 +140,30 @@ def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_st
         "update_grid": "echodataflow/flows/flows_integration.py:flow_update_grid",
         "update_cache_MVBS": "echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
     }
+
+
+def test_build_deploy_specs_rejects_empty_emit_events(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    deploy_cfg = {
+        "flows": {
+            "ingest_NASC": {
+                "deployment_name": "ingest_NASC",
+                "emit_events": [],
+            }
+        }
+    }
+    filtered_flows = {
+        "ingest_NASC": {
+            "flow_obj": object(),
+            "module_name": "flows_integration",
+            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        }
+    }
+
+    with pytest.raises(ValueError, match="at least one event name"):
+        engine.build_deploy_specs(
+            deploy_cfg=deploy_cfg,
+            filtered_flows=filtered_flows,
+        )
