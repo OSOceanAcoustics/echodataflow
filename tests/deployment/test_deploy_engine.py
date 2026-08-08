@@ -33,12 +33,12 @@ def test_filter_flows_for_deploy_uses_flow_alias_fallback(install_prefect_stubs)
     all_flows = {
         "copy_raw": {
             "flow_obj": object(),
-            "module_name": "flows_helper",
+            "flow_module": "flows_helper",
             "flow_function_name": "flow_copy_raw",
         },
         "file_upload": {
             "flow_obj": object(),
-            "module_name": "flows_helper",
+            "flow_module": "flows_helper",
             "flow_function_name": "flow_file_upload",
         },
     }
@@ -66,7 +66,7 @@ def test_filter_flows_for_deploy_raises_when_key_and_alias_missing(install_prefe
     all_flows = {
         "copy_raw": {
             "flow_obj": object(),
-            "module_name": "flows_helper",
+            "flow_module": "flows_helper",
             "flow_function_name": "flow_copy_raw",
         }
     }
@@ -121,7 +121,7 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
         flow_alias = flow_meta.get("flow_alias") or flow_key
         ship_flows[flow_key] = {
             "flow_obj": object(),
-            "module_name": module_name,
+            "flow_module": module_name,
             "flow_function_name": f"flow_{flow_alias}",
         }
 
@@ -131,7 +131,7 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
         flow_alias = flow_meta.get("flow_alias") or flow_key
         cloud_flows[flow_key] = {
             "flow_obj": object(),
-            "module_name": module_name,
+            "flow_module": module_name,
             "flow_function_name": f"flow_{flow_alias}",
         }
 
@@ -185,7 +185,7 @@ def test_build_deploy_specs_rejects_empty_emit_events(install_prefect_stubs):
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": "flows_integration",
             "flow_function_name": "flow_ingest_NASC",
         }
     }
@@ -212,7 +212,7 @@ def test_build_deploy_specs_rejects_entrypoint_override(install_prefect_stubs):
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": "flows_integration",
             "flow_function_name": "flow_ingest_NASC",
         }
     }
@@ -242,7 +242,7 @@ def test_build_deploy_specs_rejects_triggers_and_interval(install_prefect_stubs)
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": "flows_integration",
             "flow_function_name": "flow_ingest_NASC",
         }
     }
@@ -268,7 +268,7 @@ def test_build_deploy_specs_rejects_missing_triggers_and_interval(install_prefec
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": "flows_integration",
             "flow_function_name": "flow_ingest_NASC",
         }
     }
@@ -295,7 +295,7 @@ def test_build_deploy_specs_rejects_empty_triggers(install_prefect_stubs):
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": "flows_integration",
             "flow_function_name": "flow_ingest_NASC",
         }
     }
@@ -324,7 +324,7 @@ def test_build_deploy_specs_rejects_trigger_missing_resource_name(install_prefec
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": "flows_integration",
             "flow_function_name": "flow_ingest_NASC",
         }
     }

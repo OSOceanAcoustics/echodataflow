@@ -142,7 +142,7 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
         flow_obj = getattr(flow_module, flow_name)
         filtered[flow_key] = {
             "flow_obj": flow_obj,
-            "module_name": module_name,
+            "flow_module": module_name,
             "flow_function_name": flow_name,
         }
     
@@ -282,7 +282,7 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
         flow_obj = getattr(flow_module, flow_name)
         filtered[flow_key] = {
             "flow_obj": flow_obj,
-            "module_name": module_name,
+            "flow_module": module_name,
             "flow_function_name": flow_name,
         }
     
