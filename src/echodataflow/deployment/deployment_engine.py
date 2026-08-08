@@ -256,6 +256,71 @@ def build_triggers(trigger_items: list[dict[str, Any]]) -> list[Any]:
     ]
 
 
+def validate_optional_non_empty_list(
+    value: Any,
+    *,
+    field_name: str,
+    item_label: str,
+) -> list[Any] | None:
+    """Validate an optional list field that must be non-empty when provided."""
+    if value is None:
+        return None
+
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name} must be a list")
+    if len(value) == 0:
+        raise ValueError(f"{field_name} must contain at least one {item_label}")
+
+    return value
+
+
+def validate_triggers(
+    triggers: Any,
+    *,
+    flow_key: str,
+) -> list[dict[str, Any]] | None:
+    """
+    Validate deployment trigger config.
+
+    When configured, triggers must be a non-empty list of mappings with
+    non-empty string values for `expect` and `resource_name`.
+    """
+    triggers = validate_optional_non_empty_list(
+        triggers,
+        field_name=f"deploy_cfg.flows.{flow_key}.triggers",
+        item_label="trigger",
+    )
+    if triggers is None:
+        return None
+
+    validated_triggers: list[dict[str, Any]] = []
+    for trigger_item in triggers:
+        if not isinstance(trigger_item, dict):
+            raise ValueError(
+                f"deploy_cfg.flows.{flow_key}.triggers entries must be mappings"
+            )
+
+        expect = trigger_item.get("expect")
+        resource_name = trigger_item.get("resource_name")
+        if not isinstance(expect, str) or not expect.strip():
+            raise ValueError(
+                f"deploy_cfg.flows.{flow_key}.triggers entries must define a non-empty 'expect'"
+            )
+        if not isinstance(resource_name, str) or not resource_name.strip():
+            raise ValueError(
+                f"deploy_cfg.flows.{flow_key}.triggers entries must define a non-empty 'resource_name'"
+            )
+
+        validated_triggers.append(
+            {
+                "expect": expect.strip(),
+                "resource_name": resource_name.strip(),
+            }
+        )
+
+    return validated_triggers
+
+
 def validate_emit_events(
     emit_events: Any,
     *,
@@ -266,19 +331,15 @@ def validate_emit_events(
 
     When configured, emit_events must be a non-empty list of non-empty strings.
     """
+    emit_events = validate_optional_non_empty_list(
+        emit_events,
+        field_name=f"deploy_cfg.flows.{flow_key}.emit_events",
+        item_label="event name",
+    )
     if emit_events is None:
         return None
 
-    if not isinstance(emit_events, list):
-        raise ValueError(
-            f"deploy_cfg.flows.{flow_key}.emit_events must be a list of event names"
-        )
-    if len(emit_events) == 0:
-        raise ValueError(
-            f"deploy_cfg.flows.{flow_key}.emit_events must contain at least one event name"
-        )
-
-    sanitized_events: list[str] = []
+    validated_events: list[str] = []
     for event_name in emit_events:
         if not isinstance(event_name, str):
             raise ValueError(
@@ -289,9 +350,9 @@ def validate_emit_events(
             raise ValueError(
                 f"deploy_cfg.flows.{flow_key}.emit_events entries must be non-empty"
             )
-        sanitized_events.append(event_name)
+        validated_events.append(event_name)
 
-    return sanitized_events
+    return validated_events
 
 
 def validate_flow_coverage(
@@ -355,6 +416,10 @@ def build_deploy_specs(
             )
 
         flow_info = filtered_flows[key]
+        triggers = validate_triggers(
+            deploy_meta.get("triggers"),
+            flow_key=key,
+        )
         emit_events = validate_emit_events(
             deploy_meta.get("emit_events"),
             flow_key=key,
@@ -371,7 +436,7 @@ def build_deploy_specs(
                 flow_alias=deploy_meta.get("flow_alias"),
                 cron_offset=deploy_meta.get("cron_offset", 0),
                 work_pool_name=deploy_meta.get("work_pool_name"),
-                triggers=deploy_meta.get("triggers"),
+                triggers=triggers,
                 emit_events=emit_events,
             )
         )

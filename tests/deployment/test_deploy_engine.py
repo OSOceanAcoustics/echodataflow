@@ -259,3 +259,61 @@ def test_build_deploy_specs_rejects_missing_triggers_and_interval(install_prefec
             deploy_cfg=deploy_cfg,
             filtered_flows=filtered_flows,
         )
+
+
+def test_build_deploy_specs_rejects_empty_triggers(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    deploy_cfg = {
+        "flows": {
+            "ingest_NASC": {
+                "deployment_name": "ingest_NASC",
+                "triggers": [],
+            }
+        }
+    }
+    filtered_flows = {
+        "ingest_NASC": {
+            "flow_obj": object(),
+            "module_name": "flows_integration",
+            "flow_attr_name": "flow_ingest_NASC",
+            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        }
+    }
+
+    with pytest.raises(ValueError, match="must contain at least one trigger"):
+        engine.build_deploy_specs(
+            deploy_cfg=deploy_cfg,
+            filtered_flows=filtered_flows,
+        )
+
+
+def test_build_deploy_specs_rejects_trigger_missing_resource_name(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    deploy_cfg = {
+        "flows": {
+            "ingest_NASC": {
+                "deployment_name": "ingest_NASC",
+                "triggers": [
+                    {"expect": "nasc.ingested"}
+                ],
+            }
+        }
+    }
+    filtered_flows = {
+        "ingest_NASC": {
+            "flow_obj": object(),
+            "module_name": "flows_integration",
+            "flow_attr_name": "flow_ingest_NASC",
+            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        }
+    }
+
+    with pytest.raises(ValueError, match="non-empty 'resource_name'"):
+        engine.build_deploy_specs(
+            deploy_cfg=deploy_cfg,
+            filtered_flows=filtered_flows,
+        )
