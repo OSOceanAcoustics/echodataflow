@@ -17,14 +17,13 @@ from yaml import safe_load
 
 from echodataflow.deployment.core import DEFAULT_ENTRYPOINT_ROOT
 
-DEFAULT_EMIT_EVENTS_ENTRYPOINT = "echodataflow/flows/flows_helper.py:flow_emit_events_wrapper"
+DEFAULT_DEPLOYMENT_WRAPPER_ENTRYPOINT = "echodataflow/flows/flows_helper.py:flow_deployment_wrapper"
 
 
 @dataclass(frozen=True)
 class DeploymentSpec:
     flow_key: str
     deployment_name: str
-    entrypoint: str
     flow_module: str
     flow_name: str
     flow_obj: Flow[..., Any] | None = None
@@ -415,6 +414,7 @@ def build_deploy_specs(
                 f"deploy_cfg.flows.{key} must define exactly one of 'triggers' or 'interval'"
             )
 
+        # Validate triggers and emit_events if provided
         flow_info = filtered_flows[key]
         triggers = validate_triggers(
             deploy_meta.get("triggers"),
@@ -429,7 +429,6 @@ def build_deploy_specs(
             DeploymentSpec(
                 flow_key=key,
                 deployment_name=deploy_meta.get("deployment_name", key),
-                entrypoint=flow_info["entrypoint"],
                 flow_module=flow_info["module_name"],
                 flow_name=flow_info["flow_function_name"],
                 flow_obj=flow_info["flow_obj"],
@@ -473,14 +472,12 @@ def create_deployments(
         if spec.flow_key in time_offset_targets:
             deployment_kwargs["parameters"]["time_offset_seconds"] = time_offset_seconds
 
-        # If emit_events is configured, run the generic wrapper flow instead.
+        # Always route through the generic deployment wrapper so deployment-level
+        # behavior can be configured centrally without changing flow functions
+        deployment_kwargs["parameters"]["flow_module"] = spec.flow_module
+        deployment_kwargs["parameters"]["flow_name"] = spec.flow_name
         if spec.emit_events is not None:
-            deployment_kwargs["parameters"]["flow_module"] = spec.flow_module
-            deployment_kwargs["parameters"]["flow_name"] = spec.flow_name
             deployment_kwargs["parameters"]["emit_events"] = spec.emit_events
-            spec_entrypoint = DEFAULT_EMIT_EVENTS_ENTRYPOINT
-        else:
-            spec_entrypoint = spec.entrypoint
 
         # Build triggers or cron schedule for the deployment
         if spec.triggers is not None:
@@ -501,7 +498,7 @@ def create_deployments(
         deployment = (
             flow_obj.from_source(
                 source=source,
-                entrypoint=spec_entrypoint,
+                entrypoint=DEFAULT_DEPLOYMENT_WRAPPER_ENTRYPOINT,
             ).to_deployment(**deployment_kwargs)
         )
 

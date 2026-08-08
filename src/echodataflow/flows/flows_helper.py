@@ -111,13 +111,13 @@ def _iter_s3_keys(s3_client, s3_bucket: str, prefix: str):
 
 
 @flow(log_prints=True)
-def flow_emit_events_wrapper(
+def flow_deployment_wrapper(
     flow_module: str,
     flow_name: str,
     emit_events: list[str] | None = None,
     **flow_kwargs,
 ):
-    """Run a flow and emit configured events after it succeeds."""
+    """Run a target flow and apply optional deployment-level behavior."""
     module = importlib.import_module(f"echodataflow.flows.{flow_module}")
     flow_fn = getattr(module, flow_name)
     result = flow_fn(**flow_kwargs)

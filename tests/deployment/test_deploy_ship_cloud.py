@@ -162,10 +162,10 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     )
 
     expected_entrypoints = {
-        "ingest_haul": "echodataflow/flows/flows_helper.py:flow_emit_events_wrapper",
-        "ingest_NASC": "echodataflow/flows/flows_helper.py:flow_emit_events_wrapper",
-        "update_grid": "echodataflow/flows/flows_integration.py:flow_update_grid",
-        "update_cache_MVBS": "echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
+        "ingest_haul": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
+        "ingest_NASC": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
+        "update_grid": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
+        "update_cache_MVBS": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
     }
     actual_entrypoints = {
         item["flow_name"].removeprefix("flow_"): item["entrypoint"]
@@ -305,10 +305,10 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     )
 
     expected_entrypoints = {
-        "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
-        "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
-        "predict_hake": "echodataflow/flows/flows_acoustics.py:flow_predict_hake",
-        "file_upload": "echodataflow/flows/flows_helper.py:flow_file_upload",
+        "raw2Sv": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
+        "create_MVBS": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
+        "predict_hake": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
+        "file_upload": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
     }
     actual_entrypoints = {
         item["flow_name"].removeprefix("flow_"): item["entrypoint"]

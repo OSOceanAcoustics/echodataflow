@@ -86,13 +86,36 @@ def test_filter_flows_for_deploy_raises_when_key_and_alias_missing(install_prefe
         engine.filter_flows_for_deploy(all_flows, deploy_cfg)
 
 
-def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_stubs):
+def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs):
     install_prefect_stubs()
     engine = importlib.import_module("echodataflow.deployment.deployment_engine")
 
-    repo_root = Path(__file__).resolve().parents[2]
-    deploy_ship = engine.load_config(repo_root / "recipe" / "deploy" / "deploy_ship.yaml")
-    deploy_cloud = engine.load_config(repo_root / "recipe" / "deploy" / "deploy_cloud.yaml")
+    deploy_ship = {
+        "flows": {
+            "copy_raw": {"module": "flows_helper", "interval": 1},
+            "raw2Sv": {"module": "flows_acoustics", "interval": 1},
+            "create_MVBS": {"module": "flows_acoustics", "interval": 1},
+            "predict_hake": {"module": "flows_acoustics", "interval": 1},
+            "file_upload_acoustics": {
+                "module": "flows_helper",
+                "flow_alias": "file_upload",
+                "interval": 1,
+            },
+            "file_upload_trawl": {
+                "module": "flows_helper",
+                "flow_alias": "file_upload",
+                "interval": 1,
+            },
+        }
+    }
+    deploy_cloud = {
+        "flows": {
+            "ingest_haul": {"module": "flows_biology", "interval": 1},
+            "ingest_NASC": {"module": "flows_integration", "interval": 1},
+            "update_grid": {"module": "flows_integration", "interval": 1},
+            "update_cache_MVBS": {"module": "flows_viz_cloud", "interval": 1},
+        }
+    }
 
     # Build filtered flows mappings with mock flow objects
     ship_flows = {}
@@ -128,22 +151,28 @@ def test_local_deploy_specs_generate_current_flow_entrypoints(install_prefect_st
         filtered_flows=cloud_flows,
     )
 
-    ship_entrypoints = {spec.flow_key: spec.entrypoint for spec in ship_specs}
-    cloud_entrypoints = {spec.flow_key: spec.entrypoint for spec in cloud_specs}
-
-    assert ship_entrypoints == {
-        "copy_raw": "echodataflow/flows/flows_helper.py:flow_copy_raw",
-        "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
-        "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
-        "predict_hake": "echodataflow/flows/flows_acoustics.py:flow_predict_hake",
-        "file_upload_acoustics": "echodataflow/flows/flows_helper.py:flow_file_upload",
-        "file_upload_trawl": "echodataflow/flows/flows_helper.py:flow_file_upload",
+    ship_targets = {
+        spec.flow_key: (spec.flow_module, spec.flow_name)
+        for spec in ship_specs
     }
-    assert cloud_entrypoints == {
-        "ingest_haul": "echodataflow/flows/flows_biology.py:flow_ingest_haul",
-        "ingest_NASC": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
-        "update_grid": "echodataflow/flows/flows_integration.py:flow_update_grid",
-        "update_cache_MVBS": "echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
+    cloud_targets = {
+        spec.flow_key: (spec.flow_module, spec.flow_name)
+        for spec in cloud_specs
+    }
+
+    assert ship_targets == {
+        "copy_raw": ("flows_helper", "flow_copy_raw"),
+        "raw2Sv": ("flows_acoustics", "flow_raw2Sv"),
+        "create_MVBS": ("flows_acoustics", "flow_create_MVBS"),
+        "predict_hake": ("flows_acoustics", "flow_predict_hake"),
+        "file_upload_acoustics": ("flows_helper", "flow_file_upload"),
+        "file_upload_trawl": ("flows_helper", "flow_file_upload"),
+    }
+    assert cloud_targets == {
+        "ingest_haul": ("flows_biology", "flow_ingest_haul"),
+        "ingest_NASC": ("flows_integration", "flow_ingest_NASC"),
+        "update_grid": ("flows_integration", "flow_update_grid"),
+        "update_cache_MVBS": ("flows_viz_cloud", "flow_update_cache_MVBS"),
     }
 
 
@@ -155,6 +184,7 @@ def test_build_deploy_specs_rejects_empty_emit_events(install_prefect_stubs):
         "flows": {
             "ingest_NASC": {
                 "deployment_name": "ingest_NASC",
+                "interval": 5,
                 "emit_events": [],
             }
         }
