@@ -37,7 +37,7 @@ class DeploymentSpec:
 def discover_all_flows() -> dict[str, dict[str, Any]]:
     """
     Discover all flow_* functions from all modules in echodataflow.flows folder.
-    Returns mapping: flow_name -> {"flow_obj", "module_name", "flow_function_name", "entrypoint", "flow_module"}
+    Returns mapping: flow_name -> {"flow_obj", "flow_function_name", "flow_module"}
     """
 
     flows_pkg_spec = importlib.util.find_spec("echodataflow.flows") # this points to __init__.py
@@ -65,14 +65,11 @@ def discover_all_flows() -> dict[str, dict[str, Any]]:
 
             flow_name = flow_function_name.removeprefix("flow_")
             flow_obj = cast(Flow[..., Any], getattr(flow_module, flow_function_name))
-            entrypoint = f"{DEFAULT_ENTRYPOINT_ROOT}/{module_name}.py:{flow_function_name}"
             
             discovered[flow_name] = {
-                "module_name": module_name,  # the module name as string
                 "flow_function_name": flow_function_name,  # flow function name including flow_ prefix
                 "flow_module": flow_module,  # the actual module object, useful for concurrency setup
                 "flow_obj": flow_obj,  # the actual Flow object
-                "entrypoint": entrypoint,  # the entrypoint string for deployment
             }
     
     return discovered
@@ -429,7 +426,7 @@ def build_deploy_specs(
             DeploymentSpec(
                 flow_key=key,
                 deployment_name=deploy_meta.get("deployment_name", key),
-                flow_module=flow_info["module_name"],
+                flow_module=flow_info["flow_module"].__name__.split(".")[-1],
                 flow_name=flow_info["flow_function_name"],
                 flow_obj=flow_info["flow_obj"],
                 flow_alias=deploy_meta.get("flow_alias"),

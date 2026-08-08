@@ -33,15 +33,13 @@ def test_filter_flows_for_deploy_uses_flow_alias_fallback(install_prefect_stubs)
     all_flows = {
         "copy_raw": {
             "flow_obj": object(),
-            "module_name": "flows_helper",
+            "flow_module": types.ModuleType("echodataflow.flows.flows_helper"),
             "flow_function_name": "flow_copy_raw",
-            "entrypoint": "echodataflow/flows/flows_helper.py:flow_copy_raw",
         },
         "file_upload": {
             "flow_obj": object(),
-            "module_name": "flows_helper",
+            "flow_module": types.ModuleType("echodataflow.flows.flows_helper"),
             "flow_function_name": "flow_file_upload",
-            "entrypoint": "echodataflow/flows/flows_helper.py:flow_file_upload",
         },
     }
     deploy_cfg = {
@@ -68,9 +66,8 @@ def test_filter_flows_for_deploy_raises_when_key_and_alias_missing(install_prefe
     all_flows = {
         "copy_raw": {
             "flow_obj": object(),
-            "module_name": "flows_helper",
+            "flow_module": types.ModuleType("echodataflow.flows.flows_helper"),
             "flow_function_name": "flow_copy_raw",
-            "entrypoint": "echodataflow/flows/flows_helper.py:flow_copy_raw",
         }
     }
     deploy_cfg = {
@@ -122,24 +119,20 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
     for flow_key, flow_meta in deploy_ship["flows"].items():
         module_name = flow_meta["module"]
         flow_alias = flow_meta.get("flow_alias") or flow_key
-        entrypoint = f"echodataflow/flows/{module_name}.py:flow_{flow_alias}"
         ship_flows[flow_key] = {
             "flow_obj": object(),
-            "module_name": module_name,
+            "flow_module": types.ModuleType(f"echodataflow.flows.{module_name}"),
             "flow_function_name": f"flow_{flow_alias}",
-            "entrypoint": entrypoint,
         }
 
     cloud_flows = {}
     for flow_key, flow_meta in deploy_cloud["flows"].items():
         module_name = flow_meta["module"]
         flow_alias = flow_meta.get("flow_alias") or flow_key
-        entrypoint = f"echodataflow/flows/{module_name}.py:flow_{flow_alias}"
         cloud_flows[flow_key] = {
             "flow_obj": object(),
-            "module_name": module_name,
+            "flow_module": types.ModuleType(f"echodataflow.flows.{module_name}"),
             "flow_function_name": f"flow_{flow_alias}",
-            "entrypoint": entrypoint,
         }
 
     ship_specs = engine.build_deploy_specs(
@@ -192,9 +185,8 @@ def test_build_deploy_specs_rejects_empty_emit_events(install_prefect_stubs):
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": types.ModuleType("echodataflow.flows.flows_integration"),
             "flow_function_name": "flow_ingest_NASC",
-            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
 
@@ -220,9 +212,8 @@ def test_build_deploy_specs_rejects_entrypoint_override(install_prefect_stubs):
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": types.ModuleType("echodataflow.flows.flows_integration"),
             "flow_function_name": "flow_ingest_NASC",
-            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
 
@@ -251,9 +242,8 @@ def test_build_deploy_specs_rejects_triggers_and_interval(install_prefect_stubs)
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": types.ModuleType("echodataflow.flows.flows_integration"),
             "flow_function_name": "flow_ingest_NASC",
-            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
 
@@ -278,9 +268,8 @@ def test_build_deploy_specs_rejects_missing_triggers_and_interval(install_prefec
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": types.ModuleType("echodataflow.flows.flows_integration"),
             "flow_function_name": "flow_ingest_NASC",
-            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
 
@@ -306,9 +295,8 @@ def test_build_deploy_specs_rejects_empty_triggers(install_prefect_stubs):
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": types.ModuleType("echodataflow.flows.flows_integration"),
             "flow_function_name": "flow_ingest_NASC",
-            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
 
@@ -336,9 +324,8 @@ def test_build_deploy_specs_rejects_trigger_missing_resource_name(install_prefec
     filtered_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "module_name": "flows_integration",
+            "flow_module": types.ModuleType("echodataflow.flows.flows_integration"),
             "flow_function_name": "flow_ingest_NASC",
-            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
 

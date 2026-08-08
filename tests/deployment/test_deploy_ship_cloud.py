@@ -140,13 +140,10 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
         flow_name = f"flow_{flow_alias}"
         flow_module = sys.modules[f"echodataflow.flows.{module_name}"]
         flow_obj = getattr(flow_module, flow_name)
-        entrypoint = f"echodataflow/flows/{module_name}.py:{flow_name}"
         filtered[flow_key] = {
             "flow_obj": flow_obj,
-            "module_name": module_name,
             "flow_function_name": flow_name,
             "flow_module": flow_module,
-            "entrypoint": entrypoint,
         }
     
     # Mock the discovery functions in the deploy_cli module
@@ -283,13 +280,10 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
         flow_name = f"flow_{flow_alias}"
         flow_module = sys.modules[f"echodataflow.flows.{module_name}"]
         flow_obj = getattr(flow_module, flow_name)
-        entrypoint = f"echodataflow/flows/{module_name}.py:{flow_name}"
         filtered[flow_key] = {
             "flow_obj": flow_obj,
-            "module_name": module_name,
             "flow_function_name": flow_name,
             "flow_module": flow_module,
-            "entrypoint": entrypoint,
         }
     
     # Mock the discovery functions in the deploy_cli module
