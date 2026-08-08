@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import argparse
-import asyncio
 from pathlib import Path
-from typing import Any
 
 from prefect import deploy
 from prefect.variables import Variable
@@ -21,66 +19,10 @@ from echodataflow.deployment.deployment_engine import (
     validate_flow_coverage,
 )
 
-
-def _run_concurrency_setup(deploy_cfg: dict[str, Any]) -> None:
-    """Create Prefect concurrency limits declared on individual flow configs."""
-    concurrency_by_tag: dict[str, int] = {}
-
-    for flow_key, deploy_meta in deploy_cfg.get("flows", {}).items():
-        if not isinstance(deploy_meta, dict):
-            continue
-
-        concurrency_limit = deploy_meta.get("concurrency_limit")
-        if concurrency_limit is None:
-            continue
-        if not isinstance(concurrency_limit, int) or concurrency_limit < 1:
-            raise ValueError(
-                f"deploy_cfg.flows.{flow_key}.concurrency_limit must be an integer >= 1"
-            )
-
-        concurrency_tag = deploy_meta.get("concurrency_tag", flow_key)
-        if not isinstance(concurrency_tag, str) or not concurrency_tag.strip():
-            raise ValueError(
-                f"deploy_cfg.flows.{flow_key}.concurrency_tag must be a non-empty string"
-            )
-        concurrency_tag = concurrency_tag.strip()
-
-        existing_limit = concurrency_by_tag.get(concurrency_tag)
-        if existing_limit is not None and existing_limit != concurrency_limit:
-            raise ValueError(
-                f"Conflicting concurrency_limit for tag {concurrency_tag!r}: "
-                f"{existing_limit} != {concurrency_limit}"
-            )
-        concurrency_by_tag[concurrency_tag] = concurrency_limit
-
-    if not concurrency_by_tag:
-        return
-
-    from prefect import get_client
-    from prefect.exceptions import ObjectAlreadyExists, ObjectNotFound
-
-    async def ensure_concurrency_limits() -> None:
-        async with get_client() as client:
-            for concurrency_tag, concurrency_limit in concurrency_by_tag.items():
-                try:
-                    await client.read_concurrency_limit_by_tag(concurrency_tag)
-                except ObjectNotFound:
-                    try:
-                        await client.create_concurrency_limit(
-                            tag=concurrency_tag,
-                            concurrency_limit=concurrency_limit,
-                        )
-                    except ObjectAlreadyExists:
-                        pass
-
-    asyncio.run(ensure_concurrency_limits())
-
-
 def _run_from_specs(
     *,
     param_cfg_path: Path,
     deploy_cfg_path: Path,
-    run_concurrency_setup: bool,
     default_work_pool_name: str = "local",
 ) -> None:
     # Load configs
@@ -96,8 +38,6 @@ def _run_from_specs(
     # Discover all flows and filter to those in deploy config
     all_flows = discover_all_flows()
     filtered_flows = filter_flows_for_deploy(all_flows, deploy_cfg)
-    if run_concurrency_setup:
-        _run_concurrency_setup(deploy_cfg)
 
     # Set up deployment source: git or local
     source = resolve_deployment_source(
@@ -156,13 +96,6 @@ def _build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Path to deploy_*.yaml (deployment spec).",
     )
-    run_parser.add_argument(
-        "--use-concurrency",
-        action=argparse.BooleanOptionalAction,
-        default=True,
-        help="Run concurrency-limit setup before creating deployments (default: enabled).",
-    )
-
     return parser
 
 
@@ -174,7 +107,6 @@ def main() -> None:
         _run_from_specs(
             param_cfg_path=args.param_config,
             deploy_cfg_path=args.deploy_spec,
-            run_concurrency_setup=args.use_concurrency,
             default_work_pool_name=args.default_work_pool_name,
         )
         return

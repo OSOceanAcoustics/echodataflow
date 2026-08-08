@@ -154,7 +154,6 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     module._run_from_specs(
         param_cfg_path=Path("config_cloud.yaml"),
         deploy_cfg_path=Path("deploy_cloud.yaml"),
-        run_concurrency_setup=False,
         default_work_pool_name="local",
     )
 
@@ -294,7 +293,6 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     module._run_from_specs(
         param_cfg_path=Path("config_ship.yaml"),
         deploy_cfg_path=Path("deploy_ship.yaml"),
-        run_concurrency_setup=False,
         default_work_pool_name="local",
     )
 

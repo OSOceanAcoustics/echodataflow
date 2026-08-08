@@ -234,7 +234,6 @@ def flow_raw2Sv(
 
 @task(
     log_prints=True,
-    tags=["raw2Sv"],
 )
 def task_raw2Sv(
     raw_path: str,
@@ -314,7 +313,6 @@ async def flow_create_MVBS(
     """
     logger = get_run_logger()
 
-    # with concurrency("create_MVBS", occupy=1):
     # Set end_time to current time - time_offset_seconds
     end_time = round_up_mins(
         datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds),
