@@ -25,8 +25,8 @@ class DeploymentSpec:
     flow_key: str
     deployment_name: str
     entrypoint: str
-    target_flow_module: str
-    target_flow_name: str
+    flow_module: str
+    flow_name: str
     flow_obj: Flow[..., Any] | None = None
     flow_alias: str | None = None
     cron_offset: int = 0
@@ -38,7 +38,7 @@ class DeploymentSpec:
 def discover_all_flows() -> dict[str, dict[str, Any]]:
     """
     Discover all flow_* functions from all modules in echodataflow.flows folder.
-    Returns mapping: flow_name -> {"flow_obj", "module_name", "flow_attr_name", "entrypoint", "flow_module"}
+    Returns mapping: flow_name -> {"flow_obj", "module_name", "flow_function_name", "entrypoint", "flow_module"}
     """
 
     flows_pkg_spec = importlib.util.find_spec("echodataflow.flows") # this points to __init__.py
@@ -60,17 +60,17 @@ def discover_all_flows() -> dict[str, dict[str, Any]]:
             raise ImportError(f"Failed to import echodataflow.flows.{module_name}: {e}")
         
         # Find all flow_* attributes in the module
-        for flow_attr_name in dir(flow_module):
-            if not flow_attr_name.startswith("flow_"):
+        for flow_function_name in dir(flow_module):
+            if not flow_function_name.startswith("flow_"):
                 continue
 
-            flow_name = flow_attr_name.removeprefix("flow_")
-            flow_obj = cast(Flow[..., Any], getattr(flow_module, flow_attr_name))
-            entrypoint = f"{DEFAULT_ENTRYPOINT_ROOT}/{module_name}.py:{flow_attr_name}"
+            flow_name = flow_function_name.removeprefix("flow_")
+            flow_obj = cast(Flow[..., Any], getattr(flow_module, flow_function_name))
+            entrypoint = f"{DEFAULT_ENTRYPOINT_ROOT}/{module_name}.py:{flow_function_name}"
             
             discovered[flow_name] = {
                 "module_name": module_name,  # the module name as string
-                "flow_attr_name": flow_attr_name,  # flow function name including flow_ prefix
+                "flow_function_name": flow_function_name,  # flow function name including flow_ prefix
                 "flow_module": flow_module,  # the actual module object, useful for concurrency setup
                 "flow_obj": flow_obj,  # the actual Flow object
                 "entrypoint": entrypoint,  # the entrypoint string for deployment
@@ -430,8 +430,8 @@ def build_deploy_specs(
                 flow_key=key,
                 deployment_name=deploy_meta.get("deployment_name", key),
                 entrypoint=flow_info["entrypoint"],
-                target_flow_module=flow_info["module_name"],
-                target_flow_name=flow_info["flow_attr_name"],
+                flow_module=flow_info["module_name"],
+                flow_name=flow_info["flow_function_name"],
                 flow_obj=flow_info["flow_obj"],
                 flow_alias=deploy_meta.get("flow_alias"),
                 cron_offset=deploy_meta.get("cron_offset", 0),
@@ -475,8 +475,8 @@ def create_deployments(
 
         # If emit_events is configured, run the generic wrapper flow instead.
         if spec.emit_events is not None:
-            deployment_kwargs["parameters"]["flow_module"] = spec.target_flow_module
-            deployment_kwargs["parameters"]["flow_name"] = spec.target_flow_name
+            deployment_kwargs["parameters"]["flow_module"] = spec.flow_module
+            deployment_kwargs["parameters"]["flow_name"] = spec.flow_name
             deployment_kwargs["parameters"]["emit_events"] = spec.emit_events
             spec_entrypoint = DEFAULT_EMIT_EVENTS_ENTRYPOINT
         else:

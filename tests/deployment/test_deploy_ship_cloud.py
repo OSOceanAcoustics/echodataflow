@@ -144,7 +144,7 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
         filtered[flow_key] = {
             "flow_obj": flow_obj,
             "module_name": module_name,
-            "flow_attr_name": flow_name,
+            "flow_function_name": flow_name,
             "flow_module": flow_module,
             "entrypoint": entrypoint,
         }
@@ -287,7 +287,7 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
         filtered[flow_key] = {
             "flow_obj": flow_obj,
             "module_name": module_name,
-            "flow_attr_name": flow_name,
+            "flow_function_name": flow_name,
             "flow_module": flow_module,
             "entrypoint": entrypoint,
         }
