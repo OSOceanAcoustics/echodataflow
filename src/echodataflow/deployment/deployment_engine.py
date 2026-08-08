@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import inspect
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -377,6 +378,21 @@ def validate_flow_coverage(
         raise ValueError("Flow coverage mismatch. " + " | ".join(errors))
 
 
+def _flow_accepts_time_offset_seconds(flow_obj: Any) -> bool:
+    """Return True when the flow function can accept `time_offset_seconds`.
+
+    Prefect Flow objects expose the wrapped function via `.fn`. If a flow object
+    does not expose an inspectable function (e.g. certain test doubles), we skip
+    strict validation and allow the deployment build to proceed.
+    """
+    flow_fn = getattr(flow_obj, "fn", None)
+    if not callable(flow_fn):
+        return True
+
+    signature = inspect.signature(flow_fn)
+    return "time_offset_seconds" in signature.parameters
+
+
 def build_deploy_specs(
     *,
     param_cfg: dict[str, Any],
@@ -413,6 +429,16 @@ def build_deploy_specs(
             )
 
         flow_info = filtered_flows[key]
+
+        # Check if time_offset_seconds is indeed accepted by the flows specified in deploy config
+        if (
+            key in time_offset_targets
+            and not _flow_accepts_time_offset_seconds(flow_info["flow_obj"])
+        ):
+            raise ValueError(
+                f"deploy_cfg.flows.{key}.inject_time_offset is enabled, "
+                "but the target flow does not define 'time_offset_seconds'"
+            )
 
         # Set up triggers or cron schedule based on deploy config
         triggers = validate_triggers(

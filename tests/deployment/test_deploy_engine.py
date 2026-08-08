@@ -350,3 +350,42 @@ def test_build_deploy_specs_rejects_trigger_missing_resource_name(install_prefec
             deploy_cfg=deploy_cfg,
             filtered_flows=filtered_flows,
         )
+
+
+def test_build_deploy_specs_rejects_inject_time_offset_for_incompatible_flow(
+    install_prefect_stubs,
+):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    def _incompatible_flow_fn(path_main: str = ""):
+        return None
+
+    class _FakeFlow:
+        fn = _incompatible_flow_fn
+
+    deploy_cfg = {
+        "flow_start_time": "2026-01-01T00:00:00+00:00",
+        "flows": {
+            "create_MVBS": {
+                "deployment_name": "create_MVBS",
+                "interval": 5,
+                "inject_time_offset": True,
+            }
+        },
+    }
+    param_cfg = {"flows": {"create_MVBS": {"path_main": "/tmp"}}}
+    filtered_flows = {
+        "create_MVBS": {
+            "flow_obj": _FakeFlow(),
+            "flow_module": "flows_acoustics",
+            "flow_function_name": "flow_create_MVBS",
+        }
+    }
+
+    with pytest.raises(ValueError, match="does not define 'time_offset_seconds'"):
+        engine.build_deploy_specs(
+            param_cfg=param_cfg,
+            deploy_cfg=deploy_cfg,
+            filtered_flows=filtered_flows,
+        )
