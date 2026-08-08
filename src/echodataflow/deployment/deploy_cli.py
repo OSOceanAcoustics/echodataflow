@@ -16,6 +16,7 @@ from echodataflow.deployment.deployment_engine import (
     create_deployments,
     load_config,
     resolve_deployment_source,
+    validate_deploy_config,
     validate_flow_coverage,
 )
 
@@ -29,7 +30,8 @@ def _run_from_specs(
     param_cfg = load_config(param_cfg_path)
     deploy_cfg = load_config(deploy_cfg_path)
 
-    # Validate the pair of configs contain the same flows
+    # Validate the deployment schema and paired flow coverage.
+    validate_deploy_config(deploy_cfg)
     validate_flow_coverage(param_cfg, deploy_cfg)
 
     # Set "flow_start_time" as a Prefect variable

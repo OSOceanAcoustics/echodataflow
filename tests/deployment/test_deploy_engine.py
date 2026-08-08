@@ -44,9 +44,8 @@ def test_filter_flows_for_deploy_uses_flow_alias_fallback(install_prefect_stubs)
     }
     deploy_cfg = {
         "flows": {
-            "copy_raw": {"module": "flows_helper"},
+            "copy_raw": {},
             "file_upload_acoustics": {
-                "module": "flows_helper",
                 "flow_alias": "file_upload",
             },
         }
@@ -73,7 +72,6 @@ def test_filter_flows_for_deploy_raises_when_key_and_alias_missing(install_prefe
     deploy_cfg = {
         "flows": {
             "file_upload_acoustics": {
-                "module": "flows_helper",
                 "flow_alias": "file_upload",
             }
         }
@@ -89,17 +87,15 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
 
     deploy_ship = {
         "flows": {
-            "copy_raw": {"module": "flows_helper", "interval": 1},
-            "raw2Sv": {"module": "flows_acoustics", "interval": 1},
-            "create_MVBS": {"module": "flows_acoustics", "interval": 1},
-            "predict_hake": {"module": "flows_acoustics", "interval": 1},
+            "copy_raw": {"interval": 1},
+            "raw2Sv": {"interval": 1},
+            "create_MVBS": {"interval": 1},
+            "predict_hake": {"interval": 1},
             "file_upload_acoustics": {
-                "module": "flows_helper",
                 "flow_alias": "file_upload",
                 "interval": 1,
             },
             "file_upload_trawl": {
-                "module": "flows_helper",
                 "flow_alias": "file_upload",
                 "interval": 1,
             },
@@ -107,10 +103,10 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
     }
     deploy_cloud = {
         "flows": {
-            "ingest_haul": {"module": "flows_biology", "interval": 1},
-            "ingest_NASC": {"module": "flows_integration", "interval": 1},
-            "update_grid": {"module": "flows_integration", "interval": 1},
-            "update_cache_MVBS": {"module": "flows_viz_cloud", "interval": 1},
+            "ingest_haul": {"interval": 1},
+            "ingest_NASC": {"interval": 1},
+            "update_grid": {"interval": 1},
+            "update_cache_MVBS": {"interval": 1},
         }
     }
     param_ship = {"flows": {flow_key: {} for flow_key in deploy_ship["flows"]}}
@@ -118,8 +114,16 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
 
     # Build filtered flows mappings with mock flow objects
     ship_flows = {}
+    ship_modules = {
+        "copy_raw": "flows_helper",
+        "raw2Sv": "flows_acoustics",
+        "create_MVBS": "flows_acoustics",
+        "predict_hake": "flows_acoustics",
+        "file_upload_acoustics": "flows_helper",
+        "file_upload_trawl": "flows_helper",
+    }
     for flow_key, flow_meta in deploy_ship["flows"].items():
-        module_name = flow_meta["module"]
+        module_name = ship_modules[flow_key]
         flow_alias = flow_meta.get("flow_alias") or flow_key
         ship_flows[flow_key] = {
             "flow_obj": object(),
@@ -128,8 +132,14 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
         }
 
     cloud_flows = {}
+    cloud_modules = {
+        "ingest_haul": "flows_biology",
+        "ingest_NASC": "flows_integration",
+        "update_grid": "flows_integration",
+        "update_cache_MVBS": "flows_viz_cloud",
+    }
     for flow_key, flow_meta in deploy_cloud["flows"].items():
-        module_name = flow_meta["module"]
+        module_name = cloud_modules[flow_key]
         flow_alias = flow_meta.get("flow_alias") or flow_key
         cloud_flows[flow_key] = {
             "flow_obj": object(),
@@ -192,33 +202,158 @@ def test_build_deploy_specs_passes_target_flow_parameters_directly(install_prefe
     assert specs[0].parameters == {"msg": "hello"}
 
 
-def test_build_deploy_specs_rejects_entrypoint_override(install_prefect_stubs):
+def test_validate_deploy_config_accepts_every_allowed_key(install_prefect_stubs):
     install_prefect_stubs()
+    core = importlib.import_module("echodataflow.deployment.core")
     engine = importlib.import_module("echodataflow.deployment.deployment_engine")
 
     deploy_cfg = {
+        "flow_start_time": "2026-01-01T00:00:00+00:00",
+        "default_work_pool_name": "default-pool",
+        "source": {
+            "mode": "git",
+            "git": {
+                "url": "https://example.com/repo.git",
+                "branch": "main",
+            },
+        },
         "flows": {
-            "ingest_NASC": {
-                "deployment_name": "ingest_NASC",
-                "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
-            }
-        }
+            "scheduled": {
+                "deployment_name": "scheduled-deployment",
+                "flow_alias": "actual_flow_name",
+                "interval": 10,
+                "cron_offset": 3,
+                "inject_time_offset": True,
+                "work_pool_name": "special-pool",
+            },
+            "event_driven": {
+                "triggers": [
+                    {
+                        "expect": "prefect.flow-run.Completed",
+                        "resource_name": "scheduled-deployment",
+                    }
+                ],
+            },
+        },
     }
-    filtered_flows = {
-        "ingest_NASC": {
-            "flow_obj": object(),
-            "flow_module": "flows_integration",
-            "flow_function_name": "flow_ingest_NASC",
-        }
-    }
-    param_cfg = {"flows": {"ingest_NASC": {}}}
 
-    with pytest.raises(ValueError, match="entrypoint is not supported"):
-        engine.build_deploy_specs(
-            param_cfg=param_cfg,
-            deploy_cfg=deploy_cfg,
-            filtered_flows=filtered_flows,
-        )
+    engine.validate_deploy_config(deploy_cfg)
+
+    assert core.ALLOWED_DEPLOY_KEYS == {
+        "flow_start_time",
+        "default_work_pool_name",
+        "source",
+        "flows",
+    }
+    assert core.ALLOWED_FLOW_DEPLOY_KEYS == {
+        "deployment_name",
+        "flow_alias",
+        "interval",
+        "cron_offset",
+        "triggers",
+        "inject_time_offset",
+        "work_pool_name",
+    }
+    assert core.ALLOWED_TRIGGER_KEYS == {"expect", "resource_name"}
+    assert core.ALLOWED_SOURCE_KEYS == {"mode", "git"}
+    assert core.ALLOWED_GIT_SOURCE_KEYS == {"url", "branch"}
+
+
+@pytest.mark.parametrize(
+    ("deploy_cfg", "expected_path", "unknown_field"),
+    [
+        (
+            {"flows": {}, "default_workpool_name": "local"},
+            "deploy_cfg",
+            "default_workpool_name",
+        ),
+        (
+            {"flows": {"upstream": {"entrypoint": "flows.py:upstream"}}},
+            "deploy_cfg.flows.upstream",
+            "entrypoint",
+        ),
+        (
+            {
+                "flows": {
+                    "downstream": {
+                        "triggers": [
+                            {
+                                "expect": "prefect.flow-run.Completed",
+                                "resource_name": "upstream",
+                                "resource_role": "deployment",
+                            }
+                        ]
+                    }
+                }
+            },
+            "deploy_cfg.flows.downstream.triggers[0]",
+            "resource_role",
+        ),
+        (
+            {"flows": {}, "source": {"mode": "local", "directory": "/tmp"}},
+            "deploy_cfg.source",
+            "directory",
+        ),
+        (
+            {
+                "flows": {},
+                "source": {
+                    "mode": "git",
+                    "git": {"url": "https://example.com/repo.git", "ref": "main"},
+                },
+            },
+            "deploy_cfg.source.git",
+            "ref",
+        ),
+    ],
+)
+def test_validate_deploy_config_rejects_unknown_nested_fields(
+    install_prefect_stubs,
+    deploy_cfg,
+    expected_path,
+    unknown_field,
+):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    with pytest.raises(ValueError) as exc_info:
+        engine.validate_deploy_config(deploy_cfg)
+
+    message = str(exc_info.value)
+    assert expected_path in message
+    assert unknown_field in message
+
+
+@pytest.mark.parametrize(
+    ("deploy_cfg", "expected_message"),
+    [
+        (None, "deploy_cfg must be a mapping"),
+        ({}, "deploy_cfg.flows must be a mapping"),
+        ({"flows": []}, "deploy_cfg.flows must be a mapping"),
+        (
+            {"flows": {"raw2Sv": []}},
+            "deploy_cfg.flows.raw2Sv must be a mapping",
+        ),
+        (
+            {"flows": {}, "source": "local"},
+            "deploy_cfg.source must be a mapping",
+        ),
+        (
+            {"flows": {}, "source": {"mode": "git", "git": "repo"}},
+            "deploy_cfg.source.git must be a mapping",
+        ),
+    ],
+)
+def test_validate_deploy_config_rejects_invalid_mapping_shapes(
+    install_prefect_stubs,
+    deploy_cfg,
+    expected_message,
+):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    with pytest.raises(ValueError, match=expected_message):
+        engine.validate_deploy_config(deploy_cfg)
 
 
 def test_build_deploy_specs_rejects_triggers_and_interval(install_prefect_stubs):
@@ -245,7 +380,7 @@ def test_build_deploy_specs_rejects_triggers_and_interval(install_prefect_stubs)
     }
     param_cfg = {"flows": {"ingest_NASC": {}}}
 
-    with pytest.raises(ValueError, match="exactly one of 'triggers' or 'interval'"):
+    with pytest.raises(ValueError, match="only one of 'triggers' or 'interval'"):
         engine.build_deploy_specs(
             param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
@@ -253,7 +388,9 @@ def test_build_deploy_specs_rejects_triggers_and_interval(install_prefect_stubs)
         )
 
 
-def test_build_deploy_specs_rejects_missing_triggers_and_interval(install_prefect_stubs):
+def test_build_deploy_specs_allows_manual_deployment_without_schedule(
+    install_prefect_stubs,
+):
     install_prefect_stubs()
     engine = importlib.import_module("echodataflow.deployment.deployment_engine")
 
@@ -273,12 +410,15 @@ def test_build_deploy_specs_rejects_missing_triggers_and_interval(install_prefec
     }
     param_cfg = {"flows": {"ingest_NASC": {}}}
 
-    with pytest.raises(ValueError, match="exactly one of 'triggers' or 'interval'"):
-        engine.build_deploy_specs(
-            param_cfg=param_cfg,
-            deploy_cfg=deploy_cfg,
-            filtered_flows=filtered_flows,
-        )
+    specs = engine.build_deploy_specs(
+        param_cfg=param_cfg,
+        deploy_cfg=deploy_cfg,
+        filtered_flows=filtered_flows,
+    )
+
+    assert len(specs) == 1
+    assert specs[0].cron is None
+    assert specs[0].triggers is None
 
 
 def test_build_deploy_specs_rejects_empty_triggers(install_prefect_stubs):

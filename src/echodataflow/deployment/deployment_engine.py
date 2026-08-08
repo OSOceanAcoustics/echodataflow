@@ -15,7 +15,14 @@ from prefect.flows import Flow
 from prefect.variables import Variable
 from yaml import safe_load
 
-from echodataflow.deployment.core import DEFAULT_ENTRYPOINT_ROOT
+from echodataflow.deployment.core import (
+    ALLOWED_DEPLOY_KEYS,
+    ALLOWED_FLOW_DEPLOY_KEYS,
+    ALLOWED_GIT_SOURCE_KEYS,
+    ALLOWED_SOURCE_KEYS,
+    ALLOWED_TRIGGER_KEYS,
+    DEFAULT_ENTRYPOINT_ROOT,
+)
 
 
 @dataclass(frozen=True)
@@ -249,6 +256,67 @@ def build_triggers(trigger_items: list[dict[str, Any]]) -> list[Any]:
     ]
 
 
+def _reject_unknown_keys(
+    value: dict[str, Any],
+    *,
+    allowed: set[str],
+    path: str,
+) -> None:
+    unknown = sorted(set(value) - allowed)
+    if unknown:
+        raise ValueError(f"Unsupported field(s) at {path}: {unknown}")
+
+
+def validate_deploy_config(deploy_cfg: Any) -> None:
+    """Reject unknown fields throughout a deployment specification."""
+    if not isinstance(deploy_cfg, dict):
+        raise ValueError("deploy_cfg must be a mapping")
+
+    _reject_unknown_keys(deploy_cfg, allowed=ALLOWED_DEPLOY_KEYS, path="deploy_cfg")
+
+    flows = deploy_cfg.get("flows")
+    if not isinstance(flows, dict):
+        raise ValueError("deploy_cfg.flows must be a mapping")
+
+    for flow_key, deploy_meta in flows.items():
+        flow_path = f"deploy_cfg.flows.{flow_key}"
+        if not isinstance(deploy_meta, dict):
+            raise ValueError(f"{flow_path} must be a mapping")
+        _reject_unknown_keys(
+            deploy_meta,
+            allowed=ALLOWED_FLOW_DEPLOY_KEYS,
+            path=flow_path,
+        )
+
+        triggers = deploy_meta.get("triggers")
+        if isinstance(triggers, list):
+            for index, trigger in enumerate(triggers):
+                if isinstance(trigger, dict):
+                    _reject_unknown_keys(
+                        trigger,
+                        allowed=ALLOWED_TRIGGER_KEYS,
+                        path=f"{flow_path}.triggers[{index}]",
+                    )
+
+    source = deploy_cfg.get("source")
+    if source is None:
+        return
+    if not isinstance(source, dict):
+        raise ValueError("deploy_cfg.source must be a mapping")
+    _reject_unknown_keys(source, allowed=ALLOWED_SOURCE_KEYS, path="deploy_cfg.source")
+
+    git_source = source.get("git")
+    if git_source is None:
+        return
+    if not isinstance(git_source, dict):
+        raise ValueError("deploy_cfg.source.git must be a mapping")
+    _reject_unknown_keys(
+        git_source,
+        allowed=ALLOWED_GIT_SOURCE_KEYS,
+        path="deploy_cfg.source.git",
+    )
+
+
 def validate_optional_non_empty_list(
     value: Any,
     *,
@@ -369,6 +437,8 @@ def build_deploy_specs(
     Build deployment specs from deploy/param config and pre-filtered flows mapping.
     Specs contain fully compiled parameters and schedule/trigger metadata.
     """
+    validate_deploy_config(deploy_cfg)
+
     specs: list[DeploymentSpec] = []
     flows_params = param_cfg["flows"]
     time_offset_targets = get_time_offset_targets(deploy_cfg)
@@ -381,15 +451,11 @@ def build_deploy_specs(
         if key not in filtered_flows:
             continue
 
-        # Disallow specifying entrypoint in deploy config
-        if "entrypoint" in deploy_meta:
-            raise ValueError(
-                f"deploy_cfg.flows.{key}.entrypoint is not supported; "
-                "entrypoint is discovered from the flow module"
-            )
-
-        # Raise error if both triggers and cron are specified in deploy config
-        if (deploy_meta.get("triggers") is not None) and (deploy_meta.get("interval") is not None):
+        # Scheduling is optional for manually run deployments, but the two
+        # supported scheduling mechanisms are mutually exclusive.
+        if (deploy_meta.get("triggers") is not None) and (
+            deploy_meta.get("interval") is not None
+        ):
             raise ValueError(
                 f"deploy_cfg.flows.{key} must define only one of 'triggers' or 'interval'"
             )
