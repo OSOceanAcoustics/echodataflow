@@ -22,22 +22,22 @@ DEFAULT_DEPLOYMENT_WRAPPER_ENTRYPOINT = "echodataflow/flows/flows_helper.py:flow
 
 @dataclass(frozen=True)
 class DeploymentSpec:
-    flow_key: str
-    deployment_name: str
-    flow_module: str
-    flow_name: str
-    flow_obj: Flow[..., Any] | None = None
-    flow_alias: str | None = None
-    cron_offset: int = 0
-    work_pool_name: str | None = None
-    triggers: list[dict[str, Any]] | None = None
-    emit_events: list[str] | None = None
+    flow_key: str  # the flow key from deploy config, used to look up flow params and deploy settings
+    deployment_name: str  # the deployment name to use for this flow
+    flow_module: str  # the module name as string
+    flow_name: str  # the flow function name including flow_ prefix
+    flow_obj: Flow[..., Any] | None = None  # the actual Flow object, resolved from flow_module and flow_name
+    flow_alias: str | None = None  # an optional alias for the flow, used for deployment naming
+    cron_offset: int = 0  # the cron offset in minutes, used to stagger deployments
+    work_pool_name: str | None = None  # the work pool name to use for this deployment, if different from default
+    triggers: list[dict[str, Any]] | None = None  # a list of trigger definitions, each with 'expect' and 'resource_name' keys
+    emit_events: list[str] | None = None  # a list of event names to emit after the flow completes, used for triggering downstream flows
 
 
 def discover_all_flows() -> dict[str, dict[str, Any]]:
     """
     Discover all flow_* functions from all modules in echodataflow.flows folder.
-    Returns mapping: flow_name -> {"flow_obj", "flow_function_name", "flow_module"}
+    Returns mapping: flow_name -> {"flow_obj", "module_name", "flow_function_name"}
     """
 
     flows_pkg_spec = importlib.util.find_spec("echodataflow.flows") # this points to __init__.py
@@ -67,8 +67,8 @@ def discover_all_flows() -> dict[str, dict[str, Any]]:
             flow_obj = cast(Flow[..., Any], getattr(flow_module, flow_function_name))
             
             discovered[flow_name] = {
+                "module_name": module_name,  # the module name as string
                 "flow_function_name": flow_function_name,  # flow function name including flow_ prefix
-                "flow_module": flow_module,  # the actual module object, useful for concurrency setup
                 "flow_obj": flow_obj,  # the actual Flow object
             }
     
@@ -426,7 +426,7 @@ def build_deploy_specs(
             DeploymentSpec(
                 flow_key=key,
                 deployment_name=deploy_meta.get("deployment_name", key),
-                flow_module=flow_info["flow_module"].__name__.split(".")[-1],
+                flow_module=flow_info["module_name"],
                 flow_name=flow_info["flow_function_name"],
                 flow_obj=flow_info["flow_obj"],
                 flow_alias=deploy_meta.get("flow_alias"),
