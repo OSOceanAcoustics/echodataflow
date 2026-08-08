@@ -17,15 +17,14 @@ from yaml import safe_load
 
 from echodataflow.deployment.core import DEFAULT_ENTRYPOINT_ROOT
 
-DEFAULT_DEPLOYMENT_WRAPPER_ENTRYPOINT = "echodataflow/flows/flows_helper.py:flow_deployment_wrapper"
-
 
 @dataclass(frozen=True)
 class DeploymentSpec:
     flow_key: str  # the flow key from deploy config, used to look up flow params and deploy settings
     deployment_name: str  # the deployment name to use for this flow
     flow_obj: Flow[..., Any]  # the actual Flow object resolved from discovered flow metadata
-    parameters: dict[str, Any]  # fully compiled deployment parameters passed to the wrapper
+    entrypoint: str  # source-relative entrypoint for the actual deployed flow
+    parameters: dict[str, Any]  # parameters passed directly to the deployed flow
     cron: str | None = None  # precomputed cron schedule, when interval mode is used
     work_pool_name: str | None = None  # the work pool name to use for this deployment, if different from default
     triggers: list[Any] | None = None  # precomputed Prefect trigger objects
@@ -243,6 +242,7 @@ def build_triggers(trigger_items: list[dict[str, Any]]) -> list[Any]:
             expect={item["expect"]},
             match_related={
                 "prefect.resource.name": item["resource_name"],
+                "prefect.resource.role": "deployment",
             },
         )
         for item in trigger_items
@@ -312,40 +312,6 @@ def validate_triggers(
         )
 
     return validated_triggers
-
-
-def validate_emit_events(
-    emit_events: Any,
-    *,
-    flow_key: str,
-) -> list[str] | None:
-    """
-    Validate emitted event names from deploy config.
-
-    When configured, emit_events must be a non-empty list of non-empty strings.
-    """
-    emit_events = validate_optional_non_empty_list(
-        emit_events,
-        field_name=f"deploy_cfg.flows.{flow_key}.emit_events",
-        item_label="event name",
-    )
-    if emit_events is None:
-        return None
-
-    validated_events: list[str] = []
-    for event_name in emit_events:
-        if not isinstance(event_name, str):
-            raise ValueError(
-                f"deploy_cfg.flows.{flow_key}.emit_events entries must be strings"
-            )
-        event_name = event_name.strip()
-        if not event_name:
-            raise ValueError(
-                f"deploy_cfg.flows.{flow_key}.emit_events entries must be non-empty"
-            )
-        validated_events.append(event_name)
-
-    return validated_events
 
 
 def validate_flow_coverage(
@@ -463,22 +429,15 @@ def build_deploy_specs(
         if key in time_offset_targets:
             deployment_parameters["time_offset_seconds"] = time_offset_seconds
 
-        deployment_parameters["flow_module"] = flow_info["flow_module"]
-        deployment_parameters["flow_name"] = flow_info["flow_function_name"]
-
-        # Add emit_events if configured in deploy config
-        emit_events = validate_emit_events(
-            deploy_meta.get("emit_events"),
-            flow_key=key,
-        )
-        if emit_events is not None:
-            deployment_parameters["emit_events"] = emit_events
-
         specs.append(
             DeploymentSpec(
                 flow_key=key,
                 deployment_name=deploy_meta.get("deployment_name", key),
                 flow_obj=flow_info["flow_obj"],
+                entrypoint=(
+                    f"{DEFAULT_ENTRYPOINT_ROOT}/{flow_info['flow_module']}.py:"
+                    f"{flow_info['flow_function_name']}"
+                ),
                 parameters=deployment_parameters,
                 cron=cron,
                 work_pool_name=deploy_meta.get("work_pool_name"),
@@ -521,7 +480,7 @@ def create_deployments(
         deployment = (
             flow_obj.from_source(
                 source=source,
-                entrypoint=DEFAULT_DEPLOYMENT_WRAPPER_ENTRYPOINT,
+                entrypoint=spec.entrypoint,
             ).to_deployment(**deployment_kwargs)
         )
 

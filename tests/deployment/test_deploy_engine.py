@@ -148,59 +148,48 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
         filtered_flows=cloud_flows,
     )
 
-    ship_targets = {
-        spec.flow_key: (spec.parameters["flow_module"], spec.parameters["flow_name"])
-        for spec in ship_specs
-    }
-    cloud_targets = {
-        spec.flow_key: (spec.parameters["flow_module"], spec.parameters["flow_name"])
-        for spec in cloud_specs
-    }
+    ship_targets = {spec.flow_key: spec.entrypoint for spec in ship_specs}
+    cloud_targets = {spec.flow_key: spec.entrypoint for spec in cloud_specs}
 
     assert ship_targets == {
-        "copy_raw": ("flows_helper", "flow_copy_raw"),
-        "raw2Sv": ("flows_acoustics", "flow_raw2Sv"),
-        "create_MVBS": ("flows_acoustics", "flow_create_MVBS"),
-        "predict_hake": ("flows_acoustics", "flow_predict_hake"),
-        "file_upload_acoustics": ("flows_helper", "flow_file_upload"),
-        "file_upload_trawl": ("flows_helper", "flow_file_upload"),
+        "copy_raw": "echodataflow/flows/flows_helper.py:flow_copy_raw",
+        "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
+        "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
+        "predict_hake": "echodataflow/flows/flows_acoustics.py:flow_predict_hake",
+        "file_upload_acoustics": "echodataflow/flows/flows_helper.py:flow_file_upload",
+        "file_upload_trawl": "echodataflow/flows/flows_helper.py:flow_file_upload",
     }
     assert cloud_targets == {
-        "ingest_haul": ("flows_biology", "flow_ingest_haul"),
-        "ingest_NASC": ("flows_integration", "flow_ingest_NASC"),
-        "update_grid": ("flows_integration", "flow_update_grid"),
-        "update_cache_MVBS": ("flows_viz_cloud", "flow_update_cache_MVBS"),
+        "ingest_haul": "echodataflow/flows/flows_biology.py:flow_ingest_haul",
+        "ingest_NASC": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        "update_grid": "echodataflow/flows/flows_integration.py:flow_update_grid",
+        "update_cache_MVBS": "echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
     }
 
 
-def test_build_deploy_specs_rejects_empty_emit_events(install_prefect_stubs):
+def test_build_deploy_specs_passes_target_flow_parameters_directly(install_prefect_stubs):
     install_prefect_stubs()
     engine = importlib.import_module("echodataflow.deployment.deployment_engine")
 
-    deploy_cfg = {
-        "flows": {
-            "ingest_NASC": {
-                "deployment_name": "ingest_NASC",
-                "interval": 5,
-                "emit_events": [],
+    specs = engine.build_deploy_specs(
+        param_cfg={"flows": {"emit_event_ABC": {"msg": "hello"}}},
+        deploy_cfg={
+            "flows": {
+                "emit_event_ABC": {
+                    "interval": 1,
+                }
             }
-        }
-    }
-    filtered_flows = {
-        "ingest_NASC": {
-            "flow_obj": object(),
-            "flow_module": "flows_integration",
-            "flow_function_name": "flow_ingest_NASC",
-        }
-    }
-    param_cfg = {"flows": {"ingest_NASC": {}}}
+        },
+        filtered_flows={
+            "emit_event_ABC": {
+                "flow_obj": object(),
+                "flow_module": "flows_test",
+                "flow_function_name": "flow_emit_event_ABC",
+            }
+        },
+    )
 
-    with pytest.raises(ValueError, match="at least one event name"):
-        engine.build_deploy_specs(
-            param_cfg=param_cfg,
-            deploy_cfg=deploy_cfg,
-            filtered_flows=filtered_flows,
-        )
+    assert specs[0].parameters == {"msg": "hello"}
 
 
 def test_build_deploy_specs_rejects_entrypoint_override(install_prefect_stubs):

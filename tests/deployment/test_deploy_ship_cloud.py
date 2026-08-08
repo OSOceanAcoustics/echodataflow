@@ -91,20 +91,24 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
                 "module": "flows_biology",
                 "deployment_name": "ingest_haul",
                 "interval": 5,
-                "emit_events": ["haul.ingested"],
             },
             "ingest_NASC": {
                 "module": "flows_integration",
                 "deployment_name": "ingest_NASC",
                 "interval": 7,
-                "emit_events": ["nasc.ingested"],
             },
             "update_grid": {
                 "module": "flows_integration",
                 "deployment_name": "update_grid",
                 "triggers": [
-                    {"expect": "haul.ingested", "resource_name": "ingest_haul"},
-                    {"expect": "nasc.ingested", "resource_name": "ingest_NASC"},
+                    {
+                        "expect": "prefect.flow-run.Completed",
+                        "resource_name": "ingest_haul",
+                    },
+                    {
+                        "expect": "prefect.flow-run.Completed",
+                        "resource_name": "ingest_NASC",
+                    },
                 ],
             },
             "update_cache_MVBS": {
@@ -158,10 +162,10 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     )
 
     expected_entrypoints = {
-        "ingest_haul": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
-        "ingest_NASC": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
-        "update_grid": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
-        "update_cache_MVBS": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
+        "ingest_haul": "echodataflow/flows/flows_biology.py:flow_ingest_haul",
+        "ingest_NASC": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        "update_grid": "echodataflow/flows/flows_integration.py:flow_update_grid",
+        "update_cache_MVBS": "echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
     }
     actual_entrypoints = {
         item["flow_name"].removeprefix("flow_"): item["entrypoint"]
@@ -180,13 +184,20 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
 
     update_grid = next(d for d in sink["deployments"] if d["name"] == "update_grid")
     assert len(update_grid["triggers"]) == 2
+    assert update_grid["triggers"][0].kwargs == {
+        "expect": {"prefect.flow-run.Completed"},
+        "match_related": {
+            "prefect.resource.name": "ingest_haul",
+            "prefect.resource.role": "deployment",
+        },
+    }
 
     ingest_haul = next(d for d in sink["deployments"] if d["name"] == "ingest_haul")
     ingest_nasc = next(d for d in sink["deployments"] if d["name"] == "ingest_NASC")
     assert ingest_haul["cron"] == "*/5 * * * *"
     assert ingest_nasc["cron"] == "*/7 * * * *"
-    assert ingest_haul["parameters"]["emit_events"] == ["haul.ingested"]
-    assert ingest_nasc["parameters"]["emit_events"] == ["nasc.ingested"]
+    assert ingest_haul["parameters"] == {"x": 1}
+    assert ingest_nasc["parameters"] == {"y": 2}
 
 
 
@@ -297,10 +308,10 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     )
 
     expected_entrypoints = {
-        "raw2Sv": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
-        "create_MVBS": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
-        "predict_hake": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
-        "file_upload": "echodataflow/flows/flows_helper.py:flow_deployment_wrapper",
+        "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
+        "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
+        "predict_hake": "echodataflow/flows/flows_acoustics.py:flow_predict_hake",
+        "file_upload": "echodataflow/flows/flows_helper.py:flow_file_upload",
     }
     actual_entrypoints = {
         item["flow_name"].removeprefix("flow_"): item["entrypoint"]
