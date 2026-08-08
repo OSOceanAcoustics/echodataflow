@@ -389,9 +389,9 @@ def build_deploy_specs(
             )
 
         # Raise error if both triggers and cron are specified in deploy config
-        if (deploy_meta.get("triggers") is None) == (deploy_meta.get("interval") is None):
+        if (deploy_meta.get("triggers") is not None) and (deploy_meta.get("interval") is not None):
             raise ValueError(
-                f"deploy_cfg.flows.{key} must define exactly one of 'triggers' or 'interval'"
+                f"deploy_cfg.flows.{key} must define only one of 'triggers' or 'interval'"
             )
 
         flow_info = filtered_flows[key]
