@@ -201,3 +201,61 @@ def test_build_deploy_specs_rejects_entrypoint_override(install_prefect_stubs):
             deploy_cfg=deploy_cfg,
             filtered_flows=filtered_flows,
         )
+
+
+def test_build_deploy_specs_rejects_triggers_and_interval(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    deploy_cfg = {
+        "flows": {
+            "ingest_NASC": {
+                "deployment_name": "ingest_NASC",
+                "interval": 5,
+                "triggers": [
+                    {"expect": "nasc.ingested", "resource_name": "ingest_NASC"}
+                ],
+            }
+        }
+    }
+    filtered_flows = {
+        "ingest_NASC": {
+            "flow_obj": object(),
+            "module_name": "flows_integration",
+            "flow_attr_name": "flow_ingest_NASC",
+            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        }
+    }
+
+    with pytest.raises(ValueError, match="exactly one of 'triggers' or 'interval'"):
+        engine.build_deploy_specs(
+            deploy_cfg=deploy_cfg,
+            filtered_flows=filtered_flows,
+        )
+
+
+def test_build_deploy_specs_rejects_missing_triggers_and_interval(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    deploy_cfg = {
+        "flows": {
+            "ingest_NASC": {
+                "deployment_name": "ingest_NASC",
+            }
+        }
+    }
+    filtered_flows = {
+        "ingest_NASC": {
+            "flow_obj": object(),
+            "module_name": "flows_integration",
+            "flow_attr_name": "flow_ingest_NASC",
+            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        }
+    }
+
+    with pytest.raises(ValueError, match="exactly one of 'triggers' or 'interval'"):
+        engine.build_deploy_specs(
+            deploy_cfg=deploy_cfg,
+            filtered_flows=filtered_flows,
+        )

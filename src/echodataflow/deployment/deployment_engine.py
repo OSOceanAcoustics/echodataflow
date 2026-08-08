@@ -349,6 +349,11 @@ def build_deploy_specs(
                 "entrypoint is discovered from the flow module"
             )
 
+        if (deploy_meta.get("triggers") is None) == (deploy_meta.get("interval") is None):
+            raise ValueError(
+                f"deploy_cfg.flows.{key} must define exactly one of 'triggers' or 'interval'"
+            )
+
         flow_info = filtered_flows[key]
         emit_events = validate_emit_events(
             deploy_meta.get("emit_events"),
