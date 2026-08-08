@@ -113,6 +113,8 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
             "update_cache_MVBS": {"module": "flows_viz_cloud", "interval": 1},
         }
     }
+    param_ship = {"flows": {flow_key: {} for flow_key in deploy_ship["flows"]}}
+    param_cloud = {"flows": {flow_key: {} for flow_key in deploy_cloud["flows"]}}
 
     # Build filtered flows mappings with mock flow objects
     ship_flows = {}
@@ -136,20 +138,22 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
         }
 
     ship_specs = engine.build_deploy_specs(
+        param_cfg=param_ship,
         deploy_cfg=deploy_ship,
         filtered_flows=ship_flows,
     )
     cloud_specs = engine.build_deploy_specs(
+        param_cfg=param_cloud,
         deploy_cfg=deploy_cloud,
         filtered_flows=cloud_flows,
     )
 
     ship_targets = {
-        spec.flow_key: (spec.flow_module, spec.flow_name)
+        spec.flow_key: (spec.parameters["flow_module"], spec.parameters["flow_name"])
         for spec in ship_specs
     }
     cloud_targets = {
-        spec.flow_key: (spec.flow_module, spec.flow_name)
+        spec.flow_key: (spec.parameters["flow_module"], spec.parameters["flow_name"])
         for spec in cloud_specs
     }
 
@@ -189,9 +193,11 @@ def test_build_deploy_specs_rejects_empty_emit_events(install_prefect_stubs):
             "flow_function_name": "flow_ingest_NASC",
         }
     }
+    param_cfg = {"flows": {"ingest_NASC": {}}}
 
     with pytest.raises(ValueError, match="at least one event name"):
         engine.build_deploy_specs(
+            param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
             filtered_flows=filtered_flows,
         )
@@ -216,9 +222,11 @@ def test_build_deploy_specs_rejects_entrypoint_override(install_prefect_stubs):
             "flow_function_name": "flow_ingest_NASC",
         }
     }
+    param_cfg = {"flows": {"ingest_NASC": {}}}
 
     with pytest.raises(ValueError, match="entrypoint is not supported"):
         engine.build_deploy_specs(
+            param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
             filtered_flows=filtered_flows,
         )
@@ -246,9 +254,11 @@ def test_build_deploy_specs_rejects_triggers_and_interval(install_prefect_stubs)
             "flow_function_name": "flow_ingest_NASC",
         }
     }
+    param_cfg = {"flows": {"ingest_NASC": {}}}
 
     with pytest.raises(ValueError, match="exactly one of 'triggers' or 'interval'"):
         engine.build_deploy_specs(
+            param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
             filtered_flows=filtered_flows,
         )
@@ -272,9 +282,11 @@ def test_build_deploy_specs_rejects_missing_triggers_and_interval(install_prefec
             "flow_function_name": "flow_ingest_NASC",
         }
     }
+    param_cfg = {"flows": {"ingest_NASC": {}}}
 
     with pytest.raises(ValueError, match="exactly one of 'triggers' or 'interval'"):
         engine.build_deploy_specs(
+            param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
             filtered_flows=filtered_flows,
         )
@@ -299,9 +311,11 @@ def test_build_deploy_specs_rejects_empty_triggers(install_prefect_stubs):
             "flow_function_name": "flow_ingest_NASC",
         }
     }
+    param_cfg = {"flows": {"ingest_NASC": {}}}
 
     with pytest.raises(ValueError, match="must contain at least one trigger"):
         engine.build_deploy_specs(
+            param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
             filtered_flows=filtered_flows,
         )
@@ -328,9 +342,11 @@ def test_build_deploy_specs_rejects_trigger_missing_resource_name(install_prefec
             "flow_function_name": "flow_ingest_NASC",
         }
     }
+    param_cfg = {"flows": {"ingest_NASC": {}}}
 
     with pytest.raises(ValueError, match="non-empty 'resource_name'"):
         engine.build_deploy_specs(
+            param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
             filtered_flows=filtered_flows,
         )

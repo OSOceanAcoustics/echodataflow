@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass
 from pathlib import Path
-from types import ModuleType
 from typing import Any, cast
 import importlib.util
 
@@ -24,14 +23,11 @@ DEFAULT_DEPLOYMENT_WRAPPER_ENTRYPOINT = "echodataflow/flows/flows_helper.py:flow
 class DeploymentSpec:
     flow_key: str  # the flow key from deploy config, used to look up flow params and deploy settings
     deployment_name: str  # the deployment name to use for this flow
-    flow_module: str  # the module name as string
-    flow_name: str  # the flow function name including flow_ prefix
-    flow_obj: Flow[..., Any] | None = None  # the actual Flow object, resolved from flow_module and flow_name
-    flow_alias: str | None = None  # an optional alias for the flow, used for deployment naming
-    cron_offset: int = 0  # the cron offset in minutes, used to stagger deployments
+    flow_obj: Flow[..., Any]  # the actual Flow object resolved from discovered flow metadata
+    parameters: dict[str, Any]  # fully compiled deployment parameters passed to the wrapper
+    cron: str | None = None  # precomputed cron schedule, when interval mode is used
     work_pool_name: str | None = None  # the work pool name to use for this deployment, if different from default
-    triggers: list[dict[str, Any]] | None = None  # a list of trigger definitions, each with 'expect' and 'resource_name' keys
-    emit_events: list[str] | None = None  # a list of event names to emit after the flow completes, used for triggering downstream flows
+    triggers: list[Any] | None = None  # precomputed Prefect trigger objects
 
 
 def discover_all_flows() -> dict[str, dict[str, Any]]:
@@ -54,17 +50,17 @@ def discover_all_flows() -> dict[str, dict[str, Any]]:
         
         module_name = py_file.stem  # filename without .py
         try:
-            flow_module = importlib.import_module(f"echodataflow.flows.{module_name}")
+            flow_module_obj = importlib.import_module(f"echodataflow.flows.{module_name}")
         except ImportError as e:
             raise ImportError(f"Failed to import echodataflow.flows.{module_name}: {e}")
         
         # Find all flow_* attributes in the module
-        for flow_function_name in dir(flow_module):
+        for flow_function_name in dir(flow_module_obj):
             if not flow_function_name.startswith("flow_"):
                 continue
 
             flow_name = flow_function_name.removeprefix("flow_")
-            flow_obj = cast(Flow[..., Any], getattr(flow_module, flow_function_name))
+            flow_obj = cast(Flow[..., Any], getattr(flow_module_obj, flow_function_name))
             
             discovered[flow_name] = {
                 "flow_module": module_name,  # the module name as string
@@ -383,13 +379,18 @@ def validate_flow_coverage(
 
 def build_deploy_specs(
     *,
+    param_cfg: dict[str, Any],
     deploy_cfg: dict[str, Any],
     filtered_flows: dict[str, dict[str, Any]],
 ) -> list[DeploymentSpec]:
     """
-    Build deployment specs from deploy config and pre-filtered flows mapping.
+    Build deployment specs from deploy/param config and pre-filtered flows mapping.
+    Specs contain fully compiled parameters and schedule/trigger metadata.
     """
     specs: list[DeploymentSpec] = []
+    flows_params = param_cfg["flows"]
+    time_offset_targets = get_time_offset_targets(deploy_cfg)
+    time_offset_seconds = _compute_time_offset_seconds(deploy_cfg.get("flow_start_time"))
 
     for key, deploy_meta in deploy_cfg.get("flows", {}).items():
         if not isinstance(deploy_meta, dict):
@@ -411,29 +412,51 @@ def build_deploy_specs(
                 f"deploy_cfg.flows.{key} must define exactly one of 'triggers' or 'interval'"
             )
 
-        # Validate triggers and emit_events if provided
         flow_info = filtered_flows[key]
+
+        # Set up triggers or cron schedule based on deploy config
         triggers = validate_triggers(
             deploy_meta.get("triggers"),
             flow_key=key,
         )
+        compiled_triggers = build_triggers(triggers) if triggers is not None else None
+
+        cron: str | None = None
+        if compiled_triggers is None:
+            interval = deploy_meta.get("interval")
+            cron = build_cron(interval, deploy_meta.get("cron_offset", 0))
+
+        # Build deployment_parameters
+        flow_params = flows_params.get(key)
+        if not isinstance(flow_params, dict):
+            raise ValueError(
+                f"param_cfg.flows.{key} must be a mapping of flow parameters"
+            )
+
+        deployment_parameters = dict(flow_params)
+        if key in time_offset_targets:
+            deployment_parameters["time_offset_seconds"] = time_offset_seconds
+
+        deployment_parameters["flow_module"] = flow_info["flow_module"]
+        deployment_parameters["flow_name"] = flow_info["flow_function_name"]
+
+        # Add emit_events if configured in deploy config
         emit_events = validate_emit_events(
             deploy_meta.get("emit_events"),
             flow_key=key,
         )
+        if emit_events is not None:
+            deployment_parameters["emit_events"] = emit_events
 
         specs.append(
             DeploymentSpec(
                 flow_key=key,
                 deployment_name=deploy_meta.get("deployment_name", key),
-                flow_module=flow_info["flow_module"],
-                flow_name=flow_info["flow_function_name"],
                 flow_obj=flow_info["flow_obj"],
-                flow_alias=deploy_meta.get("flow_alias"),
-                cron_offset=deploy_meta.get("cron_offset", 0),
+                parameters=deployment_parameters,
+                cron=cron,
                 work_pool_name=deploy_meta.get("work_pool_name"),
-                triggers=triggers,
-                emit_events=emit_events,
+                triggers=compiled_triggers,
             )
         )
 
@@ -443,47 +466,24 @@ def build_deploy_specs(
 def create_deployments(
     *,
     specs: list[DeploymentSpec],
-    param_cfg: dict[str, Any],
-    deploy_cfg: dict[str, Any],
     source: Any,
     default_work_pool_name: str,
 ) -> tuple[list[RunnerDeployment], list[RunnerDeployment]]:
-    flows_params = param_cfg["flows"]
-    flows_deploy_settings = deploy_cfg["flows"]
-    time_offset_targets = get_time_offset_targets(deploy_cfg)
-    time_offset_seconds = _compute_time_offset_seconds(deploy_cfg.get("flow_start_time"))
-
     grouped: list[RunnerDeployment] = []
     standalone: list[RunnerDeployment] = []
 
     for spec in specs:
-        if spec.flow_obj is None:
-            raise ValueError(f"Deployment spec '{spec.deployment_name}' has no resolved flow")
         flow_obj = spec.flow_obj
         deployment_kwargs: dict[str, Any] = {
             "name": spec.deployment_name,
-            "parameters": dict(flows_params[spec.flow_key]),
+            "parameters": dict(spec.parameters),
         }
 
-        # Inject time_offset_seconds if this flow is marked for it
-        if spec.flow_key in time_offset_targets:
-            deployment_kwargs["parameters"]["time_offset_seconds"] = time_offset_seconds
-
-        # Always route through the generic deployment wrapper so deployment-level
-        # behavior can be configured centrally without changing flow functions
-        deployment_kwargs["parameters"]["flow_module"] = spec.flow_module
-        deployment_kwargs["parameters"]["flow_name"] = spec.flow_name
-        if spec.emit_events is not None:
-            deployment_kwargs["parameters"]["emit_events"] = spec.emit_events
-
-        # Build triggers or cron schedule for the deployment
+        # Use precomputed schedule metadata from the deployment spec
         if spec.triggers is not None:
-            deployment_kwargs["triggers"] = build_triggers(spec.triggers)
-        else:
-            interval = flows_deploy_settings[spec.flow_key].get("interval")
-            cron = build_cron(interval, spec.cron_offset)
-            if cron is not None:
-                deployment_kwargs["cron"] = cron
+            deployment_kwargs["triggers"] = spec.triggers
+        elif spec.cron is not None:
+            deployment_kwargs["cron"] = spec.cron
 
         # Add work_pool_name if specified and different from default
         has_non_default_work_pool = (

@@ -110,13 +110,12 @@ def _run_from_specs(
     default_work_pool_name = deploy_cfg.get("default_work_pool_name", default_work_pool_name)
 
     specs = build_deploy_specs(
+        param_cfg=param_cfg,
         deploy_cfg=deploy_cfg,
         filtered_flows=filtered_flows,
     )
     grouped, standalone = create_deployments(
         specs=specs,
-        param_cfg=param_cfg,
-        deploy_cfg=deploy_cfg,
         source=source,
         default_work_pool_name=default_work_pool_name,
     )
