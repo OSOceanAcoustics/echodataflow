@@ -89,6 +89,7 @@ def _run_from_specs(
         param_cfg=param_cfg,
         deploy_cfg=deploy_cfg,
         source=source,
+        default_work_pool_name=default_work_pool_name,
     )
 
     deploy(*grouped, work_pool_name=default_work_pool_name)

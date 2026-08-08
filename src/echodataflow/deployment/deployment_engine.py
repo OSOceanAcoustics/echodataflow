@@ -30,7 +30,6 @@ class DeploymentSpec:
     flow_obj: Flow[..., Any] | None = None
     flow_alias: str | None = None
     cron_offset: int = 0
-    apply_separately: bool = False
     work_pool_name: str | None = None
     triggers: list[dict[str, Any]] | None = None
     emit_events: list[str] | None = None
@@ -349,6 +348,7 @@ def build_deploy_specs(
                 "entrypoint is discovered from the flow module"
             )
 
+        # Raise error if both triggers and cron are specified in deploy config
         if (deploy_meta.get("triggers") is None) == (deploy_meta.get("interval") is None):
             raise ValueError(
                 f"deploy_cfg.flows.{key} must define exactly one of 'triggers' or 'interval'"
@@ -370,7 +370,6 @@ def build_deploy_specs(
                 flow_obj=flow_info["flow_obj"],
                 flow_alias=deploy_meta.get("flow_alias"),
                 cron_offset=deploy_meta.get("cron_offset", 0),
-                apply_separately=deploy_meta.get("apply_separately", False),
                 work_pool_name=deploy_meta.get("work_pool_name"),
                 triggers=deploy_meta.get("triggers"),
                 emit_events=emit_events,
@@ -386,6 +385,7 @@ def create_deployments(
     param_cfg: dict[str, Any],
     deploy_cfg: dict[str, Any],
     source: Any,
+    default_work_pool_name: str,
 ) -> tuple[list[RunnerDeployment], list[RunnerDeployment]]:
     flows_params = param_cfg["flows"]
     flows_deploy_settings = deploy_cfg["flows"]
@@ -418,7 +418,6 @@ def create_deployments(
             spec_entrypoint = spec.entrypoint
 
         # Build triggers or cron schedule for the deployment
-        # TODO: raise error if both triggers and cron are specified in deploy config
         if spec.triggers is not None:
             deployment_kwargs["triggers"] = build_triggers(spec.triggers)
         else:
@@ -427,7 +426,11 @@ def create_deployments(
             if cron is not None:
                 deployment_kwargs["cron"] = cron
 
-        if spec.work_pool_name is not None:
+        # Add work_pool_name if specified and different from default
+        has_non_default_work_pool = (
+            spec.work_pool_name is not None and spec.work_pool_name != default_work_pool_name
+        )
+        if has_non_default_work_pool:
             deployment_kwargs["work_pool_name"] = spec.work_pool_name
 
         deployment = (
@@ -437,7 +440,7 @@ def create_deployments(
             ).to_deployment(**deployment_kwargs)
         )
 
-        if spec.apply_separately or spec.work_pool_name is not None:
+        if has_non_default_work_pool:
             standalone.append(deployment)
         else:
             grouped.append(deployment)

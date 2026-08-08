@@ -157,7 +157,6 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     module._run_from_specs(
         param_cfg_path=Path("config_cloud.yaml"),
         deploy_cfg_path=Path("deploy_cloud.yaml"),
-        source_mode="local",
         run_concurrency_setup=False,
         default_work_pool_name="local",
     )
@@ -249,7 +248,6 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
                 "deployment_name": "file-upload-acoustics_leg2",
                 "flow_alias": "file_upload",
                 "interval": 10,
-                "apply_separately": True,
                 "work_pool_name": "local",
             },
             "file_upload_trawl": {
@@ -257,7 +255,6 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
                 "deployment_name": "file-upload-trawl_20250902",
                 "flow_alias": "file_upload",
                 "interval": 10,
-                "apply_separately": True,
                 "work_pool_name": "local",
             },
         },
@@ -303,7 +300,6 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     module._run_from_specs(
         param_cfg_path=Path("config_ship.yaml"),
         deploy_cfg_path=Path("deploy_ship.yaml"),
-        source_mode="local",
         run_concurrency_setup=False,
         default_work_pool_name="local",
     )
@@ -322,4 +318,4 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
 
     assert sink["deploy_call"]["kwargs"]["work_pool_name"] == "local"
     assert len(sink["deployments"]) == 5
-    assert len(sink["applied"]) == 2
+    assert len(sink["applied"]) == 0
