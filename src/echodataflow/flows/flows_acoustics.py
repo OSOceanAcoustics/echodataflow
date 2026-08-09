@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import re
 import warnings
-from importlib.resources import files
 from pathlib import Path
 import datetime
 import asyncio
