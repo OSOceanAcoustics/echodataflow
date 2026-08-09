@@ -104,7 +104,6 @@ where = ["src"]
 [tool.setuptools_scm]
 fallback_version = "unknown"
 local_scheme = "no-local-version"
-version_file = "src/echodataflow/version.py"
 
 [tool.black]
 line-length = 100
