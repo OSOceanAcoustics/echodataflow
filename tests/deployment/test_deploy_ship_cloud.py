@@ -142,19 +142,16 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     }
     for flow_key in cloud_deploy_cfg["flows"].keys():
         module_name = cloud_modules[flow_key]
-        flow_alias = cloud_deploy_cfg["flows"][flow_key].get("flow_alias") or flow_key
-        flow_name = f"flow_{flow_alias}"
+        registry_key = cloud_deploy_cfg["flows"][flow_key].get("flow") or flow_key
+        flow_name = f"flow_{registry_key}"
         flow_module = sys.modules[f"echodataflow.flows.{module_name}"]
         flow_obj = getattr(flow_module, flow_name)
         filtered[flow_key] = {
             "flow_obj": flow_obj,
-            "flow_module": module_name,
-            "flow_function_name": flow_name,
+            "entrypoint": f"echodataflow/flows/{module_name}.py:{flow_name}",
         }
     
-    # Mock the discovery functions in the deploy_cli module
-    monkeypatch.setattr(module, "discover_all_flows", lambda: filtered)
-    monkeypatch.setattr(module, "filter_flows_for_deploy", lambda all_flows, cfg: {k: filtered[k] for k in cfg["flows"].keys()})
+    monkeypatch.setattr(module, "resolve_registered_flows", lambda _cfg: filtered)
 
     stubs["FakeVariable"].calls = []
     module._run_from_specs(
@@ -251,13 +248,13 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
             },
             "file_upload_acoustics": {
                 "deployment_name": "file-upload-acoustics_leg2",
-                "flow_alias": "file_upload",
+                "flow": "file_upload",
                 "interval": 10,
                 "work_pool_name": "local",
             },
             "file_upload_trawl": {
                 "deployment_name": "file-upload-trawl_20250902",
-                "flow_alias": "file_upload",
+                "flow": "file_upload",
                 "interval": 10,
                 "work_pool_name": "local",
             },
@@ -290,19 +287,16 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     }
     for flow_key in ship_deploy_cfg["flows"].keys():
         module_name = ship_modules[flow_key]
-        flow_alias = ship_deploy_cfg["flows"][flow_key].get("flow_alias") or flow_key
-        flow_name = f"flow_{flow_alias}"
+        registry_key = ship_deploy_cfg["flows"][flow_key].get("flow") or flow_key
+        flow_name = f"flow_{registry_key}"
         flow_module = sys.modules[f"echodataflow.flows.{module_name}"]
         flow_obj = getattr(flow_module, flow_name)
         filtered[flow_key] = {
             "flow_obj": flow_obj,
-            "flow_module": module_name,
-            "flow_function_name": flow_name,
+            "entrypoint": f"echodataflow/flows/{module_name}.py:{flow_name}",
         }
     
-    # Mock the discovery functions in the deploy_cli module
-    monkeypatch.setattr(module, "discover_all_flows", lambda: filtered)
-    monkeypatch.setattr(module, "filter_flows_for_deploy", lambda all_flows, cfg: {k: filtered[k] for k in cfg["flows"].keys()})
+    monkeypatch.setattr(module, "resolve_registered_flows", lambda _cfg: filtered)
 
     stubs["FakeVariable"].calls = []
     module._run_from_specs(

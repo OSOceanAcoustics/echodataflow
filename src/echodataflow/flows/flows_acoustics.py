@@ -26,6 +26,12 @@ from prefect import runtime
 from prefect.variables import Variable
 
 from echodataflow.flows.flows_helper import deployment_already_running
+from echodataflow.operations.ops_acoustics import (
+    RawToSvResult,
+    RawToSvSettings,
+    RawToSvWorkItem,
+)
+from echodataflow.tasks.task_acoustics import task_raw2Sv
 from echodataflow.utils.utils import (
     round_up_mins,
     get_slice_start_end_times,
@@ -157,9 +163,8 @@ def flow_raw2Sv(
         + "".join([f"- {nf}\n" for nf in new_files])
     )
 
-    # Bundle up task_raw2Sv parameters
-    task_kwargs = dict(
-        path_Sv_zarr=path_Sv_zarr,
+    settings = RawToSvSettings(
+        output_directory=path_Sv_zarr,
         encode_mode=encode_mode,
         waveform_mode=waveform_mode,
         depth_offset=depth_offset,
@@ -167,6 +172,8 @@ def flow_raw2Sv(
         datagram_type=datagram_type,
         nmea_sentence=nmea_sentence,
     )
+    errors = []
+    results: list[RawToSvResult] = []
 
     if parallel:
         # Convert raw files to Sv in parallel
@@ -176,28 +183,29 @@ def flow_raw2Sv(
             new_processed_raw = task_raw2Sv.with_options(
                 task_run_name=nf, name=nf, retries=3
             )
-            future = new_processed_raw.submit(path_raw / nf, **task_kwargs)
+            future = new_processed_raw.submit(
+                RawToSvWorkItem(raw_path=str(path_raw / nf)),
+                settings,
+            )
             future_all.append(future)
 
-        results = []
-        for nf, ff in zip(new_files, future_all):
-            result = [nf] + list(ff.result())
-            results.append(result)
+        for ff in future_all:
+            task_result = ff.result()
+            results.append(task_result)
 
     else:
         # Convert raw files to Sv sequentially
-        errors = []
         print("Processing raw files sequentially")
-        results = []
         for nf in new_files:
             try:
                 print(f"Converting {nf}")
-                Sv_filename, first_ping_time, last_ping_time = task_raw2Sv.with_options(
+                task_result = task_raw2Sv.with_options(
                     task_run_name=nf, name=nf, retries=3
                 )(
-                    raw_path=path_raw / nf, **task_kwargs
+                    RawToSvWorkItem(raw_path=str(path_raw / nf)),
+                    settings,
                 )
-                results.append([nf, Sv_filename, first_ping_time, last_ping_time])
+                results.append(task_result)
             except Exception as e:
                 errors.append(e)
                 print(f"Error converting {nf}: {e}")
@@ -205,8 +213,15 @@ def flow_raw2Sv(
     # Add new entries to df_Sv
     if len(results) > 0:
         df_new = pd.DataFrame(
-            results,
-            columns=["raw_filename", "Sv_filename", "first_ping_time", "last_ping_time"]
+            [
+                {
+                    "raw_filename": result.raw_filename,
+                    "Sv_filename": result.sv_filename,
+                    "first_ping_time": result.first_ping_time,
+                    "last_ping_time": result.last_ping_time,
+                }
+                for result in results
+            ]
         )
         
         # Concatenate with existing df_Sv and save
@@ -230,62 +245,6 @@ def flow_raw2Sv(
                 )
         asyncio.run(set_failed_state())
         raise Exception(error_msg)
-
-
-@task(
-    log_prints=True,
-)
-def task_raw2Sv(
-    raw_path: str,
-    encode_mode: str = "power",
-    waveform_mode: str = "CW",
-    depth_offset: float = 9.5,  # in meters
-    sonar_model: str = "EK80",
-    datagram_type: str|None = None,
-    nmea_sentence: str|None = None,
-    path_Sv_zarr: str = "PATH_TO_STORE_SV_ZARR",
-):
-    """
-    Convert raw sonar data to Sv and save to zarr format.
-    """
-    # Convert raw file, consolidate Sv and save to zarr
-    ed = ep.open_raw(
-        raw_file=raw_path,
-        sonar_model=sonar_model,
-    )
-
-    # Compute Sv and consolidate depth and location
-    ds_Sv = ep.calibrate.compute_Sv(
-        echodata=ed,
-        waveform_mode=waveform_mode,
-        encode_mode=encode_mode,
-    )
-    ds_Sv = ep.consolidate.add_depth(
-        ds=ds_Sv,
-        depth_offset=depth_offset,
-    )
-    ed["Platform"] = ed["Platform"].drop_duplicates("time1")
-    ds_Sv = ep.consolidate.add_location(
-        ds=ds_Sv,
-        echodata=ed,
-        datagram_type=datagram_type,
-        nmea_sentence=nmea_sentence,
-    )
-    
-    # Save to zarr
-    out_path = Path(path_Sv_zarr) / f"{Path(raw_path).stem}_Sv.zarr"
-    ds_Sv.to_zarr(
-        store=out_path,
-        mode="w",
-        consolidated=True,
-        # storage_options=config.output.storage_options_dict,
-    )
-
-    return (
-        out_path.name, 
-        pd.to_datetime(ds_Sv["ping_time"][0].values),
-        pd.to_datetime(ds_Sv["ping_time"][-1].values),
-    )
 
 
 @flow(log_prints=True)

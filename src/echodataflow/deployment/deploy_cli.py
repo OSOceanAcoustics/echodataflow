@@ -8,17 +8,16 @@ from pathlib import Path
 from prefect import deploy
 from prefect.variables import Variable
 
-
 from echodataflow.deployment.deployment_engine import (
-    discover_all_flows,
-    filter_flows_for_deploy,
     build_deploy_specs,
     create_deployments,
     load_config,
+    resolve_registered_flows,
     resolve_deployment_source,
     validate_deploy_config,
     validate_flow_coverage,
 )
+
 
 def _run_from_specs(
     *,
@@ -37,9 +36,8 @@ def _run_from_specs(
     # Set "flow_start_time" as a Prefect variable
     Variable.set("flow_start_time", deploy_cfg.get("flow_start_time"), overwrite=True)
 
-    # Discover all flows and filter to those in deploy config
-    all_flows = discover_all_flows()
-    filtered_flows = filter_flows_for_deploy(all_flows, deploy_cfg)
+    # Validate registry keys and import only the flows requested by this recipe.
+    resolved_flows = resolve_registered_flows(deploy_cfg)
 
     # Set up deployment source: git or local
     source = resolve_deployment_source(
@@ -54,7 +52,7 @@ def _run_from_specs(
     specs = build_deploy_specs(
         param_cfg=param_cfg,
         deploy_cfg=deploy_cfg,
-        filtered_flows=filtered_flows,
+        resolved_flows=resolved_flows,
     )
     grouped, standalone = create_deployments(
         specs=specs,
