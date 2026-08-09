@@ -6,7 +6,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import echopype as ep
+import numpy as np
 import pandas as pd
+import xarray as xr
 
 
 @dataclass(frozen=True)
@@ -79,4 +81,81 @@ def convert_raw_to_Sv(
         sv_filename=output_path.name,
         first_ping_time=pd.to_datetime(ds_sv["ping_time"][0].values),
         last_ping_time=pd.to_datetime(ds_sv["ping_time"][-1].values),
+    )
+
+
+@dataclass(frozen=True)
+class CreateMVBSWorkItem:
+    """One time slice and its contributing Sv files."""
+
+    start_time: pd.Timestamp
+    end_time: pd.Timestamp
+    sv_filenames: tuple[str, ...]
+    mvbs_filename: str
+
+
+@dataclass(frozen=True)
+class CreateMVBSSettings:
+    """Processing settings shared by a batch of MVBS slices."""
+
+    sv_directory: str
+    output_directory: str
+    range_bin: str
+    ping_time_bin: str
+
+
+@dataclass(frozen=True)
+class CreateMVBSResult:
+    """Metadata describing one successfully created MVBS slice."""
+
+    mvbs_filename: str
+    first_ping_time: pd.Timestamp
+    last_ping_time: pd.Timestamp
+
+
+def create_MVBS(
+    item: CreateMVBSWorkItem,
+    settings: CreateMVBSSettings,
+) -> CreateMVBSResult:
+    """Create one MVBS time slice from its contributing Sv files."""
+    # Remove timezone info for slicing
+    start_time = item.start_time.replace(tzinfo=None)
+    end_time = item.end_time.replace(tzinfo=None)
+
+    # Combine Sv files into a single dataset
+    ds_Sv = xr.open_mfdataset(
+        [Path(settings.sv_directory) / svf for svf in item.sv_filenames],
+        parallel=True,
+        coords="minimal",
+        data_vars="minimal",
+        compat="override",
+        chunks={"channel": 1, "ping_time": 1000, "range_sample": -1},
+        engine="zarr",  # use zarr engine for reading
+    ).sel(
+        # slice start/end, end exclusive
+        ping_time=slice(start_time, end_time - pd.to_timedelta("1nanoseconds"))
+    )
+
+    # Compute MVBS for the slice
+    ds_MVBS = ep.commongrid.compute_MVBS(
+        ds_Sv=ds_Sv,
+        range_var="depth",
+        range_bin=settings.range_bin,
+        ping_time_bin=settings.ping_time_bin,
+        reindex=False,
+        fill_value=np.nan,
+    )
+
+    # Save to zarr: 1 chunk along each dimension
+    ds_MVBS.chunk({"channel": -1, "ping_time": -1, "depth": -1}).to_zarr(
+        store=Path(settings.output_directory) / item.mvbs_filename,
+        mode="w",
+        consolidated=True,
+        # storage_options=config.output.storage_options_dict,
+    )
+
+    return CreateMVBSResult(
+        mvbs_filename=item.mvbs_filename,
+        first_ping_time=pd.to_datetime(ds_MVBS["ping_time"][0].values),
+        last_ping_time=pd.to_datetime(ds_MVBS["ping_time"][-1].values),
     )

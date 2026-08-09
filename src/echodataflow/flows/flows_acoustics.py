@@ -26,11 +26,14 @@ from prefect.variables import Variable
 
 from echodataflow.flows.flows_helper import deployment_already_running
 from echodataflow.operations.ops_acoustics import (
+    CreateMVBSResult,
+    CreateMVBSSettings,
+    CreateMVBSWorkItem,
     RawToSvResult,
     RawToSvSettings,
     RawToSvWorkItem,
 )
-from echodataflow.tasks.task_acoustics import task_raw2Sv
+from echodataflow.tasks.task_acoustics import task_create_MVBS, task_raw2Sv
 from echodataflow.utils.utils import (
     round_up_mins,
     get_slice_start_end_times,
@@ -340,8 +343,16 @@ async def flow_create_MVBS(
             parse_dates=["first_ping_time", "last_ping_time"]
         )
 
+    settings = CreateMVBSSettings(
+        sv_directory=path_Sv_zarr,
+        output_directory=path_MVBS_zarr,
+        range_bin=range_bin,
+        ping_time_bin=ping_time_bin,
+    )
+
     # Sequentially create MVBS slices
     errors = []
+    results: list[CreateMVBSResult] = []
     for snum in range(num_slices):
         logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
 
@@ -365,31 +376,43 @@ async def flow_create_MVBS(
         # Create MVBS for this slice
         try:
             MVBS_filename = f"MVBS_{start_time[snum].strftime("%Y%m%dT%H%M%S")}.zarr"
-            first_ping_time, last_ping_time = task_create_MVBS.with_options(
+            result = task_create_MVBS.with_options(
                 task_run_name=MVBS_filename,
                 name=MVBS_filename,
             )(
-                start_time=start_time[snum],
-                end_time=end_time[snum],
-                range_bin=range_bin,
-                ping_time_bin=ping_time_bin,
-                path_MVBS_zarrr=path_MVBS_zarr,
-                MVBS_filename=MVBS_filename,
-                path_Sv_zarr=path_Sv_zarr,
-                Sv_filenames=Sv_filenames,
+                CreateMVBSWorkItem(
+                    start_time=start_time[snum],
+                    end_time=end_time[snum],
+                    sv_filenames=tuple(Sv_filenames),
+                    mvbs_filename=MVBS_filename,
+                ),
+                settings,
             )
-
-            # Add MVBS slice info to dataframe
-            if MVBS_filename in df_MVBS["MVBS_filename"].values:
-                logger.info(f"MVBS file {MVBS_filename} already exists, updating first and last ping times")
-                idx_to_add = df_MVBS.index[df_MVBS["MVBS_filename"] == MVBS_filename]
-            else:
-                logger.info(f"Adding new MVBS file {MVBS_filename} to tracking dataframe")
-                idx_to_add = len(df_MVBS)
-            df_MVBS.loc[idx_to_add] = [MVBS_filename, first_ping_time, last_ping_time]
+            results.append(result)
         except Exception as e:
             errors.append(e)
             logger.error(f"Error during MVBS creation for slice {snum+1}: {e}")
+
+    # Add MVBS slice info to dataframe
+    for result in results:
+        if result.mvbs_filename in df_MVBS["MVBS_filename"].values:
+            logger.info(
+                f"MVBS file {result.mvbs_filename} already exists, "
+                "updating first and last ping times"
+            )
+            idx_to_add = df_MVBS.index[
+                df_MVBS["MVBS_filename"] == result.mvbs_filename
+            ]
+        else:
+            logger.info(
+                f"Adding new MVBS file {result.mvbs_filename} to tracking dataframe"
+            )
+            idx_to_add = len(df_MVBS)
+        df_MVBS.loc[idx_to_add] = [
+            result.mvbs_filename,
+            result.first_ping_time,
+            result.last_ping_time,
+        ]
 
     # Save updated MVBS info dataframe
     df_MVBS.to_csv(file_MVBS_csv, date_format="%Y-%m-%dT%H:%M:%S")
@@ -403,75 +426,6 @@ async def flow_create_MVBS(
                 state=Failed(message=error_msg)
             )
         raise Exception(error_msg)
-
-
-@task(log_prints=True)
-def task_create_MVBS(
-    start_time: pd.Timestamp,
-    end_time: pd.Timestamp,
-    range_bin: str,
-    ping_time_bin: str,
-    path_MVBS_zarrr: str,
-    MVBS_filename: str,
-    path_Sv_zarr: str,
-    Sv_filenames: list[str],
-):
-    """
-    Create MVBS from Sv files in the specified time range.
-
-    Parameters
-    ----------
-    MVBS_filename : str
-        The name of the MVBS file to create.
-    start_time : pd.Timestamp
-        The start time for the MVBS slice.
-    end_time : pd.Timestamp
-        The end time for the MVBS slice.
-    """
-    logger = get_run_logger()
-
-    # Remove timezone info for slicing
-    start_time = start_time.replace(tzinfo=None)
-    end_time = end_time.replace(tzinfo=None)
-
-    # Combine Sv files into a single dataset
-    ds_Sv = xr.open_mfdataset(
-        [Path(path_Sv_zarr) / svf for svf in Sv_filenames],
-        parallel=True,
-        coords="minimal",
-        data_vars="minimal",
-        compat='override',
-        chunks={"channel": 1, "ping_time": 1000, "range_sample": -1},
-        engine="zarr",  # use zarr engine for reading
-    ).sel(
-        # slice start/end, end exclusive
-        ping_time=slice(start_time, end_time-pd.to_timedelta("1nanoseconds"))
-    )
-
-    # Compute MVBS for the slice
-    ds_MVBS = ep.commongrid.compute_MVBS(
-        ds_Sv=ds_Sv,
-        range_var="depth",
-        range_bin=range_bin,
-        ping_time_bin=ping_time_bin,
-        reindex=False,
-        fill_value=np.nan,
-    )
-
-    # Save to zarr: 1 chunk along each dimension
-    logger.info(f"Saving MVBS to {MVBS_filename}")
-    ds_MVBS.chunk({"channel": -1, "ping_time": -1, "depth": -1}).to_zarr(
-        store=Path(path_MVBS_zarrr) / MVBS_filename,  # existing file will be overwritten
-        mode="w",
-        consolidated=True,
-        # storage_options=config.output.storage_options_dict,
-    )
-
-    return (
-        pd.to_datetime(ds_MVBS["ping_time"][0].values),
-        pd.to_datetime(ds_MVBS["ping_time"][-1].values),
-    )
-
 
 @flow(log_prints=True)
 async def flow_predict_hake(
