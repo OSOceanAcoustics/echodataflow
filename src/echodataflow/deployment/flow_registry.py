@@ -37,10 +37,10 @@ FLOW_REGISTRY: dict[str, FlowRegistration] = {
         entrypoint="echodataflow/flows/flows_helper.py:flow_file_upload",
     ),
     "copy_raw": FlowRegistration(
-        entrypoint="echodataflow/flows/flows_helper.py:flow_copy_raw",
+        entrypoint="echodataflow/flows/flows_simulation.py:flow_copy_raw",
     ),
-    "copy_trawl_data": FlowRegistration(
-        entrypoint="echodataflow/flows/flows_helper.py:flow_copy_trawl_data",
+    "copy_trawl": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_simulation.py:flow_copy_trawl",
     ),
     "update_cache_MVBS": FlowRegistration(
         entrypoint="echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",

@@ -60,7 +60,7 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
     # Build filtered flows mappings with mock flow objects
     ship_flows = {}
     ship_modules = {
-        "copy_raw": "flows_helper",
+        "copy_raw": "flows_simulation",
         "raw2Sv": "flows_acoustics",
         "create_MVBS": "flows_acoustics",
         "predict_hake": "flows_acoustics",
@@ -106,7 +106,7 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
     cloud_targets = {spec.flow_key: spec.entrypoint for spec in cloud_specs}
 
     assert ship_targets == {
-        "copy_raw": "echodataflow/flows/flows_helper.py:flow_copy_raw",
+        "copy_raw": "echodataflow/flows/flows_simulation.py:flow_copy_raw",
         "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
         "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
         "predict_hake": "echodataflow/flows/flows_acoustics.py:flow_predict_hake",
