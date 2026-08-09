@@ -68,7 +68,6 @@ def convert_raw_to_Sv(
         datagram_type=settings.datagram_type,
         nmea_sentence=settings.nmea_sentence,
     )
-
     output_path = Path(settings.output_directory) / f"{raw_path.stem}_Sv.zarr"
     ds_sv.to_zarr(
         store=output_path,

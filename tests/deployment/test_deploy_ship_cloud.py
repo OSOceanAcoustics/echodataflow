@@ -3,6 +3,7 @@ import sys
 import types
 from pathlib import Path
 
+
 class FakeFlowSource:
     def __init__(self, flow_name, sink):
         self.flow_name = flow_name
@@ -48,8 +49,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 def clone_config(config):
     return {
-        key: (value.copy() if isinstance(value, dict) else value)
-        for key, value in config.items()
+        key: (value.copy() if isinstance(value, dict) else value) for key, value in config.items()
     }
 
 
@@ -150,7 +150,7 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
             "flow_obj": flow_obj,
             "entrypoint": f"echodataflow/flows/{module_name}.py:{flow_name}",
         }
-    
+
     monkeypatch.setattr(module, "resolve_registered_flows", lambda _cfg: filtered)
 
     stubs["FakeVariable"].calls = []
@@ -167,8 +167,7 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
         "update_cache_MVBS": "echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
     }
     actual_entrypoints = {
-        item["flow_name"].removeprefix("flow_"): item["entrypoint"]
-        for item in sink["from_source"]
+        item["flow_name"].removeprefix("flow_"): item["entrypoint"] for item in sink["from_source"]
     }
     assert actual_entrypoints == expected_entrypoints
 
@@ -199,7 +198,6 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     assert ingest_nasc["parameters"] == {"y": 2}
 
 
-
 def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect_stubs):
     sink = {"from_source": [], "deployments": [], "applied": []}
     stubs = install_prefect_stubs(sink=sink)
@@ -208,14 +206,17 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     flows_acoustics = types.ModuleType("flows_acoustics")
     flows_acoustics.flow_raw2Sv = FakeFlow("flow_raw2Sv", sink)
     flows_acoustics.flow_create_MVBS = FakeFlow("flow_create_MVBS", sink)
-    flows_acoustics.flow_predict_hake = FakeFlow("flow_predict_hake", sink)
+    flow_predict_hake = types.ModuleType("flow_predict_hake")
+    flow_predict_hake.flow_predict_hake = FakeFlow("flow_predict_hake", sink)
 
     flows_helper_mod = types.ModuleType("flows_helper")
     flows_helper_mod.flow_file_upload = FakeFlow("flow_file_upload", sink)
 
     monkeypatch.setitem(sys.modules, "flows_acoustics", flows_acoustics)
+    monkeypatch.setitem(sys.modules, "flow_predict_hake", flow_predict_hake)
     monkeypatch.setitem(sys.modules, "flows_helper", flows_helper_mod)
     monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_acoustics", flows_acoustics)
+    monkeypatch.setitem(sys.modules, "echodataflow.flows.flow_predict_hake", flow_predict_hake)
     monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_helper", flows_helper_mod)
 
     param_cfg = {
@@ -281,7 +282,7 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     ship_modules = {
         "raw2Sv": "flows_acoustics",
         "create_MVBS": "flows_acoustics",
-        "predict_hake": "flows_acoustics",
+        "predict_hake": "flow_predict_hake",
         "file_upload_acoustics": "flows_helper",
         "file_upload_trawl": "flows_helper",
     }
@@ -295,7 +296,7 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
             "flow_obj": flow_obj,
             "entrypoint": f"echodataflow/flows/{module_name}.py:{flow_name}",
         }
-    
+
     monkeypatch.setattr(module, "resolve_registered_flows", lambda _cfg: filtered)
 
     stubs["FakeVariable"].calls = []
@@ -308,12 +309,11 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     expected_entrypoints = {
         "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
         "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
-        "predict_hake": "echodataflow/flows/flows_acoustics.py:flow_predict_hake",
+        "predict_hake": "echodataflow/flows/flow_predict_hake.py:flow_predict_hake",
         "file_upload": "echodataflow/flows/flows_helper.py:flow_file_upload",
     }
     actual_entrypoints = {
-        item["flow_name"].removeprefix("flow_"): item["entrypoint"]
-        for item in sink["from_source"]
+        item["flow_name"].removeprefix("flow_"): item["entrypoint"] for item in sink["from_source"]
     }
     assert actual_entrypoints == expected_entrypoints
 
