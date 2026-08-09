@@ -88,25 +88,27 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
         "default_work_pool_name": "local",
         "flows": {
             "ingest_haul": {
-                "module": "flows_biology",
                 "deployment_name": "ingest_haul",
                 "interval": 5,
             },
             "ingest_NASC": {
-                "module": "flows_integration",
                 "deployment_name": "ingest_NASC",
                 "interval": 7,
             },
             "update_grid": {
-                "module": "flows_integration",
                 "deployment_name": "update_grid",
                 "triggers": [
-                    {"expect": "haul.ingested", "resource_name": "ingest_haul"},
-                    {"expect": "nasc.ingested", "resource_name": "ingest_NASC"},
+                    {
+                        "expect": "prefect.flow-run.Completed",
+                        "resource_name": "ingest_haul",
+                    },
+                    {
+                        "expect": "prefect.flow-run.Completed",
+                        "resource_name": "ingest_NASC",
+                    },
                 ],
             },
             "update_cache_MVBS": {
-                "module": "flows_viz_cloud",
                 "deployment_name": "update_cache_MVBS",
                 "interval": 10,
                 "cron_offset": 3,
@@ -132,18 +134,22 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     # Create the filtered flows mapping
     cloud_deploy_cfg = clone_config(deploy_cfg)
     filtered = {}
+    cloud_modules = {
+        "ingest_haul": "flows_biology",
+        "ingest_NASC": "flows_integration",
+        "update_grid": "flows_integration",
+        "update_cache_MVBS": "flows_viz_cloud",
+    }
     for flow_key in cloud_deploy_cfg["flows"].keys():
-        module_name = cloud_deploy_cfg["flows"][flow_key]["module"]
+        module_name = cloud_modules[flow_key]
         flow_alias = cloud_deploy_cfg["flows"][flow_key].get("flow_alias") or flow_key
         flow_name = f"flow_{flow_alias}"
         flow_module = sys.modules[f"echodataflow.flows.{module_name}"]
         flow_obj = getattr(flow_module, flow_name)
-        entrypoint = f"echodataflow/flows/{module_name}.py:{flow_name}"
         filtered[flow_key] = {
             "flow_obj": flow_obj,
-            "module_name": module_name,
-            "flow_module": flow_module,
-            "entrypoint": entrypoint,
+            "flow_module": module_name,
+            "flow_function_name": flow_name,
         }
     
     # Mock the discovery functions in the deploy_cli module
@@ -154,8 +160,6 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
     module._run_from_specs(
         param_cfg_path=Path("config_cloud.yaml"),
         deploy_cfg_path=Path("deploy_cloud.yaml"),
-        source_mode="local",
-        run_concurrency_setup=False,
         default_work_pool_name="local",
     )
 
@@ -182,11 +186,20 @@ def test_deploy_cli_cloud_characterization(monkeypatch, tmp_path, install_prefec
 
     update_grid = next(d for d in sink["deployments"] if d["name"] == "update_grid")
     assert len(update_grid["triggers"]) == 2
+    assert update_grid["triggers"][0].kwargs == {
+        "expect": {"prefect.flow-run.Completed"},
+        "match_related": {
+            "prefect.resource.name": "ingest_haul",
+            "prefect.resource.role": "deployment",
+        },
+    }
 
     ingest_haul = next(d for d in sink["deployments"] if d["name"] == "ingest_haul")
     ingest_nasc = next(d for d in sink["deployments"] if d["name"] == "ingest_NASC")
     assert ingest_haul["cron"] == "*/5 * * * *"
     assert ingest_nasc["cron"] == "*/7 * * * *"
+    assert ingest_haul["parameters"] == {"x": 1}
+    assert ingest_nasc["parameters"] == {"y": 2}
 
 
 
@@ -222,37 +235,30 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
         "default_work_pool_name": "local",
         "flows": {
             "raw2Sv": {
-                "module": "flows_acoustics",
                 "deployment_name": "raw2Sv_leg2",
                 "interval": 5,
             },
             "create_MVBS": {
-                "module": "flows_acoustics",
                 "deployment_name": "create-MVBS_leg2",
                 "interval": 10,
                 "cron_offset": 3,
                 "inject_time_offset": True,
             },
             "predict_hake": {
-                "module": "flows_acoustics",
                 "deployment_name": "predict-hake_leg2",
                 "interval": 20,
                 "inject_time_offset": True,
             },
             "file_upload_acoustics": {
-                "module": "flows_helper",
                 "deployment_name": "file-upload-acoustics_leg2",
                 "flow_alias": "file_upload",
                 "interval": 10,
-                "apply_separately": True,
                 "work_pool_name": "local",
             },
             "file_upload_trawl": {
-                "module": "flows_helper",
                 "deployment_name": "file-upload-trawl_20250902",
                 "flow_alias": "file_upload",
                 "interval": 10,
-                "apply_separately": True,
                 "work_pool_name": "local",
             },
         },
@@ -275,18 +281,23 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     # Create the filtered flows mapping
     ship_deploy_cfg = clone_config(deploy_cfg)
     filtered = {}
+    ship_modules = {
+        "raw2Sv": "flows_acoustics",
+        "create_MVBS": "flows_acoustics",
+        "predict_hake": "flows_acoustics",
+        "file_upload_acoustics": "flows_helper",
+        "file_upload_trawl": "flows_helper",
+    }
     for flow_key in ship_deploy_cfg["flows"].keys():
-        module_name = ship_deploy_cfg["flows"][flow_key]["module"]
+        module_name = ship_modules[flow_key]
         flow_alias = ship_deploy_cfg["flows"][flow_key].get("flow_alias") or flow_key
         flow_name = f"flow_{flow_alias}"
         flow_module = sys.modules[f"echodataflow.flows.{module_name}"]
         flow_obj = getattr(flow_module, flow_name)
-        entrypoint = f"echodataflow/flows/{module_name}.py:{flow_name}"
         filtered[flow_key] = {
             "flow_obj": flow_obj,
-            "module_name": module_name,
-            "flow_module": flow_module,
-            "entrypoint": entrypoint,
+            "flow_module": module_name,
+            "flow_function_name": flow_name,
         }
     
     # Mock the discovery functions in the deploy_cli module
@@ -297,8 +308,6 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     module._run_from_specs(
         param_cfg_path=Path("config_ship.yaml"),
         deploy_cfg_path=Path("deploy_ship.yaml"),
-        source_mode="local",
-        run_concurrency_setup=False,
         default_work_pool_name="local",
     )
 
@@ -316,4 +325,4 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
 
     assert sink["deploy_call"]["kwargs"]["work_pool_name"] == "local"
     assert len(sink["deployments"]) == 5
-    assert len(sink["applied"]) == 2
+    assert len(sink["applied"]) == 0

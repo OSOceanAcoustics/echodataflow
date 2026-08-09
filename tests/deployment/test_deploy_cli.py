@@ -1,11 +1,6 @@
 import importlib.util
-import os
 import sys
 from pathlib import Path
-from unittest.mock import call
-
-import pytest
-
 
 def import_module_from_path(module_name, file_path):
     spec = importlib.util.spec_from_file_location(module_name, file_path)
@@ -21,7 +16,7 @@ def _load_deploy_cli_module(install_prefect_stubs):
     return import_module_from_path("deploy_cli_test_mod", module_path)
 
 
-def test_build_parser_run_boolean_optional(install_prefect_stubs):
+def test_build_parser_run(install_prefect_stubs):
     module = _load_deploy_cli_module(install_prefect_stubs=install_prefect_stubs)
 
     parser = module._build_parser()
@@ -34,13 +29,10 @@ def test_build_parser_run_boolean_optional(install_prefect_stubs):
             "config_ship.yaml",
             "--deploy-spec",
             "deploy_ship.yaml",
-            "--no-use-concurrency",
         ]
     )
 
     assert args.target == "run"
-    assert args.use_concurrency is False
-    assert args.source_mode is None
     assert args.param_config == Path("config_ship.yaml")
     assert args.deploy_spec == Path("deploy_ship.yaml")
 
@@ -66,16 +58,10 @@ def test_main_dispatches_run_args(monkeypatch, install_prefect_stubs):
             "recipe/params/config_ship.yaml",
             "--deploy-spec",
             "recipe/deploy/deploy_ship.yaml",
-            "--source-mode",
-            "git",
-            "--no-use-concurrency",
         ],
     )
 
     module.main()
 
-    assert os.environ["PREFECT_SOURCE_MODE"] == "git"
     assert captured["param_cfg_path"] == Path("recipe/params/config_ship.yaml")
     assert captured["deploy_cfg_path"] == Path("recipe/deploy/deploy_ship.yaml")
-    assert captured["source_mode"] == "git"
-    assert captured["run_concurrency_setup"] is False
