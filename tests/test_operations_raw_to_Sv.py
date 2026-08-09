@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from echodataflow.operations import ops_acoustics
+from echodataflow.operations import operations_acoustics
 
 
 class FakeDataset:
@@ -26,29 +26,29 @@ def test_convert_raw_to_Sv_returns_structured_result(monkeypatch, tmp_path):
     platform = SimpleNamespace(drop_duplicates=lambda _dimension: "deduplicated")
     echodata = {"Platform": platform}
 
-    monkeypatch.setattr(ops_acoustics.ep, "open_raw", lambda **_kwargs: echodata)
+    monkeypatch.setattr(operations_acoustics.ep, "open_raw", lambda **_kwargs: echodata)
     monkeypatch.setattr(
-        ops_acoustics.ep.calibrate,
+        operations_acoustics.ep.calibrate,
         "compute_Sv",
         lambda **_kwargs: dataset,
     )
     monkeypatch.setattr(
-        ops_acoustics.ep.consolidate,
+        operations_acoustics.ep.consolidate,
         "add_depth",
         lambda **kwargs: kwargs["ds"],
     )
     monkeypatch.setattr(
-        ops_acoustics.ep.consolidate,
+        operations_acoustics.ep.consolidate,
         "add_location",
         lambda **kwargs: kwargs["ds"],
     )
 
-    result = ops_acoustics.convert_raw_to_Sv(
-        ops_acoustics.RawToSvWorkItem(raw_path="/input/example.raw"),
-        ops_acoustics.RawToSvSettings(output_directory=str(tmp_path)),
+    result = operations_acoustics.convert_raw_to_Sv(
+        operations_acoustics.RawToSvWorkItem(raw_path="/input/example.raw"),
+        operations_acoustics.RawToSvSettings(output_directory=str(tmp_path)),
     )
 
-    assert result == ops_acoustics.RawToSvResult(
+    assert result == operations_acoustics.RawToSvResult(
         raw_filename="example.raw",
         sv_filename="example_Sv.zarr",
         first_ping_time=pd.Timestamp("2026-01-01T00:00:00"),

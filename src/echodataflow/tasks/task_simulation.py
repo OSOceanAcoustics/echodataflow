@@ -2,7 +2,7 @@
 
 from prefect import task
 
-from echodataflow.operations.ops_simulation import (
+from echodataflow.operations.operations_simulation import (
     S3CopyResult,
     S3CopySettings,
     S3CopyWorkItem,

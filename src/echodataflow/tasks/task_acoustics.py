@@ -2,7 +2,7 @@
 
 from prefect import get_run_logger, task
 
-from echodataflow.operations.ops_acoustics import (
+from echodataflow.operations.operations_acoustics import (
     CreateMVBSResult,
     CreateMVBSSettings,
     CreateMVBSWorkItem,

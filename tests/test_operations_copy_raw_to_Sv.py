@@ -1,8 +1,8 @@
 from pathlib import Path
 from types import SimpleNamespace
 
-from echodataflow.operations import ops_acoustics
-from echodataflow.operations.ops_simulation import (
+from echodataflow.operations import operations_acoustics
+from echodataflow.operations.operations_simulation import (
     S3CopySettings,
     S3CopyWorkItem,
     copy_s3_file,
@@ -42,26 +42,26 @@ def test_copied_raw_file_can_be_converted_to_Sv(monkeypatch, tmp_path):
             drop_duplicates=lambda _dimension: "deduplicated"
         )
     }
-    monkeypatch.setattr(ops_acoustics.ep, "open_raw", lambda **_kwargs: echodata)
+    monkeypatch.setattr(operations_acoustics.ep, "open_raw", lambda **_kwargs: echodata)
     monkeypatch.setattr(
-        ops_acoustics.ep.calibrate,
+        operations_acoustics.ep.calibrate,
         "compute_Sv",
         lambda **_kwargs: dataset,
     )
     monkeypatch.setattr(
-        ops_acoustics.ep.consolidate,
+        operations_acoustics.ep.consolidate,
         "add_depth",
         lambda **kwargs: kwargs["ds"],
     )
     monkeypatch.setattr(
-        ops_acoustics.ep.consolidate,
+        operations_acoustics.ep.consolidate,
         "add_location",
         lambda **kwargs: kwargs["ds"],
     )
 
-    sv_result = ops_acoustics.convert_raw_to_Sv(
-        ops_acoustics.RawToSvWorkItem(raw_path=copy_result.local_path),
-        ops_acoustics.RawToSvSettings(
+    sv_result = operations_acoustics.convert_raw_to_Sv(
+        operations_acoustics.RawToSvWorkItem(raw_path=copy_result.local_path),
+        operations_acoustics.RawToSvSettings(
             output_directory=str(tmp_path / "Sv")
         ),
     )

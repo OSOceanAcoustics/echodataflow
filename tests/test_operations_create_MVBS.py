@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-from echodataflow.operations import ops_acoustics
+from echodataflow.operations import operations_acoustics
 
 
 class FakeSvDataset:
@@ -49,27 +49,31 @@ def test_create_MVBS_processes_one_time_slice(monkeypatch, tmp_path):
         compute_call.update(kwargs)
         return mvbs_dataset
 
-    monkeypatch.setattr(ops_acoustics.xr, "open_mfdataset", fake_open_mfdataset)
     monkeypatch.setattr(
-        ops_acoustics.ep.commongrid,
+        operations_acoustics.xr,
+        "open_mfdataset",
+        fake_open_mfdataset,
+    )
+    monkeypatch.setattr(
+        operations_acoustics.ep.commongrid,
         "compute_MVBS",
         fake_compute_MVBS,
     )
 
-    item = ops_acoustics.CreateMVBSWorkItem(
+    item = operations_acoustics.CreateMVBSWorkItem(
         start_time=pd.Timestamp("2026-01-01T00:00:00Z"),
         end_time=pd.Timestamp("2026-01-01T00:10:00Z"),
         sv_filenames=("first_Sv.zarr", "second_Sv.zarr"),
         mvbs_filename="MVBS_20260101T000000.zarr",
     )
-    settings = ops_acoustics.CreateMVBSSettings(
+    settings = operations_acoustics.CreateMVBSSettings(
         sv_directory=str(tmp_path / "Sv"),
         output_directory=str(tmp_path / "MVBS"),
         range_bin="1m",
         ping_time_bin="5s",
     )
 
-    result = ops_acoustics.create_MVBS(item, settings)
+    result = operations_acoustics.create_MVBS(item, settings)
 
     assert open_call == {
         "paths": [
@@ -101,7 +105,7 @@ def test_create_MVBS_processes_one_time_slice(monkeypatch, tmp_path):
         "mode": "w",
         "consolidated": True,
     }
-    assert result == ops_acoustics.CreateMVBSResult(
+    assert result == operations_acoustics.CreateMVBSResult(
         mvbs_filename="MVBS_20260101T000000.zarr",
         first_ping_time=pd.Timestamp("2026-01-01T00:00:05"),
         last_ping_time=pd.Timestamp("2026-01-01T00:09:55"),

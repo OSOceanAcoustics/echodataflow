@@ -25,7 +25,7 @@ from prefect import runtime
 from prefect.variables import Variable
 
 from echodataflow.flows.flows_helper import deployment_already_running
-from echodataflow.operations.ops_acoustics import (
+from echodataflow.operations.operations_acoustics import (
     CreateMVBSResult,
     CreateMVBSSettings,
     CreateMVBSWorkItem,
