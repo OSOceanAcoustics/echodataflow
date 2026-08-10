@@ -40,6 +40,7 @@ def flow_copy_raw(
     path_copy: str = "",
     s3_bucket: str = "noaa-wcsd-pds",
     exclude_before: str | None = None,
+    endpoint_url: str = "https://sdsc.osn.xsede.org",
 ) -> list[S3CopyResult]:
     """Copy raw files whose timestamps simulate new realtime arrivals."""
     print("Copy raw files to simulate data generation")
@@ -82,7 +83,9 @@ def flow_copy_raw(
     # Setting up task to download
     settings = S3CopySettings(
         s3_bucket=s3_bucket,
+        endpoint_url=endpoint_url,
     )
+
     results: list[S3CopyResult] = []
     for s3_path_value in df_raw["s3_path"]:
         s3_path = str(s3_path_value)
