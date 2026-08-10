@@ -1,0 +1,48 @@
+"""Curated registry of flows that may be referenced by deployment recipes."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class FlowRegistration:
+    """Location and optional documentation for one deployable flow."""
+
+    entrypoint: str
+    description: str | None = None
+
+
+FLOW_REGISTRY: dict[str, FlowRegistration] = {
+    "raw2Sv": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
+        description="Incrementally convert newly available raw sonar files to Sv.",
+    ),
+    "create_MVBS": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
+    ),
+    "predict_hake": FlowRegistration(
+        entrypoint="echodataflow/flows/flow_predict_hake.py:flow_predict_hake",
+    ),
+    "ingest_haul": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_biology.py:flow_ingest_haul",
+    ),
+    "ingest_NASC": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+    ),
+    "update_grid": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_integration.py:flow_update_grid",
+    ),
+    "file_upload": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_helper.py:flow_file_upload",
+    ),
+    "copy_raw": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_simulation.py:flow_copy_raw",
+    ),
+    "copy_trawl": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_simulation.py:flow_copy_trawl",
+    ),
+    "update_cache_MVBS": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
+    ),
+}

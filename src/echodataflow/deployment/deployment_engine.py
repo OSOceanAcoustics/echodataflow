@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import datetime
+import importlib.util
 import inspect
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
-import importlib.util
 
 from prefect.deployments.runner import RunnerDeployment
 from prefect.events import DeploymentEventTrigger
@@ -29,7 +29,7 @@ from echodataflow.deployment.core import (
 class DeploymentSpec:
     flow_key: str  # the flow key from deploy config, used to look up flow params and deploy settings
     deployment_name: str  # the deployment name to use for this flow
-    flow_obj: Flow[..., Any]  # the actual Flow object resolved from discovered flow metadata
+    flow_obj: Flow[..., Any]  # the actual Flow object resolved from the registry
     entrypoint: str  # source-relative entrypoint for the actual deployed flow
     parameters: dict[str, Any]  # parameters passed directly to the deployed flow
     cron: str | None = None  # precomputed cron schedule, when interval mode is used
@@ -37,84 +37,62 @@ class DeploymentSpec:
     triggers: list[Any] | None = None  # precomputed Prefect trigger objects
 
 
-def discover_all_flows() -> dict[str, dict[str, Any]]:
-    """
-    Discover all flow_* functions from all modules in echodataflow.flows folder.
-    Returns mapping: flow_name -> {"flow_obj", "flow_module", "flow_function_name"}
-    """
-
-    flows_pkg_spec = importlib.util.find_spec("echodataflow.flows") # this points to __init__.py
-    if flows_pkg_spec is None or flows_pkg_spec.origin is None:
-        raise ValueError("Could not locate echodataflow.flows package")
-    
-    flows_dir = Path(flows_pkg_spec.origin).parent  # this points to src/echodataflow/flows
-    discovered: dict[str, dict[str, Any]] = {}
-    
-    # Find all .py files in flows directory (excluding __init__.py)
-    for py_file in flows_dir.glob("*.py"):
-        if py_file.name.startswith("_"):
-            continue
-        
-        module_name = py_file.stem  # filename without .py
-        try:
-            flow_module_obj = importlib.import_module(f"echodataflow.flows.{module_name}")
-        except ImportError as e:
-            raise ImportError(f"Failed to import echodataflow.flows.{module_name}: {e}")
-        
-        # Find all flow_* attributes in the module
-        for flow_function_name in dir(flow_module_obj):
-            if not flow_function_name.startswith("flow_"):
-                continue
-
-            flow_name = flow_function_name.removeprefix("flow_")
-            flow_obj = cast(Flow[..., Any], getattr(flow_module_obj, flow_function_name))
-            
-            discovered[flow_name] = {
-                "flow_module": module_name,  # the module name as string
-                "flow_function_name": flow_function_name,  # flow function name including flow_ prefix
-                "flow_obj": flow_obj,  # the actual Flow object
-            }
-    
-    return discovered
-
-
-def filter_flows_for_deploy(
-    all_flows: dict[str, dict[str, Any]],
-    deploy_cfg: dict[str, Any]
+def resolve_registered_flows(
+    deploy_cfg: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    """
-    Filter discovered flows to only those specified in deploy config.
-    Build a flow-name mapping keyed by `flow_<name>` from discovered flows,
-    then resolve deploy entries by `flow_<key>` or `flow_<alias>`.
-    Returns mapping keyed by deploy flow_<key> to discovered flow info.
-    """
-    filtered: dict[str, dict[str, Any]] = {}
-    flow_name_map = {f"flow_{name}": flow_info for name, flow_info in all_flows.items()}
-    
-    for key, deploy_meta in deploy_cfg.get("flows", {}).items():
-        requested_name = f"flow_{key}"  # flow function name: 
-                                             # either flow_<key> or flow_<alias>
-        alias_name: str | None = None
-        if isinstance(deploy_meta, dict):
-            alias = deploy_meta.get("flow_alias")
-            if isinstance(alias, str) and alias:
-                alias_name = f"flow_{alias}"
+    """Validate and load only the registry flows requested by a deploy recipe."""
+    from echodataflow.deployment.flow_registry import FLOW_REGISTRY
 
-        matched_name = requested_name
-        if matched_name not in flow_name_map and alias_name is not None:
-            matched_name = alias_name
+    resolved: dict[str, dict[str, Any]] = {}
+    for recipe_key, deploy_meta in deploy_cfg.get("flows", {}).items():
+        if not isinstance(deploy_meta, dict):
+            raise ValueError(f"deploy_cfg.flows.{recipe_key} must be a mapping")
 
-        if matched_name not in flow_name_map:
-            available = ", ".join(sorted(flow_name_map)) or "<none>"
-            raise KeyError(
-                f"Flow '{key}' not found in discovered flows "
-                f"(checked {requested_name!r}"
-                f"{f' and {alias_name!r}' if alias_name else ''}). "
-                f"Available flows: {available}"
+        registry_key = deploy_meta.get("flow", recipe_key)
+        if not isinstance(registry_key, str) or not registry_key.strip():
+            raise ValueError(
+                f"deploy_cfg.flows.{recipe_key}.flow must be a non-empty string"
             )
-        filtered[key] = flow_name_map[matched_name]
-    
-    return filtered
+        registry_key = registry_key.strip()
+
+        try:
+            registration = FLOW_REGISTRY[registry_key]
+        except KeyError as e:
+            available = ", ".join(sorted(FLOW_REGISTRY)) or "<none>"
+            raise KeyError(
+                f"Flow {registry_key!r}, requested by recipe entry {recipe_key!r}, "
+                f"is not registered. Available flows: {available}"
+            ) from e
+
+        entrypoint_path, separator, function_name = registration.entrypoint.partition(":")
+        if not separator or not entrypoint_path.endswith(".py") or not function_name:
+            raise ValueError(
+                f"Registered flow {registry_key!r} has invalid entrypoint "
+                f"{registration.entrypoint!r}; expected 'package/module.py:function'"
+            )
+        module_name = entrypoint_path.removesuffix(".py").replace("/", ".")
+
+        try:
+            flow_module_obj = importlib.import_module(module_name)
+        except ImportError as e:
+            raise ImportError(
+                f"Failed to import registered flow module {module_name}: {e}"
+            ) from e
+
+        try:
+            flow_obj = cast(Flow[..., Any], getattr(flow_module_obj, function_name))
+        except AttributeError as e:
+            raise AttributeError(
+                f"Registered flow {registry_key!r} points to missing function "
+                f"{function_name!r} in {module_name}"
+            ) from e
+
+        resolved[recipe_key] = {
+            "flow_obj": flow_obj,
+            "entrypoint": registration.entrypoint,
+        }
+
+    return resolved
 
 
 def load_config(config_path: Path) -> dict[str, Any]:
@@ -288,6 +266,12 @@ def validate_deploy_config(deploy_cfg: Any) -> None:
             path=flow_path,
         )
 
+        registry_key = deploy_meta.get("flow")
+        if registry_key is not None and (
+            not isinstance(registry_key, str) or not registry_key.strip()
+        ):
+            raise ValueError(f"{flow_path}.flow must be a non-empty string")
+
         triggers = deploy_meta.get("triggers")
         if isinstance(triggers, list):
             for index, trigger in enumerate(triggers):
@@ -431,7 +415,7 @@ def build_deploy_specs(
     *,
     param_cfg: dict[str, Any],
     deploy_cfg: dict[str, Any],
-    filtered_flows: dict[str, dict[str, Any]],
+    resolved_flows: dict[str, dict[str, Any]],
 ) -> list[DeploymentSpec]:
     """
     Build deployment specs from deploy/param config and pre-filtered flows mapping.
@@ -448,19 +432,7 @@ def build_deploy_specs(
         if not isinstance(deploy_meta, dict):
             continue
 
-        if key not in filtered_flows:
-            continue
-
-        # Scheduling is optional for manually run deployments, but the two
-        # supported scheduling mechanisms are mutually exclusive.
-        if (deploy_meta.get("triggers") is not None) and (
-            deploy_meta.get("interval") is not None
-        ):
-            raise ValueError(
-                f"deploy_cfg.flows.{key} must define only one of 'triggers' or 'interval'"
-            )
-
-        flow_info = filtered_flows[key]
+        flow_info = resolved_flows[key]
 
         # Check if time_offset_seconds is indeed accepted by the flows specified in deploy config
         if (
@@ -470,6 +442,15 @@ def build_deploy_specs(
             raise ValueError(
                 f"deploy_cfg.flows.{key}.inject_time_offset is enabled, "
                 "but the target flow does not define 'time_offset_seconds'"
+            )
+
+        # Scheduling is optional for manually run deployments, but the two
+        # supported scheduling mechanisms are mutually exclusive.
+        if (deploy_meta.get("triggers") is not None) and (
+            deploy_meta.get("interval") is not None
+        ):
+            raise ValueError(
+                f"deploy_cfg.flows.{key} must define only one of 'triggers' or 'interval'"
             )
 
         # Set up triggers or cron schedule based on deploy config
@@ -500,10 +481,7 @@ def build_deploy_specs(
                 flow_key=key,
                 deployment_name=deploy_meta.get("deployment_name", key),
                 flow_obj=flow_info["flow_obj"],
-                entrypoint=(
-                    f"{DEFAULT_ENTRYPOINT_ROOT}/{flow_info['flow_module']}.py:"
-                    f"{flow_info['flow_function_name']}"
-                ),
+                entrypoint=flow_info["entrypoint"],
                 parameters=deployment_parameters,
                 cron=cron,
                 work_pool_name=deploy_meta.get("work_pool_name"),

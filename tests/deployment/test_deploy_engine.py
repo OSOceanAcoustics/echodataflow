@@ -26,61 +26,6 @@ def test_validate_flow_coverage(install_prefect_stubs):
         engine.validate_flow_coverage(param_cfg, deploy_cfg_extra)
 
 
-def test_filter_flows_for_deploy_uses_flow_alias_fallback(install_prefect_stubs):
-    install_prefect_stubs()
-    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
-
-    all_flows = {
-        "copy_raw": {
-            "flow_obj": object(),
-            "flow_module": "flows_helper",
-            "flow_function_name": "flow_copy_raw",
-        },
-        "file_upload": {
-            "flow_obj": object(),
-            "flow_module": "flows_helper",
-            "flow_function_name": "flow_file_upload",
-        },
-    }
-    deploy_cfg = {
-        "flows": {
-            "copy_raw": {},
-            "file_upload_acoustics": {
-                "flow_alias": "file_upload",
-            },
-        }
-    }
-
-    filtered = engine.filter_flows_for_deploy(all_flows, deploy_cfg)
-
-    assert set(filtered) == {"copy_raw", "file_upload_acoustics"}
-    assert filtered["copy_raw"] is all_flows["copy_raw"]
-    assert filtered["file_upload_acoustics"] is all_flows["file_upload"]
-
-
-def test_filter_flows_for_deploy_raises_when_key_and_alias_missing(install_prefect_stubs):
-    install_prefect_stubs()
-    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
-
-    all_flows = {
-        "copy_raw": {
-            "flow_obj": object(),
-            "flow_module": "flows_helper",
-            "flow_function_name": "flow_copy_raw",
-        }
-    }
-    deploy_cfg = {
-        "flows": {
-            "file_upload_acoustics": {
-                "flow_alias": "file_upload",
-            }
-        }
-    }
-
-    with pytest.raises(KeyError, match="file_upload_acoustics"):
-        engine.filter_flows_for_deploy(all_flows, deploy_cfg)
-
-
 def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs):
     install_prefect_stubs()
     engine = importlib.import_module("echodataflow.deployment.deployment_engine")
@@ -92,11 +37,11 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
             "create_MVBS": {"interval": 1},
             "predict_hake": {"interval": 1},
             "file_upload_acoustics": {
-                "flow_alias": "file_upload",
+                "flow": "file_upload",
                 "interval": 1,
             },
             "file_upload_trawl": {
-                "flow_alias": "file_upload",
+                "flow": "file_upload",
                 "interval": 1,
             },
         }
@@ -115,20 +60,19 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
     # Build filtered flows mappings with mock flow objects
     ship_flows = {}
     ship_modules = {
-        "copy_raw": "flows_helper",
+        "copy_raw": "flows_simulation",
         "raw2Sv": "flows_acoustics",
         "create_MVBS": "flows_acoustics",
-        "predict_hake": "flows_acoustics",
+        "predict_hake": "flow_predict_hake",
         "file_upload_acoustics": "flows_helper",
         "file_upload_trawl": "flows_helper",
     }
     for flow_key, flow_meta in deploy_ship["flows"].items():
         module_name = ship_modules[flow_key]
-        flow_alias = flow_meta.get("flow_alias") or flow_key
+        registry_key = flow_meta.get("flow") or flow_key
         ship_flows[flow_key] = {
             "flow_obj": object(),
-            "flow_module": module_name,
-            "flow_function_name": f"flow_{flow_alias}",
+            "entrypoint": (f"echodataflow/flows/{module_name}.py:flow_{registry_key}"),
         }
 
     cloud_flows = {}
@@ -140,32 +84,30 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
     }
     for flow_key, flow_meta in deploy_cloud["flows"].items():
         module_name = cloud_modules[flow_key]
-        flow_alias = flow_meta.get("flow_alias") or flow_key
         cloud_flows[flow_key] = {
             "flow_obj": object(),
-            "flow_module": module_name,
-            "flow_function_name": f"flow_{flow_alias}",
+            "entrypoint": f"echodataflow/flows/{module_name}.py:flow_{flow_key}",
         }
 
     ship_specs = engine.build_deploy_specs(
         param_cfg=param_ship,
         deploy_cfg=deploy_ship,
-        filtered_flows=ship_flows,
+        resolved_flows=ship_flows,
     )
     cloud_specs = engine.build_deploy_specs(
         param_cfg=param_cloud,
         deploy_cfg=deploy_cloud,
-        filtered_flows=cloud_flows,
+        resolved_flows=cloud_flows,
     )
 
     ship_targets = {spec.flow_key: spec.entrypoint for spec in ship_specs}
     cloud_targets = {spec.flow_key: spec.entrypoint for spec in cloud_specs}
 
     assert ship_targets == {
-        "copy_raw": "echodataflow/flows/flows_helper.py:flow_copy_raw",
+        "copy_raw": "echodataflow/flows/flows_simulation.py:flow_copy_raw",
         "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
         "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
-        "predict_hake": "echodataflow/flows/flows_acoustics.py:flow_predict_hake",
+        "predict_hake": "echodataflow/flows/flow_predict_hake.py:flow_predict_hake",
         "file_upload_acoustics": "echodataflow/flows/flows_helper.py:flow_file_upload",
         "file_upload_trawl": "echodataflow/flows/flows_helper.py:flow_file_upload",
     }
@@ -190,11 +132,10 @@ def test_build_deploy_specs_passes_target_flow_parameters_directly(install_prefe
                 }
             }
         },
-        filtered_flows={
+        resolved_flows={
             "emit_event_ABC": {
                 "flow_obj": object(),
-                "flow_module": "flows_test",
-                "flow_function_name": "flow_emit_event_ABC",
+                "entrypoint": "echodataflow/flows/flows_test.py:flow_emit_event_ABC",
             }
         },
     )
@@ -220,7 +161,7 @@ def test_validate_deploy_config_accepts_every_allowed_key(install_prefect_stubs)
         "flows": {
             "scheduled": {
                 "deployment_name": "scheduled-deployment",
-                "flow_alias": "actual_flow_name",
+                "flow": "actual_flow_name",
                 "interval": 10,
                 "cron_offset": 3,
                 "inject_time_offset": True,
@@ -247,7 +188,7 @@ def test_validate_deploy_config_accepts_every_allowed_key(install_prefect_stubs)
     }
     assert core.ALLOWED_FLOW_DEPLOY_KEYS == {
         "deployment_name",
-        "flow_alias",
+        "flow",
         "interval",
         "cron_offset",
         "triggers",
@@ -335,6 +276,10 @@ def test_validate_deploy_config_rejects_unknown_nested_fields(
             "deploy_cfg.flows.raw2Sv must be a mapping",
         ),
         (
+            {"flows": {"raw2Sv": {"flow": ""}}},
+            "deploy_cfg.flows.raw2Sv.flow must be a non-empty string",
+        ),
+        (
             {"flows": {}, "source": "local"},
             "deploy_cfg.source must be a mapping",
         ),
@@ -365,17 +310,14 @@ def test_build_deploy_specs_rejects_triggers_and_interval(install_prefect_stubs)
             "ingest_NASC": {
                 "deployment_name": "ingest_NASC",
                 "interval": 5,
-                "triggers": [
-                    {"expect": "nasc.ingested", "resource_name": "ingest_NASC"}
-                ],
+                "triggers": [{"expect": "nasc.ingested", "resource_name": "ingest_NASC"}],
             }
         }
     }
-    filtered_flows = {
+    resolved_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "flow_module": "flows_integration",
-            "flow_function_name": "flow_ingest_NASC",
+            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
     param_cfg = {"flows": {"ingest_NASC": {}}}
@@ -384,7 +326,7 @@ def test_build_deploy_specs_rejects_triggers_and_interval(install_prefect_stubs)
         engine.build_deploy_specs(
             param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
-            filtered_flows=filtered_flows,
+            resolved_flows=resolved_flows,
         )
 
 
@@ -401,11 +343,10 @@ def test_build_deploy_specs_allows_manual_deployment_without_schedule(
             }
         }
     }
-    filtered_flows = {
+    resolved_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "flow_module": "flows_integration",
-            "flow_function_name": "flow_ingest_NASC",
+            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
     param_cfg = {"flows": {"ingest_NASC": {}}}
@@ -413,7 +354,7 @@ def test_build_deploy_specs_allows_manual_deployment_without_schedule(
     specs = engine.build_deploy_specs(
         param_cfg=param_cfg,
         deploy_cfg=deploy_cfg,
-        filtered_flows=filtered_flows,
+        resolved_flows=resolved_flows,
     )
 
     assert len(specs) == 1
@@ -433,11 +374,10 @@ def test_build_deploy_specs_rejects_empty_triggers(install_prefect_stubs):
             }
         }
     }
-    filtered_flows = {
+    resolved_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "flow_module": "flows_integration",
-            "flow_function_name": "flow_ingest_NASC",
+            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
     param_cfg = {"flows": {"ingest_NASC": {}}}
@@ -446,7 +386,7 @@ def test_build_deploy_specs_rejects_empty_triggers(install_prefect_stubs):
         engine.build_deploy_specs(
             param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
-            filtered_flows=filtered_flows,
+            resolved_flows=resolved_flows,
         )
 
 
@@ -458,17 +398,14 @@ def test_build_deploy_specs_rejects_trigger_missing_resource_name(install_prefec
         "flows": {
             "ingest_NASC": {
                 "deployment_name": "ingest_NASC",
-                "triggers": [
-                    {"expect": "nasc.ingested"}
-                ],
+                "triggers": [{"expect": "nasc.ingested"}],
             }
         }
     }
-    filtered_flows = {
+    resolved_flows = {
         "ingest_NASC": {
             "flow_obj": object(),
-            "flow_module": "flows_integration",
-            "flow_function_name": "flow_ingest_NASC",
+            "entrypoint": "echodataflow/flows/flows_integration.py:flow_ingest_NASC",
         }
     }
     param_cfg = {"flows": {"ingest_NASC": {}}}
@@ -477,7 +414,7 @@ def test_build_deploy_specs_rejects_trigger_missing_resource_name(install_prefec
         engine.build_deploy_specs(
             param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
-            filtered_flows=filtered_flows,
+            resolved_flows=resolved_flows,
         )
 
 
@@ -504,11 +441,10 @@ def test_build_deploy_specs_rejects_inject_time_offset_for_incompatible_flow(
         },
     }
     param_cfg = {"flows": {"create_MVBS": {"path_main": "/tmp"}}}
-    filtered_flows = {
+    resolved_flows = {
         "create_MVBS": {
             "flow_obj": _FakeFlow(),
-            "flow_module": "flows_acoustics",
-            "flow_function_name": "flow_create_MVBS",
+            "entrypoint": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
         }
     }
 
@@ -516,5 +452,5 @@ def test_build_deploy_specs_rejects_inject_time_offset_for_incompatible_flow(
         engine.build_deploy_specs(
             param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
-            filtered_flows=filtered_flows,
+            resolved_flows=resolved_flows,
         )
