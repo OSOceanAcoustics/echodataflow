@@ -18,7 +18,7 @@ from echodataflow.operations.operations_simulation import (
     S3CopySettings,
     S3CopyWorkItem,
 )
-from echodataflow.tasks.task_simulation import task_copy_s3_file
+from echodataflow.tasks.tasks_simulation import task_copy_s3_file
 
 
 def _var_key(prefix: str) -> str:

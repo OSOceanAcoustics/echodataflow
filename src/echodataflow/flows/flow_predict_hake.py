@@ -18,7 +18,7 @@ from echodataflow.operations.operations_predict_hake import (
     PredictHakeWorkItem,
     get_hake_model,
 )
-from echodataflow.tasks.task_predict_hake import task_compute_NASC, task_predict_hake
+from echodataflow.tasks.tasks_predict_hake import task_compute_NASC, task_predict_hake
 from echodataflow.utils.utils import get_slice_start_end_times, round_up_mins
 
 # Turn on verbose logging for echopype

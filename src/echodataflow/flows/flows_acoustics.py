@@ -22,7 +22,7 @@ from echodataflow.operations.operations_acoustics import (
     RawToSvSettings,
     RawToSvWorkItem,
 )
-from echodataflow.tasks.task_acoustics import (
+from echodataflow.tasks.tasks_acoustics import (
     task_create_MVBS,
     task_raw2Sv,
 )
