@@ -85,7 +85,6 @@ def flow_copy_raw(
         s3_bucket=s3_bucket,
         endpoint_url=endpoint_url,
     )
-    print(settings)
 
     results: list[S3CopyResult] = []
     for s3_path_value in df_raw["s3_path"]:
