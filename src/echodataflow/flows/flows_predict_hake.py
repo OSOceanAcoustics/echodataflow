@@ -16,6 +16,7 @@ from echodataflow.utils.manifests import (
     MVBS_COLUMNS_REALTIME,
     PREDICTION_COLUMNS_REALTIME,
     filter_slices,
+    manifest_signature_changed,
     read_manifest,
     write_manifest,
 )
@@ -34,6 +35,7 @@ from echodataflow.utils.utils import get_slice_start_end_times, round_up_mins
 # Turn on verbose logging for echopype
 # otherwise all logging will be muted
 ep.utils.log.verbose()
+
 
 @flow(log_prints=True)
 async def flow_predict_hake(
@@ -139,9 +141,9 @@ async def flow_predict_hake(
 
     prediction_settings = PredictHakeSettings(
         model=model,
-        mvbs_directory=path_MVBS_zarr,
-        prediction_directory=path_prediction_zarr,
-        evr_directory=path_prediction_evr,
+        directory_MVBS=path_MVBS_zarr,
+        directory_prediction=path_prediction_zarr,
+        directory_evr=path_prediction_evr,
         temperature=temperature,
         softmax_threshold=softmax_threshold,
         max_depth=max_depth,
@@ -157,7 +159,7 @@ async def flow_predict_hake(
         MVBS_filenames = sorted(
             df_MVBS[
                 (pd.to_datetime(df_MVBS["last_ping_time"]) >= start_time[snum])
-                & (pd.to_datetime(df_MVBS["first_ping_time"]) <= end_time[snum])
+                & (pd.to_datetime(df_MVBS["first_ping_time"]) < end_time[snum])
             ]["MVBS_filename"].tolist()
         )
         logger.info(
@@ -184,7 +186,7 @@ async def flow_predict_hake(
                 PredictHakeWorkItem(
                     start_time=start_time[snum],
                     end_time=end_time[snum],
-                    mvbs_filenames=tuple(MVBS_filenames),
+                    filenames_MVBS=tuple(MVBS_filenames),
                     filename_postfix=predict_filename_postfix,
                 ),
                 prediction_settings,
@@ -272,7 +274,7 @@ def flow_predict_hake_postprocessing(
     mvbs = read_manifest(
         Path(path_main) / file_MVBS_csv,
         MVBS_COLUMNS_POSTPROCESSING,
-        ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
+        ["first_ping_time", "last_ping_time"],
     )
     manifest_path = Path(path_main) / file_prediction_csv
     manifest = read_manifest(
@@ -291,11 +293,16 @@ def flow_predict_hake_postprocessing(
         start_time,
         end_time,
     )
-    existing = set(manifest["prediction_filename_postfix"]) if not overwrite else set()
     planned = [
         item
         for item in planned
-        if item.start_time.strftime("%Y%m%dT%H%M%S") not in existing
+        if overwrite
+        or manifest_signature_changed(
+            manifest,
+            "prediction_filename_postfix",
+            item.start_time.strftime("%Y%m%dT%H%M%S"),
+            item.input_signature,
+        )
     ]
     if not planned:
         logger.info("No newly ready prediction windows")
@@ -305,9 +312,9 @@ def flow_predict_hake_postprocessing(
     model = get_hake_model(path_weight)
     prediction_settings = PredictHakeSettings(
         model=model,
-        mvbs_directory=str(Path(path_main) / "MVBS"),
-        prediction_directory=str(Path(path_main) / "prediction"),
-        evr_directory=str(Path(path_main) / "EVR"),
+        directory_MVBS=str(Path(path_main) / "MVBS"),
+        directory_prediction=str(Path(path_main) / "prediction"),
+        directory_evr=str(Path(path_main) / "EVR"),
         temperature=temperature,
         softmax_threshold=softmax_threshold,
         max_depth=max_depth,
@@ -326,7 +333,7 @@ def flow_predict_hake_postprocessing(
                 PredictHakeWorkItem(
                     start_time=item.start_time,
                     end_time=item.end_time,
-                    mvbs_filenames=item.filenames,
+                    filenames_MVBS=item.filenames,
                     filename_postfix=postfix,
                 ),
                 prediction_settings,
@@ -349,6 +356,7 @@ def flow_predict_hake_postprocessing(
                 item.end_time,
                 result.first_ping_time,
                 result.last_ping_time,
+                item.input_signature,
             ]
             # Persist after each window so a failed later window does not lose progress
             matches = manifest.index[manifest["prediction_filename_postfix"] == postfix]

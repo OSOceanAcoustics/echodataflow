@@ -4,9 +4,23 @@ import pandas as pd
 
 from echodataflow.utils.manifests import (
     filter_time_range,
+    manifest_signature_changed,
     read_manifest,
     write_manifest,
 )
+
+
+def test_manifest_signature_detects_missing_and_changed_outputs():
+    manifest = pd.DataFrame(
+        {
+            "filename": ["output.zarr"],
+            "input_signature": ["current"],
+        }
+    )
+
+    assert not manifest_signature_changed(manifest, "filename", "output.zarr", "current")
+    assert manifest_signature_changed(manifest, "filename", "output.zarr", "changed")
+    assert manifest_signature_changed(manifest, "filename", "missing.zarr", "current")
 
 
 def test_manifest_round_trip_repairs_schema_and_normalizes_utc(tmp_path):

@@ -13,8 +13,8 @@ def test_s3_raw2sv_chains_copy_into_conversion(monkeypatch):
     copy_settings = S3CopySettings(s3_bucket="source")
     sv_settings = RawToSvSettings(output_directory="/Sv")
     expected = RawToSvResult(
-        raw_filename="example.raw",
-        sv_filename="example_Sv.zarr",
+        filename_raw="example.raw",
+        filename_Sv="example_Sv.zarr",
         first_ping_time="first",
         last_ping_time="last",
     )

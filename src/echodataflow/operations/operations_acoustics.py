@@ -35,8 +35,8 @@ class RawToSvSettings:
 class RawToSvResult:
     """Metadata describing one successfully created Sv store."""
 
-    raw_filename: str
-    sv_filename: str
+    filename_raw: str
+    filename_Sv: str
     first_ping_time: pd.Timestamp
     last_ping_time: pd.Timestamp
 
@@ -76,8 +76,8 @@ def convert_raw_to_Sv(
     )
 
     return RawToSvResult(
-        raw_filename=raw_path.name,
-        sv_filename=output_path.name,
+        filename_raw=raw_path.name,
+        filename_Sv=output_path.name,
         first_ping_time=pd.to_datetime(ds_sv["ping_time"][0].values),
         last_ping_time=pd.to_datetime(ds_sv["ping_time"][-1].values),
     )

@@ -28,7 +28,7 @@ class PredictHakeWorkItem:
 
     start_time: pd.Timestamp
     end_time: pd.Timestamp
-    mvbs_filenames: tuple[str, ...]
+    filenames_MVBS: tuple[str, ...]
     filename_postfix: str
 
 
@@ -37,9 +37,9 @@ class PredictHakeSettings:
     """Processing settings shared by a batch of prediction slices."""
 
     model: binary_hake_model
-    mvbs_directory: str
-    prediction_directory: str
-    evr_directory: str
+    directory_MVBS: str
+    directory_prediction: str
+    directory_evr: str
     temperature: float = 0.5
     softmax_threshold: float = 0.5
     max_depth: float = 590.0
@@ -76,7 +76,7 @@ def predict_hake(
 
     # Combine MVBS files into a single dataset
     ds_MVBS_combine = xr.open_mfdataset(
-        [Path(settings.mvbs_directory) / mvbsf for mvbsf in item.mvbs_filenames],
+        [Path(settings.directory_MVBS) / mvbsf for mvbsf in item.filenames_MVBS],
         parallel=True,
         coords="minimal",
         data_vars="minimal",
@@ -131,17 +131,17 @@ def predict_hake(
     softmax_filename = f"softmax_{item.filename_postfix}.zarr"
     prediction_filename = f"prediction_{item.filename_postfix}.zarr"
     da_score.chunk({"scatterer_class": -1, "ping_time": -1, "depth": -1}).to_zarr(
-        store=Path(settings.prediction_directory) / score_filename,
+        store=Path(settings.directory_prediction) / score_filename,
         mode="w",
         consolidated=True,
     )
     da_score_softmax.chunk({"scatterer_class": -1, "ping_time": -1, "depth": -1}).to_zarr(
-        store=Path(settings.prediction_directory) / softmax_filename,
+        store=Path(settings.directory_prediction) / softmax_filename,
         mode="w",
         consolidated=True,
     )
     da_predict_hake.chunk({"ping_time": -1, "depth": -1}).to_zarr(
-        store=Path(settings.prediction_directory) / prediction_filename,
+        store=Path(settings.directory_prediction) / prediction_filename,
         mode="w",
         consolidated=True,
     )
@@ -149,7 +149,7 @@ def predict_hake(
     # Save to evr
     evr_filename = f"prediction_{item.filename_postfix}.evr"
     er.write_evr(
-        Path(settings.evr_directory) / evr_filename,
+        Path(settings.directory_evr) / evr_filename,
         da_predict_hake,
         region_classification="hake",
     )

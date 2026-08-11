@@ -36,11 +36,10 @@ SV_COLUMNS_POSTPROCESSING = [
 ]
 MVBS_COLUMNS_POSTPROCESSING = [
     "MVBS_filename",
-    "slice_start",
-    "slice_end",
     "first_ping_time",
     "last_ping_time",
     "is_partial",
+    "input_signature",
 ]
 PREDICTION_COLUMNS_POSTPROCESSING = [
     "prediction_filename_postfix",
@@ -52,6 +51,7 @@ PREDICTION_COLUMNS_POSTPROCESSING = [
     "slice_end",
     "first_ping_time",
     "last_ping_time",
+    "input_signature",
 ]
 
 
@@ -78,6 +78,20 @@ def write_manifest(df: pd.DataFrame, path: Path) -> None:
     temporary = path.with_suffix(path.suffix + ".tmp")
     df.to_csv(temporary, date_format="%Y-%m-%dT%H:%M:%S.%f%z")
     temporary.replace(path)
+
+
+def manifest_signature_changed(
+    df: pd.DataFrame,
+    identity_column: str,
+    identity: str,
+    input_signature: str,
+) -> bool:
+    """Return whether an output is missing or its recorded inputs changed."""
+    matches = df[df[identity_column] == identity]
+    if matches.empty:
+        return True
+    stored = matches.iloc[-1]["input_signature"]
+    return pd.isna(stored) or str(stored) != input_signature
 
 
 def filter_time_range(

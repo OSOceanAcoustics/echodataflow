@@ -66,6 +66,6 @@ def test_copied_raw_file_can_be_converted_to_Sv(monkeypatch, tmp_path):
         ),
     )
 
-    assert sv_result.raw_filename == "example.raw"
-    assert sv_result.sv_filename == "example_Sv.zarr"
+    assert sv_result.filename_raw == "example.raw"
+    assert sv_result.filename_Sv == "example_Sv.zarr"
     assert (tmp_path / "Sv" / "example_Sv.zarr").is_dir()
