@@ -11,10 +11,10 @@ from prefect import flow, get_client, get_run_logger, runtime
 from prefect.states import Failed
 
 from echodataflow.utils.manifests import (
-    MVBS_COLUMNS,
-    PREDICTION_COLUMNS,
-    REALTIME_MVBS_COLUMNS,
-    REALTIME_PREDICTION_COLUMNS,
+    MVBS_COLUMNS_POSTPROCESSING,
+    PREDICTION_COLUMNS_POSTPROCESSING,
+    MVBS_COLUMNS_REALTIME,
+    PREDICTION_COLUMNS_REALTIME,
     filter_slices,
     read_manifest,
     write_manifest,
@@ -118,7 +118,7 @@ async def flow_predict_hake(
         raise ValueError("MVBS info csv does not exist, check create_MVBS flow!")
     df_MVBS = read_manifest(
         file_MVBS_csv,
-        REALTIME_MVBS_COLUMNS,
+        MVBS_COLUMNS_REALTIME,
         ["first_ping_time", "last_ping_time"],
     )
     if df_MVBS.empty:
@@ -131,7 +131,7 @@ async def flow_predict_hake(
     prediction_manifest_exists = file_prediction_csv.exists()
     df_prediction = read_manifest(
         file_prediction_csv,
-        REALTIME_PREDICTION_COLUMNS,
+        PREDICTION_COLUMNS_REALTIME,
         ["first_ping_time", "last_ping_time"],
     )
     if not prediction_manifest_exists:
@@ -268,13 +268,13 @@ def flow_predict_hake_postprocessing(
     # Load available MVBS slices and prior prediction results for resume behavior
     mvbs = read_manifest(
         Path(path_main) / file_MVBS_csv,
-        MVBS_COLUMNS,
+        MVBS_COLUMNS_POSTPROCESSING,
         ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
     )
     manifest_path = Path(path_main) / file_prediction_csv
     manifest = read_manifest(
         manifest_path,
-        PREDICTION_COLUMNS,
+        PREDICTION_COLUMNS_POSTPROCESSING,
         ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
     )
     # Assemble aligned prediction windows from completed MVBS slices
@@ -350,9 +350,9 @@ def flow_predict_hake_postprocessing(
             # Persist after each window so a failed later window does not lose progress
             matches = manifest.index[manifest["prediction_filename_postfix"] == postfix]
             if len(matches):
-                manifest.loc[matches[0], PREDICTION_COLUMNS] = record
+                manifest.loc[matches[0], PREDICTION_COLUMNS_POSTPROCESSING] = record
             else:
-                manifest.loc[len(manifest), PREDICTION_COLUMNS] = record
+                manifest.loc[len(manifest), PREDICTION_COLUMNS_POSTPROCESSING] = record
             write_manifest(manifest.sort_values("slice_start"), manifest_path)
         except Exception as exc:
             errors.append(exc)

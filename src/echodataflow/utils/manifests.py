@@ -11,14 +11,14 @@ if TYPE_CHECKING:
     from echodataflow.operations.operations_postprocessing import PlannedSlice
 
 RAW_COLUMNS = ["s3_path", "timestamp", "raw_filename", "status", "error"]
-REALTIME_SV_COLUMNS = [
+SV_COLUMNS_REALTIME = [
     "raw_filename",
     "Sv_filename",
     "first_ping_time",
     "last_ping_time",
 ]
-REALTIME_MVBS_COLUMNS = ["MVBS_filename", "first_ping_time", "last_ping_time"]
-REALTIME_PREDICTION_COLUMNS = [
+MVBS_COLUMNS_REALTIME = ["MVBS_filename", "first_ping_time", "last_ping_time"]
+PREDICTION_COLUMNS_REALTIME = [
     "prediction_filename_postfix",
     "score_filename",
     "softmax_filename",
@@ -27,14 +27,14 @@ REALTIME_PREDICTION_COLUMNS = [
     "first_ping_time",
     "last_ping_time",
 ]
-SV_COLUMNS = [
+SV_COLUMNS_POSTPROCESSING = [
     "s3_path",
     "raw_filename",
     "Sv_filename",
     "first_ping_time",
     "last_ping_time",
 ]
-MVBS_COLUMNS = [
+MVBS_COLUMNS_POSTPROCESSING = [
     "MVBS_filename",
     "slice_start",
     "slice_end",
@@ -42,7 +42,7 @@ MVBS_COLUMNS = [
     "last_ping_time",
     "is_partial",
 ]
-PREDICTION_COLUMNS = [
+PREDICTION_COLUMNS_POSTPROCESSING = [
     "prediction_filename_postfix",
     "score_filename",
     "softmax_filename",
@@ -59,36 +59,36 @@ def read_manifest(path: Path, columns: list[str], date_columns: list[str]) -> pd
     # Return a schema-correct empty manifest on the first run
     if not path.exists():
         return pd.DataFrame(columns=columns)
-    frame = pd.read_csv(path, index_col=0)
+    df = pd.read_csv(path, index_col=0)
     # Add newly introduced columns while preserving older manifest files
     for column in columns:
-        if column not in frame:
-            frame[column] = pd.NA
-    frame = frame[columns]
+        if column not in df:
+            df[column] = pd.NA
+    df = df[columns]
     for column in date_columns:
-        if column in frame:
-            frame[column] = pd.to_datetime(frame[column], utc=True)
-    return frame
+        if column in df:
+            df[column] = pd.to_datetime(df[column], utc=True)
+    return df
 
 
-def write_manifest(frame: pd.DataFrame, path: Path) -> None:
+def write_manifest(df: pd.DataFrame, path: Path) -> None:
     """Replace a manifest atomically; callers must still enforce one writer."""
     path.parent.mkdir(parents=True, exist_ok=True)
     # Never expose a partially written CSV to a polling downstream flow
     temporary = path.with_suffix(path.suffix + ".tmp")
-    frame.to_csv(temporary, date_format="%Y-%m-%dT%H:%M:%S.%f%z")
+    df.to_csv(temporary, date_format="%Y-%m-%dT%H:%M:%S.%f%z")
     temporary.replace(path)
 
 
 def filter_time_range(
-    frame: pd.DataFrame,
+    df: pd.DataFrame,
     column: str,
     start_time: str | None,
     end_time: str | None,
     include_boundary_neighbors: bool = False,
 ) -> pd.DataFrame:
     # Treat requested ranges as half-open: [start_time, end_time)
-    ordered = frame.sort_values(column)
+    ordered = df.sort_values(column)
     selected = ordered
     if start_time is not None:
         selected = selected[selected[column] >= pd.to_datetime(start_time, utc=True)]

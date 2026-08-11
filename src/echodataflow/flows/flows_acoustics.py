@@ -16,11 +16,11 @@ from prefect import runtime
 
 from echodataflow.flows.flows_helper import deployment_already_running
 from echodataflow.utils.manifests import (
-    MVBS_COLUMNS,
+    MVBS_COLUMNS_POSTPROCESSING,
     RAW_COLUMNS,
-    REALTIME_MVBS_COLUMNS,
-    REALTIME_SV_COLUMNS,
-    SV_COLUMNS,
+    MVBS_COLUMNS_REALTIME,
+    SV_COLUMNS_REALTIME,
+    SV_COLUMNS_POSTPROCESSING,
     filter_slices,
     filter_time_range,
     read_manifest,
@@ -98,7 +98,7 @@ def flow_raw2Sv(
     sv_manifest_exists = file_Sv_csv.exists()
     df_Sv = read_manifest(
         file_Sv_csv,
-        REALTIME_SV_COLUMNS,
+        SV_COLUMNS_REALTIME,
         ["first_ping_time", "last_ping_time"],
     )
     if not sv_manifest_exists:
@@ -303,7 +303,7 @@ async def flow_create_MVBS(
         raise ValueError("Sv info csv does not exist, check raw2Sv flow!")
     df_Sv = read_manifest(
         file_Sv_csv,
-        REALTIME_SV_COLUMNS,
+        SV_COLUMNS_REALTIME,
         ["first_ping_time", "last_ping_time"],
     )
     if df_Sv.empty:
@@ -316,7 +316,7 @@ async def flow_create_MVBS(
     mvbs_manifest_exists = file_MVBS_csv.exists()
     df_MVBS = read_manifest(
         file_MVBS_csv,
-        REALTIME_MVBS_COLUMNS,
+        MVBS_COLUMNS_REALTIME,
         ["first_ping_time", "last_ping_time"],
     )
     if not mvbs_manifest_exists:
@@ -457,7 +457,7 @@ def flow_raw2Sv_postprocessing(
     # Resume from durable processing and output manifests
     raw_manifest = read_manifest(raw_manifest_path, RAW_COLUMNS, ["timestamp"])
     sv_manifest = read_manifest(
-        sv_manifest_path, SV_COLUMNS, ["first_ping_time", "last_ping_time"]
+        sv_manifest_path, SV_COLUMNS_POSTPROCESSING, ["first_ping_time", "last_ping_time"]
     )
     completed = set(raw_manifest.loc[raw_manifest["status"] == "completed", "s3_path"])
     selected = source if overwrite else source[~source["s3_path"].isin(completed)]
@@ -527,9 +527,9 @@ def flow_raw2Sv_postprocessing(
             ]
             matches = sv_manifest.index[sv_manifest["s3_path"] == key]
             if len(matches):
-                sv_manifest.loc[matches[0], SV_COLUMNS] = record
+                sv_manifest.loc[matches[0], SV_COLUMNS_POSTPROCESSING] = record
             else:
-                sv_manifest.loc[len(sv_manifest), SV_COLUMNS] = record
+                sv_manifest.loc[len(sv_manifest), SV_COLUMNS_POSTPROCESSING] = record
             raw_manifest.loc[idx, ["status", "error"]] = ["completed", ""]
             write_manifest(sv_manifest, sv_manifest_path)
             write_manifest(raw_manifest, raw_manifest_path)
@@ -563,11 +563,11 @@ def flow_create_MVBS_postprocessing(
     mvbs_directory.mkdir(parents=True, exist_ok=True)
     # Load input state and previously completed MVBS outputs
     raw = read_manifest(root / file_raw_processing_csv, RAW_COLUMNS, ["timestamp"])
-    sv = read_manifest(root / file_Sv_csv, SV_COLUMNS, ["first_ping_time", "last_ping_time"])
+    sv = read_manifest(root / file_Sv_csv, SV_COLUMNS_POSTPROCESSING, ["first_ping_time", "last_ping_time"])
     manifest_path = root / file_MVBS_csv
     manifest = read_manifest(
         manifest_path,
-        MVBS_COLUMNS,
+        MVBS_COLUMNS_POSTPROCESSING,
         ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
     )
     # Plan only sealed slices, then discard outputs already present in the manifest
@@ -619,9 +619,9 @@ def flow_create_MVBS_postprocessing(
             ]
             matches = manifest.index[manifest["MVBS_filename"] == result.mvbs_filename]
             if len(matches):
-                manifest.loc[matches[0], MVBS_COLUMNS] = record
+                manifest.loc[matches[0], MVBS_COLUMNS_POSTPROCESSING] = record
             else:
-                manifest.loc[len(manifest), MVBS_COLUMNS] = record
+                manifest.loc[len(manifest), MVBS_COLUMNS_POSTPROCESSING] = record
         except Exception as exc:
             errors.append(exc)
             logger.error("MVBS slice %s failed: %s", item.start_time, exc)
