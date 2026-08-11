@@ -18,6 +18,8 @@ from echodataflow.flows.flows_helper import deployment_already_running
 from echodataflow.utils.manifests import (
     MVBS_COLUMNS,
     RAW_COLUMNS,
+    REALTIME_MVBS_COLUMNS,
+    REALTIME_SV_COLUMNS,
     SV_COLUMNS,
     filter_slices,
     filter_time_range,
@@ -48,7 +50,6 @@ from echodataflow.utils.utils import (
 # Turn on verbose logging for echopype
 # otherwise all logging will be muted
 ep.utils.log.verbose()
-
 
 @flow(
     log_prints=True,
@@ -94,18 +95,15 @@ def flow_raw2Sv(
     path_Sv_zarr = str(path_Sv_zarr)  # convert backto string to pass into task
 
     # Load info dataframe containing raw to Sv correspondence
-    if not file_Sv_csv.exists():
-        df_Sv = pd.DataFrame(
-            columns=["raw_filename", "Sv_filename", "first_ping_time", "last_ping_time"]
-        )
-        df_Sv.to_csv(file_Sv_csv)
-    else:
-        df_Sv = pd.read_csv(
-            file_Sv_csv,
-            index_col=0,
-            date_format="ISO8601",
-            parse_dates=["first_ping_time", "last_ping_time"]
-        )
+    sv_manifest_exists = file_Sv_csv.exists()
+    df_Sv = read_manifest(
+        file_Sv_csv,
+        REALTIME_SV_COLUMNS,
+        ["first_ping_time", "last_ping_time"],
+    )
+    if not sv_manifest_exists:
+        write_manifest(df_Sv, file_Sv_csv)
+    if not df_Sv.empty:
         df_Sv.sort_values(
             by="first_ping_time",
             inplace=True,
@@ -226,7 +224,7 @@ def flow_raw2Sv(
             inplace=True,
             ignore_index=True
         )
-        df_Sv.to_csv(file_Sv_csv, date_format="%Y-%m-%dT%H:%M:%S.%f")
+        write_manifest(df_Sv, file_Sv_csv)
         print(f"Added {len(new_files)} new entries to tracking CSV")
 
     # Set flow to Failed state if any errors occurred
@@ -303,37 +301,26 @@ async def flow_create_MVBS(
     # Load Sv and MVBS info dataframes
     if not file_Sv_csv.exists():
         raise ValueError("Sv info csv does not exist, check raw2Sv flow!")
-    df_Sv = pd.read_csv(
+    df_Sv = read_manifest(
         file_Sv_csv,
-        index_col=0,
-        date_format="ISO8601",
-        parse_dates=["first_ping_time", "last_ping_time"]
+        REALTIME_SV_COLUMNS,
+        ["first_ping_time", "last_ping_time"],
     )
-    # Convert last_ping_time and first_ping_time to UTC
-    if not df_Sv.empty:
-        if df_Sv["last_ping_time"].dt.tz is None:
-            df_Sv["last_ping_time"] = df_Sv["last_ping_time"].dt.tz_localize("UTC")
-        if df_Sv["first_ping_time"].dt.tz is None:
-            df_Sv["first_ping_time"] = df_Sv["first_ping_time"].dt.tz_localize("UTC")
-    else:
+    if df_Sv.empty:
         logger.info(
             "Sv info csv is empty, raw2Sv flow may have just started! "
             "No MVBS can be created, exiting flow."
         )
         return
 
-    if not file_MVBS_csv.exists():
-        df_MVBS = pd.DataFrame(
-            columns=["MVBS_filename", "first_ping_time", "last_ping_time"]
-        )
-        df_MVBS.to_csv(file_MVBS_csv)
-    else:
-        df_MVBS = pd.read_csv(
-            file_MVBS_csv,
-            index_col=0,
-            date_format="ISO8601",
-            parse_dates=["first_ping_time", "last_ping_time"]
-        )
+    mvbs_manifest_exists = file_MVBS_csv.exists()
+    df_MVBS = read_manifest(
+        file_MVBS_csv,
+        REALTIME_MVBS_COLUMNS,
+        ["first_ping_time", "last_ping_time"],
+    )
+    if not mvbs_manifest_exists:
+        write_manifest(df_MVBS, file_MVBS_csv)
 
     settings = CreateMVBSSettings(
         sv_directory=path_Sv_zarr,
@@ -407,7 +394,7 @@ async def flow_create_MVBS(
         ]
 
     # Save updated MVBS info dataframe
-    df_MVBS.to_csv(file_MVBS_csv, date_format="%Y-%m-%dT%H:%M:%S")
+    write_manifest(df_MVBS, file_MVBS_csv)
 
     # Set flow to Failed state if any errors occurred
     if len(errors) > 0:

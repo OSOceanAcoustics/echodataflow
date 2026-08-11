@@ -13,6 +13,8 @@ from prefect.states import Failed
 from echodataflow.utils.manifests import (
     MVBS_COLUMNS,
     PREDICTION_COLUMNS,
+    REALTIME_MVBS_COLUMNS,
+    REALTIME_PREDICTION_COLUMNS,
     filter_slices,
     read_manifest,
     write_manifest,
@@ -32,7 +34,6 @@ from echodataflow.utils.utils import get_slice_start_end_times, round_up_mins
 # Turn on verbose logging for echopype
 # otherwise all logging will be muted
 ep.utils.log.verbose()
-
 
 @flow(log_prints=True)
 async def flow_predict_hake(
@@ -115,56 +116,26 @@ async def flow_predict_hake(
     # Load Sv and MVBS info dataframes
     if not file_MVBS_csv.exists():
         raise ValueError("MVBS info csv does not exist, check create_MVBS flow!")
-    df_MVBS = pd.read_csv(
+    df_MVBS = read_manifest(
         file_MVBS_csv,
-        index_col=0,
-        date_format="ISO8601",
-        parse_dates=["first_ping_time", "last_ping_time"],
+        REALTIME_MVBS_COLUMNS,
+        ["first_ping_time", "last_ping_time"],
     )
-    # Convert last_ping_time and first_ping_time to UTC
-    if not df_MVBS.empty:
-        if df_MVBS["last_ping_time"].dt.tz is None:
-            df_MVBS["last_ping_time"] = df_MVBS["last_ping_time"].dt.tz_localize("UTC")
-        if df_MVBS["first_ping_time"].dt.tz is None:
-            df_MVBS["first_ping_time"] = df_MVBS["first_ping_time"].dt.tz_localize("UTC")
-    else:
+    if df_MVBS.empty:
         logger.info(
             "MVBS info csv is empty, create_MVBS flow may have just started! "
             "No prediction can be made, exiting flow."
         )
         return
 
-    if not file_prediction_csv.exists():
-        df_prediction = pd.DataFrame(
-            columns=[
-                "prediction_filename_postfix",
-                "score_filename",
-                "softmax_filename",
-                "prediction_filename",
-                "evr_filename",
-                "first_ping_time",
-                "last_ping_time",
-            ]
-        )
-        df_prediction.to_csv(file_prediction_csv)
-    else:
-        df_prediction = pd.read_csv(
-            file_prediction_csv,
-            index_col=0,
-            date_format="ISO8601",
-            parse_dates=["first_ping_time", "last_ping_time"],
-        )
-        # Convert last_ping_time and first_ping_time to UTC
-        # only allowable when dataframe is not empty
-        if len(df_prediction) != 0:
-            if df_prediction["last_ping_time"].dt.tz is None:
-                df_prediction["last_ping_time"] = df_prediction["last_ping_time"].dt.tz_localize(
-                    "UTC"
-                )
-            if df_prediction["first_ping_time"].dt.tz is None:
-                df_prediction["first_ping_time"] = df_prediction["first_ping_time"].dt.tz_localize(
-                    "UTC"
-                )
+    prediction_manifest_exists = file_prediction_csv.exists()
+    df_prediction = read_manifest(
+        file_prediction_csv,
+        REALTIME_PREDICTION_COLUMNS,
+        ["first_ping_time", "last_ping_time"],
+    )
+    if not prediction_manifest_exists:
+        write_manifest(df_prediction, file_prediction_csv)
 
     prediction_settings = PredictHakeSettings(
         model=model,
@@ -259,7 +230,7 @@ async def flow_predict_hake(
             logger.error(f"Error during prediction for slice {snum+1}: {e}")
 
         # Save updated prediction info dataframe
-        df_prediction.to_csv(file_prediction_csv, date_format="%Y-%m-%dT%H:%M:%S")
+        write_manifest(df_prediction, file_prediction_csv)
 
     # Set flow to Failed state if any errors occurred
     if len(errors) > 0:

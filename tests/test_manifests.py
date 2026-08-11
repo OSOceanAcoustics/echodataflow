@@ -1,6 +1,42 @@
+from pathlib import Path
+
 import pandas as pd
 
-from echodataflow.utils.manifests import filter_time_range
+from echodataflow.utils.manifests import (
+    filter_time_range,
+    read_manifest,
+    write_manifest,
+)
+
+
+def test_manifest_round_trip_repairs_schema_and_normalizes_utc(tmp_path):
+    path = tmp_path / "manifest.csv"
+    pd.DataFrame(
+        {
+            "filename": ["example.zarr"],
+            "first_ping_time": ["2025-06-19T00:00:00"],
+            "legacy_column": ["ignored"],
+        }
+    ).to_csv(path)
+
+    manifest = read_manifest(
+        path,
+        ["filename", "first_ping_time", "last_ping_time"],
+        ["first_ping_time", "last_ping_time"],
+    )
+
+    assert manifest.columns.tolist() == [
+        "filename",
+        "first_ping_time",
+        "last_ping_time",
+    ]
+    assert manifest.loc[0, "first_ping_time"] == pd.Timestamp("2025-06-19T00:00:00Z")
+    assert pd.isna(manifest.loc[0, "last_ping_time"])
+
+    write_manifest(manifest, path)
+
+    assert path.exists()
+    assert not Path(f"{path}.tmp").exists()
 
 
 def test_filter_time_range_can_include_one_file_outside_each_boundary():

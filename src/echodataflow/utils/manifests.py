@@ -11,6 +11,22 @@ if TYPE_CHECKING:
     from echodataflow.operations.operations_postprocessing import PlannedSlice
 
 RAW_COLUMNS = ["s3_path", "timestamp", "raw_filename", "status", "error"]
+REALTIME_SV_COLUMNS = [
+    "raw_filename",
+    "Sv_filename",
+    "first_ping_time",
+    "last_ping_time",
+]
+REALTIME_MVBS_COLUMNS = ["MVBS_filename", "first_ping_time", "last_ping_time"]
+REALTIME_PREDICTION_COLUMNS = [
+    "prediction_filename_postfix",
+    "score_filename",
+    "softmax_filename",
+    "prediction_filename",
+    "evr_filename",
+    "first_ping_time",
+    "last_ping_time",
+]
 SV_COLUMNS = [
     "s3_path",
     "raw_filename",
