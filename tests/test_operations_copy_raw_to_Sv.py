@@ -2,7 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from echodataflow.operations import operations_acoustics
-from echodataflow.operations.operations_simulation import (
+from echodataflow.operations.operations_storage import (
     S3CopySettings,
     S3CopyWorkItem,
     copy_s3_file,

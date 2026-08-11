@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from echodataflow.flows import flows_simulation
-from echodataflow.operations.operations_simulation import (
+from echodataflow.operations.operations_storage import (
     S3CopyResult,
     S3CopySettings,
     S3CopyWorkItem,

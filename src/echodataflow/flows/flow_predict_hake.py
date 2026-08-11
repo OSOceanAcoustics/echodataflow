@@ -10,6 +10,14 @@ import pandas as pd
 from prefect import flow, get_client, get_run_logger, runtime
 from prefect.states import Failed
 
+from echodataflow.utils.manifests import (
+    MVBS_COLUMNS,
+    PREDICTION_COLUMNS,
+    filter_slices,
+    read_manifest,
+    write_manifest,
+)
+from echodataflow.operations.operations_postprocessing import plan_prediction_slices
 from echodataflow.operations.operations_predict_hake import (
     ComputeNASCSettings,
     ComputeNASCWorkItem,
@@ -261,3 +269,122 @@ async def flow_predict_hake(
                 flow_run_id=runtime.flow_run.id, state=Failed(message=error_msg)
             )
         raise Exception(error_msg)  # Stop the flow execution
+
+
+@flow(log_prints=True)
+def flow_predict_hake_postprocessing(
+    path_main: str,
+    path_weight: str,
+    mvbs_slice_mins: int = 20,
+    prediction_slice_mins: int = 40,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    require_complete_window: bool = True,
+    overwrite: bool = False,
+    temperature: float = 0.5,
+    softmax_threshold: float = 0.5,
+    max_depth: float = 590.0,
+    nasc_range_bin: str = "10m",
+    nasc_dist_bin: str = "0.5nmi",
+    file_MVBS_csv: str = "MVBS_files.csv",
+    file_prediction_csv: str = "prediction_files.csv",
+) -> None:
+    """Predict all newly ready windows, combining aligned MVBS slices."""
+    logger = get_run_logger()
+    # Create persistent destinations before loading the model
+    for directory in ["prediction", "EVR", "NASC"]:
+        (Path(path_main) / directory).mkdir(parents=True, exist_ok=True)
+    # Load available MVBS slices and prior prediction results for resume behavior
+    mvbs = read_manifest(
+        Path(path_main) / file_MVBS_csv,
+        MVBS_COLUMNS,
+        ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
+    )
+    manifest_path = Path(path_main) / file_prediction_csv
+    manifest = read_manifest(
+        manifest_path,
+        PREDICTION_COLUMNS,
+        ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
+    )
+    # Assemble aligned prediction windows from completed MVBS slices
+    planned = filter_slices(
+        plan_prediction_slices(
+            mvbs,
+            mvbs_slice_mins=mvbs_slice_mins,
+            prediction_slice_mins=prediction_slice_mins,
+            require_complete_window=require_complete_window,
+        ),
+        start_time,
+        end_time,
+    )
+    existing = set(manifest["prediction_filename_postfix"]) if not overwrite else set()
+    planned = [
+        item
+        for item in planned
+        if item.start_time.strftime("%Y%m%dT%H%M%S") not in existing
+    ]
+    if not planned:
+        logger.info("No newly ready prediction windows")
+        return
+
+    # Load the model once and reuse it across all ready windows in this flow run
+    model = get_hake_model(path_weight)
+    prediction_settings = PredictHakeSettings(
+        model=model,
+        mvbs_directory=str(Path(path_main) / "MVBS"),
+        prediction_directory=str(Path(path_main) / "prediction"),
+        evr_directory=str(Path(path_main) / "EVR"),
+        temperature=temperature,
+        softmax_threshold=softmax_threshold,
+        max_depth=max_depth,
+    )
+    nasc_settings = ComputeNASCSettings(
+        output_directory=str(Path(path_main) / "NASC"),
+        range_bin=nasc_range_bin,
+        dist_bin=nasc_dist_bin,
+    )
+    # Prediction remains sequential because all windows share the loaded model
+    errors = []
+    for item in planned:
+        postfix = item.start_time.strftime("%Y%m%dT%H%M%S")
+        try:
+            result = task_predict_hake.with_options(task_run_name=f"predict_{postfix}")(
+                PredictHakeWorkItem(
+                    start_time=item.start_time,
+                    end_time=item.end_time,
+                    mvbs_filenames=item.filenames,
+                    filename_postfix=postfix,
+                ),
+                prediction_settings,
+            )
+            # Compute NASC only after the prediction for this window succeeds
+            task_compute_NASC.with_options(task_run_name=f"NASC_{postfix}")(
+                ComputeNASCWorkItem(
+                    nasc_filename=f"NASC_{postfix}.zarr",
+                    prediction=result,
+                ),
+                nasc_settings,
+            )
+            record = [
+                postfix,
+                result.score_filename,
+                result.softmax_filename,
+                result.prediction_filename,
+                result.evr_filename,
+                item.start_time,
+                item.end_time,
+                result.first_ping_time,
+                result.last_ping_time,
+            ]
+            # Persist after each window so a failed later window does not lose progress
+            matches = manifest.index[manifest["prediction_filename_postfix"] == postfix]
+            if len(matches):
+                manifest.loc[matches[0], PREDICTION_COLUMNS] = record
+            else:
+                manifest.loc[len(manifest), PREDICTION_COLUMNS] = record
+            write_manifest(manifest.sort_values("slice_start"), manifest_path)
+        except Exception as exc:
+            errors.append(exc)
+            logger.error("Prediction window %s failed: %s", item.start_time, exc)
+    if errors:
+        raise RuntimeError(f"{len(errors)} prediction windows failed")

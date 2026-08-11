@@ -9,11 +9,21 @@ import pandas as pd
 import echopype as ep
 
 from prefect import flow, get_run_logger, get_client
+from prefect.futures import as_completed
 from prefect_dask import DaskTaskRunner
 from prefect.states import Cancelled, Failed
 from prefect import runtime
 
 from echodataflow.flows.flows_helper import deployment_already_running
+from echodataflow.utils.manifests import (
+    MVBS_COLUMNS,
+    RAW_COLUMNS,
+    SV_COLUMNS,
+    filter_slices,
+    filter_time_range,
+    read_manifest,
+    write_manifest,
+)
 from echodataflow.operations.operations_acoustics import (
     CreateMVBSResult,
     CreateMVBSSettings,
@@ -22,10 +32,13 @@ from echodataflow.operations.operations_acoustics import (
     RawToSvSettings,
     RawToSvWorkItem,
 )
+from echodataflow.operations.operations_postprocessing import plan_mvbs_slices
+from echodataflow.operations.operations_storage import S3CopySettings, S3CopyWorkItem
 from echodataflow.tasks.tasks_acoustics import (
     task_create_MVBS,
     task_raw2Sv,
 )
+from echodataflow.tasks.tasks_postprocessing import task_s3_raw2Sv
 from echodataflow.utils.utils import (
     round_up_mins,
     get_slice_start_end_times,
@@ -405,3 +418,226 @@ async def flow_create_MVBS(
                 state=Failed(message=error_msg)
             )
         raise Exception(error_msg)
+
+
+@flow(log_prints=True, task_runner=DaskTaskRunner())
+def flow_raw2Sv_postprocessing(
+    path_raw_list: str,
+    path_main: str,
+    s3_bucket: str = "noaa-wcsd-pds",
+    endpoint_url: str | None = "https://sdsc.osn.xsede.org",
+    start_time: str | None = None,
+    end_time: str | None = None,
+    new_file_num_limit: int = -1,
+    overwrite: bool = False,
+    task_retries: int = 3,
+    task_retry_delay_seconds: int = 30,
+    encode_mode: str = "power",
+    waveform_mode: str = "CW",
+    depth_offset: float = 9.5,
+    sonar_model: str = "EK80",
+    datagram_type: str | None = None,
+    nmea_sentence: str | None = None,
+    file_raw_processing_csv: str = "raw_processing.csv",
+    file_Sv_csv: str = "Sv_files.csv",
+) -> None:
+    """Stage selected S3 raw files and convert them concurrently to Sv."""
+    logger = get_run_logger()
+    # Keep temporary raw files separate from persistent Sv outputs
+    staging = Path(path_main) / "raw_staging"
+    sv_directory = Path(path_main) / "Sv"
+    staging.mkdir(parents=True, exist_ok=True)
+    sv_directory.mkdir(parents=True, exist_ok=True)
+    raw_manifest_path = Path(path_main) / file_raw_processing_csv
+    sv_manifest_path = Path(path_main) / file_Sv_csv
+
+    # Select the requested portion of the reusable S3 source manifest
+    source = pd.read_csv(path_raw_list)
+    required = {"s3_path", "timestamp"}
+    if not required.issubset(source.columns):
+        raise ValueError(f"raw list must contain columns: {sorted(required)}")
+    source["timestamp"] = pd.to_datetime(source["timestamp"], utc=True)
+    source = filter_time_range(
+        source,
+        "timestamp",
+        start_time,
+        end_time,
+        include_boundary_neighbors=True,
+    )
+    if source["s3_path"].map(lambda value: Path(str(value)).name).duplicated().any():
+        raise ValueError("selected S3 paths contain duplicate basenames")
+
+    # Resume from durable processing and output manifests
+    raw_manifest = read_manifest(raw_manifest_path, RAW_COLUMNS, ["timestamp"])
+    sv_manifest = read_manifest(
+        sv_manifest_path, SV_COLUMNS, ["first_ping_time", "last_ping_time"]
+    )
+    completed = set(raw_manifest.loc[raw_manifest["status"] == "completed", "s3_path"])
+    selected = source if overwrite else source[~source["s3_path"].isin(completed)]
+    if new_file_num_limit != -1:
+        selected = selected.head(new_file_num_limit)
+    if selected.empty:
+        logger.info("No raw files require processing")
+        return
+
+    # Register all selected inputs before workers begin completing out of order
+    for row in selected.itertuples(index=False):
+        key = str(row.s3_path)
+        values = {
+            "s3_path": key,
+            "timestamp": row.timestamp,
+            "raw_filename": Path(key).name,
+            "status": "pending",
+            "error": "",
+        }
+        matches = raw_manifest.index[raw_manifest["s3_path"] == key]
+        if len(matches):
+            raw_manifest.loc[matches[0], RAW_COLUMNS] = list(values.values())
+        else:
+            raw_manifest.loc[len(raw_manifest), RAW_COLUMNS] = list(values.values())
+    write_manifest(raw_manifest, raw_manifest_path)
+
+    copy_settings = S3CopySettings(s3_bucket=s3_bucket, endpoint_url=endpoint_url)
+    sv_settings = RawToSvSettings(
+        output_directory=str(sv_directory),
+        encode_mode=encode_mode,
+        waveform_mode=waveform_mode,
+        depth_offset=depth_offset,
+        sonar_model=sonar_model,
+        datagram_type=datagram_type,
+        nmea_sentence=nmea_sentence,
+    )
+
+    # Submit one download-plus-conversion task per raw object
+    errors = []
+    conversion_futures = {}
+    for row in selected.itertuples(index=False):
+        key = str(row.s3_path)
+        filename = Path(key).name
+        future = task_s3_raw2Sv.with_options(
+            task_run_name=f"raw2Sv_{filename}",
+            retries=task_retries,
+            retry_delay_seconds=task_retry_delay_seconds,
+        ).submit(
+            S3CopyWorkItem(s3_path=key, local_path=str(staging / filename)),
+            copy_settings,
+            sv_settings,
+        )
+        conversion_futures[future] = key
+
+    # Persist each result immediately so polling MVBS runs can observe progress
+    for future in as_completed(conversion_futures):
+        key = conversion_futures[future]
+        idx = raw_manifest.index[raw_manifest["s3_path"] == key][0]
+        try:
+            result = future.result()
+            record = [
+                key,
+                result.raw_filename,
+                result.sv_filename,
+                result.first_ping_time,
+                result.last_ping_time,
+            ]
+            matches = sv_manifest.index[sv_manifest["s3_path"] == key]
+            if len(matches):
+                sv_manifest.loc[matches[0], SV_COLUMNS] = record
+            else:
+                sv_manifest.loc[len(sv_manifest), SV_COLUMNS] = record
+            raw_manifest.loc[idx, ["status", "error"]] = ["completed", ""]
+            write_manifest(sv_manifest, sv_manifest_path)
+            write_manifest(raw_manifest, raw_manifest_path)
+            logger.info("Completed %s", key)
+        except Exception as exc:
+            errors.append(exc)
+            raw_manifest.loc[idx, ["status", "error"]] = ["failed", str(exc)]
+            write_manifest(raw_manifest, raw_manifest_path)
+            logger.error("Failed to download or convert %s: %s", key, exc)
+    if errors:
+        raise RuntimeError(f"{len(errors)} raw-to-Sv conversions failed")
+
+
+@flow(log_prints=True, task_runner=DaskTaskRunner())
+def flow_create_MVBS_postprocessing(
+    path_main: str,
+    slice_mins: int = 20,
+    start_time: str | None = None,
+    end_time: str | None = None,
+    overwrite: bool = False,
+    range_bin: str = "1m",
+    ping_time_bin: str = "5s",
+    file_raw_processing_csv: str = "raw_processing.csv",
+    file_Sv_csv: str = "Sv_files.csv",
+    file_MVBS_csv: str = "MVBS_files.csv",
+) -> None:
+    """Create every newly ready MVBS slice registered by raw-to-Sv runs."""
+    logger = get_run_logger()
+    root = Path(path_main)
+    mvbs_directory = root / "MVBS"
+    mvbs_directory.mkdir(parents=True, exist_ok=True)
+    # Load input state and previously completed MVBS outputs
+    raw = read_manifest(root / file_raw_processing_csv, RAW_COLUMNS, ["timestamp"])
+    sv = read_manifest(root / file_Sv_csv, SV_COLUMNS, ["first_ping_time", "last_ping_time"])
+    manifest_path = root / file_MVBS_csv
+    manifest = read_manifest(
+        manifest_path,
+        MVBS_COLUMNS,
+        ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
+    )
+    # Plan only sealed slices, then discard outputs already present in the manifest
+    planned = filter_slices(plan_mvbs_slices(raw, sv, slice_mins), start_time, end_time)
+    existing = set(manifest["MVBS_filename"]) if not overwrite else set()
+    planned = [
+        item
+        for item in planned
+        if f"MVBS_{item.start_time:%Y%m%dT%H%M%S}.zarr" not in existing
+    ]
+    if not planned:
+        logger.info("No newly ready MVBS slices")
+        return
+
+    settings = CreateMVBSSettings(
+        sv_directory=str(root / "Sv"),
+        output_directory=str(mvbs_directory),
+        range_bin=range_bin,
+        ping_time_bin=ping_time_bin,
+    )
+    # Ready slices are independent and can be computed in parallel
+    futures = {}
+    for item in planned:
+        filename = f"MVBS_{item.start_time:%Y%m%dT%H%M%S}.zarr"
+        future = task_create_MVBS.with_options(task_run_name=filename).submit(
+            CreateMVBSWorkItem(
+                start_time=item.start_time,
+                end_time=item.end_time,
+                sv_filenames=item.filenames,
+                mvbs_filename=filename,
+            ),
+            settings,
+        )
+        futures[future] = item
+
+    # Collect task results in memory so this flow remains the sole manifest writer
+    errors = []
+    for future in as_completed(futures):
+        item = futures[future]
+        try:
+            result = future.result()
+            record = [
+                result.mvbs_filename,
+                item.start_time,
+                item.end_time,
+                result.first_ping_time,
+                result.last_ping_time,
+                item.is_partial,
+            ]
+            matches = manifest.index[manifest["MVBS_filename"] == result.mvbs_filename]
+            if len(matches):
+                manifest.loc[matches[0], MVBS_COLUMNS] = record
+            else:
+                manifest.loc[len(manifest), MVBS_COLUMNS] = record
+        except Exception as exc:
+            errors.append(exc)
+            logger.error("MVBS slice %s failed: %s", item.start_time, exc)
+    write_manifest(manifest.sort_values("slice_start"), manifest_path)
+    if errors:
+        raise RuntimeError(f"{len(errors)} MVBS slices failed")

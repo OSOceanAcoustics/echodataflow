@@ -1,4 +1,4 @@
-"""Operations used to simulate realtime data arrival."""
+"""Reusable operations for moving data between storage systems."""
 
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ def copy_s3_file(
     local_path = Path(item.local_path)
     local_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Configure anonymous access if no S3 client is provided
+    # OSN data is public, so the default client uses unsigned requests
     if s3_client is None:
         s3_client = boto3.client(
             "s3",
@@ -53,7 +53,7 @@ def copy_s3_file(
             config=Config(signature_version=UNSIGNED),
         )
 
-    # Download file
+    # Download to the exact staging path supplied by the caller
     s3_client.download_file(
         settings.s3_bucket,
         item.s3_path,
