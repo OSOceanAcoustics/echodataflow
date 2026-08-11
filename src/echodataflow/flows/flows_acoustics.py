@@ -429,6 +429,9 @@ def flow_raw2Sv_postprocessing(
     file_Sv_csv: str = "Sv_files.csv",
 ) -> None:
     """Stage selected S3 raw files and convert them concurrently to Sv."""
+    if overwrite and (start_time is None or end_time is None):
+        raise ValueError("overwrite=True requires explicit start_time and end_time")
+
     logger = get_run_logger()
     # Keep temporary raw files separate from persistent Sv outputs
     staging = Path(path_main) / "raw_staging"
@@ -557,6 +560,9 @@ def flow_create_MVBS_postprocessing(
     file_MVBS_csv: str = "MVBS_files.csv",
 ) -> None:
     """Create every newly ready MVBS slice registered by raw-to-Sv runs."""
+    if overwrite and (start_time is None or end_time is None):
+        raise ValueError("overwrite=True requires explicit start_time and end_time")
+
     logger = get_run_logger()
     root = Path(path_main)
     mvbs_directory = root / "MVBS"

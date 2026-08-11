@@ -261,6 +261,9 @@ def flow_predict_hake_postprocessing(
     file_prediction_csv: str = "prediction_files.csv",
 ) -> None:
     """Predict all newly ready windows, combining aligned MVBS slices."""
+    if overwrite and (start_time is None or end_time is None):
+        raise ValueError("overwrite=True requires explicit start_time and end_time")
+
     logger = get_run_logger()
     # Create persistent destinations before loading the model
     for directory in ["prediction", "EVR", "NASC"]:
