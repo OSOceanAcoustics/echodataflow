@@ -63,7 +63,7 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
         "copy_raw": "flows_simulation",
         "raw2Sv": "flows_acoustics",
         "create_MVBS": "flows_acoustics",
-        "predict_hake": "flow_predict_hake",
+        "predict_hake": "flows_predict_hake",
         "file_upload_acoustics": "flows_helper",
         "file_upload_trawl": "flows_helper",
     }
@@ -107,7 +107,7 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
         "copy_raw": "echodataflow/flows/flows_simulation.py:flow_copy_raw",
         "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
         "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
-        "predict_hake": "echodataflow/flows/flow_predict_hake.py:flow_predict_hake",
+        "predict_hake": "echodataflow/flows/flows_predict_hake.py:flow_predict_hake",
         "file_upload_acoustics": "echodataflow/flows/flows_helper.py:flow_file_upload",
         "file_upload_trawl": "echodataflow/flows/flows_helper.py:flow_file_upload",
     }

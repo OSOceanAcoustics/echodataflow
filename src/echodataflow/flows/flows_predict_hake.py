@@ -1,4 +1,4 @@
-"""Flow orchestration for hake prediction and downstream NASC processing."""
+"""Flows for hake prediction and downstream NASC processing."""
 
 from __future__ import annotations
 

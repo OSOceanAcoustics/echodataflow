@@ -206,17 +206,21 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     flows_acoustics = types.ModuleType("flows_acoustics")
     flows_acoustics.flow_raw2Sv = FakeFlow("flow_raw2Sv", sink)
     flows_acoustics.flow_create_MVBS = FakeFlow("flow_create_MVBS", sink)
-    flow_predict_hake = types.ModuleType("flow_predict_hake")
-    flow_predict_hake.flow_predict_hake = FakeFlow("flow_predict_hake", sink)
+    flows_predict_hake = types.ModuleType("flows_predict_hake")
+    flows_predict_hake.flow_predict_hake = FakeFlow("flow_predict_hake", sink)
 
     flows_helper_mod = types.ModuleType("flows_helper")
     flows_helper_mod.flow_file_upload = FakeFlow("flow_file_upload", sink)
 
     monkeypatch.setitem(sys.modules, "flows_acoustics", flows_acoustics)
-    monkeypatch.setitem(sys.modules, "flow_predict_hake", flow_predict_hake)
+    monkeypatch.setitem(sys.modules, "flows_predict_hake", flows_predict_hake)
     monkeypatch.setitem(sys.modules, "flows_helper", flows_helper_mod)
     monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_acoustics", flows_acoustics)
-    monkeypatch.setitem(sys.modules, "echodataflow.flows.flow_predict_hake", flow_predict_hake)
+    monkeypatch.setitem(
+        sys.modules,
+        "echodataflow.flows.flows_predict_hake",
+        flows_predict_hake,
+    )
     monkeypatch.setitem(sys.modules, "echodataflow.flows.flows_helper", flows_helper_mod)
 
     param_cfg = {
@@ -282,7 +286,7 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     ship_modules = {
         "raw2Sv": "flows_acoustics",
         "create_MVBS": "flows_acoustics",
-        "predict_hake": "flow_predict_hake",
+        "predict_hake": "flows_predict_hake",
         "file_upload_acoustics": "flows_helper",
         "file_upload_trawl": "flows_helper",
     }
@@ -309,7 +313,7 @@ def test_deploy_cli_ship_characterization(monkeypatch, tmp_path, install_prefect
     expected_entrypoints = {
         "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
         "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
-        "predict_hake": "echodataflow/flows/flow_predict_hake.py:flow_predict_hake",
+        "predict_hake": "echodataflow/flows/flows_predict_hake.py:flow_predict_hake",
         "file_upload": "echodataflow/flows/flows_helper.py:flow_file_upload",
     }
     actual_entrypoints = {

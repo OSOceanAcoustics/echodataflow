@@ -57,7 +57,7 @@ def test_postprocessing_flows_are_registered_with_realtime_modules():
         "echodataflow/flows/flows_acoustics.py:flow_create_MVBS_postprocessing"
     )
     assert registry.FLOW_REGISTRY["predict_hake_postprocessing"].entrypoint == (
-        "echodataflow/flows/flow_predict_hake.py:flow_predict_hake_postprocessing"
+        "echodataflow/flows/flows_predict_hake.py:flow_predict_hake_postprocessing"
     )
 
 

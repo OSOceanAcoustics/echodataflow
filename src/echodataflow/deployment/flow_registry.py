@@ -22,7 +22,7 @@ FLOW_REGISTRY: dict[str, FlowRegistration] = {
         entrypoint="echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
     ),
     "predict_hake": FlowRegistration(
-        entrypoint="echodataflow/flows/flow_predict_hake.py:flow_predict_hake",
+        entrypoint="echodataflow/flows/flows_predict_hake.py:flow_predict_hake",
     ),
     "raw2Sv_postprocessing": FlowRegistration(
         entrypoint=(
@@ -40,7 +40,7 @@ FLOW_REGISTRY: dict[str, FlowRegistration] = {
     ),
     "predict_hake_postprocessing": FlowRegistration(
         entrypoint=(
-            "echodataflow/flows/flow_predict_hake.py:"
+            "echodataflow/flows/flows_predict_hake.py:"
             "flow_predict_hake_postprocessing"
         ),
         description="Predict all newly ready historical MVBS windows.",
