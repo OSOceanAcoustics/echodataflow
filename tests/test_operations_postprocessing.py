@@ -2,9 +2,72 @@ import pandas as pd
 import pytest
 
 from echodataflow.operations.operations_postprocessing import (
+    TimeWindow,
+    generate_aligned_windows,
     plan_mvbs_slices,
     plan_prediction_slices,
+    select_contained_records,
+    select_overlapping_records,
 )
+
+
+def test_generate_aligned_windows_returns_only_complete_windows():
+    assert generate_aligned_windows(
+        "2025-06-11T00:03:00Z",
+        "2025-06-11T01:01:00Z",
+        20,
+    ) == [
+        TimeWindow(
+            pd.Timestamp("2025-06-11T00:00:00Z"),
+            pd.Timestamp("2025-06-11T00:20:00Z"),
+        ),
+        TimeWindow(
+            pd.Timestamp("2025-06-11T00:20:00Z"),
+            pd.Timestamp("2025-06-11T00:40:00Z"),
+        ),
+        TimeWindow(
+            pd.Timestamp("2025-06-11T00:40:00Z"),
+            pd.Timestamp("2025-06-11T01:00:00Z"),
+        ),
+    ]
+
+
+def test_shared_record_selectors_apply_overlap_and_containment_rules():
+    records = pd.DataFrame(
+        {
+            "name": ["crosses-start", "contained", "crosses-end", "outside"],
+            "start": pd.to_datetime(
+                [
+                    "2025-06-10T23:55:00Z",
+                    "2025-06-11T00:05:00Z",
+                    "2025-06-11T00:15:00Z",
+                    "2025-06-11T00:20:00Z",
+                ]
+            ),
+            "end": pd.to_datetime(
+                [
+                    "2025-06-11T00:05:00Z",
+                    "2025-06-11T00:15:00Z",
+                    "2025-06-11T00:25:00Z",
+                    "2025-06-11T00:30:00Z",
+                ]
+            ),
+        }
+    )
+    window = TimeWindow(
+        pd.Timestamp("2025-06-11T00:00:00Z"),
+        pd.Timestamp("2025-06-11T00:20:00Z"),
+    )
+
+    overlapping = select_overlapping_records(records, window, "start", "end")
+    contained = select_contained_records(records, window, "start", "end")
+
+    assert overlapping["name"].tolist() == [
+        "crosses-start",
+        "contained",
+        "crosses-end",
+    ]
+    assert contained["name"].tolist() == ["contained"]
 
 
 def _raw_manifest(statuses=("completed", "completed", "completed", "completed")):
