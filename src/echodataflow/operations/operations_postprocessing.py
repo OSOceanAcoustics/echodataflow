@@ -258,7 +258,7 @@ def plan_mvbs_slices(
     slices: list[PlannedSlice] = []
     for row in df_MVBS.itertuples(index=False):
         # Skip slices that have already been created successfully
-        if row.MVBS_status == "completed":
+        if row.MVBS_status in {"completed", "no_data"}:
             continue
 
         required_raw = json.loads(row.raw_filenames)

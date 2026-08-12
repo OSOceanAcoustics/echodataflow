@@ -105,11 +105,12 @@ class CreateMVBSSettings:
 
 @dataclass(frozen=True)
 class CreateMVBSResult:
-    """Metadata describing one successfully created MVBS slice."""
+    """Metadata describing one attempted MVBS slice."""
 
     mvbs_filename: str
-    first_ping_time: pd.Timestamp
-    last_ping_time: pd.Timestamp
+    first_ping_time: pd.Timestamp | None
+    last_ping_time: pd.Timestamp | None
+    has_data: bool = True
 
 
 def create_MVBS(
@@ -134,6 +135,15 @@ def create_MVBS(
         # slice start/end, end exclusive
         ping_time=slice(start_time, end_time - pd.to_timedelta("1nanoseconds"))
     )
+
+    # Return normally when the selected inputs contain no pings for this slice
+    if ds_Sv.sizes.get("ping_time", 0) == 0:
+        return CreateMVBSResult(
+            mvbs_filename=item.mvbs_filename,
+            first_ping_time=None,
+            last_ping_time=None,
+            has_data=False,
+        )
 
     # Compute MVBS for the slice
     ds_MVBS = ep.commongrid.compute_MVBS(

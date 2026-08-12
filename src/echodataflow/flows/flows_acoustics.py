@@ -374,6 +374,9 @@ async def flow_create_MVBS(
 
     # Add MVBS slice info to dataframe
     for result in results:
+        if not result.has_data:
+            logger.info(f"No ping data found for {result.mvbs_filename}, skipping")
+            continue
         if result.mvbs_filename in df_MVBS["MVBS_filename"].values:
             logger.info(
                 f"MVBS file {result.mvbs_filename} already exists, "
@@ -585,6 +588,13 @@ def flow_create_MVBS_postprocessing(
         try:
             result = future.result()
             idx = df_MVBS.index[df_MVBS["slice_start"] == item.start_time][0]
+            if not result.has_data:
+                df_MVBS.loc[idx, ["MVBS_status", "error"]] = [
+                    "no_data",
+                    "No ping data in the planned slice",
+                ]
+                logger.info("No ping data found for MVBS slice %s", item.start_time)
+                continue
             df_MVBS.loc[
                 idx,
                 [
