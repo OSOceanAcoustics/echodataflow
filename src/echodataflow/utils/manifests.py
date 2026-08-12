@@ -110,6 +110,7 @@ def filter_time_range(
     column_end_time: str | None,
     start_time: str | None,
     end_time: str | None,
+    include_exact_start_time: bool = True,
 ) -> pd.DataFrame:
     # Treat requested ranges as half-open: [start_time, end_time)
     ordered = df.sort_values(column_start_time)
@@ -118,9 +119,13 @@ def filter_time_range(
     # When only column_start_time is provided (e.g. raw filename that only marks start time)
     if column_end_time is None:
         if start_time is not None:
-            selected = selected[selected[column_start_time] >= pd.to_datetime(start_time, utc=True)]
+            lower = pd.to_datetime(start_time, utc=True)
+            if include_exact_start_time:
+                selected = selected[selected[column_start_time] >= lower]
+            else:
+                selected = selected[selected[column_start_time] > lower]
             # Include the last file starting before the requested interval
-            prev = ordered[ordered[column_start_time] < pd.to_datetime(start_time, utc=True)].tail(1)  # noqa
+            prev = ordered[ordered[column_start_time] < lower].tail(1)
             selected = pd.concat([selected, prev]).drop_duplicates()
         if end_time is not None:
             selected = selected[selected[column_start_time] < pd.to_datetime(end_time, utc=True)]
@@ -128,7 +133,11 @@ def filter_time_range(
     # When both column_start_time and column_end_time are provided (e.g. slices that mark start and end time)
     else:
         if start_time is not None:
-            selected = selected[selected[column_end_time] >= pd.to_datetime(start_time, utc=True)]
+            lower = pd.to_datetime(start_time, utc=True)
+            if include_exact_start_time:
+                selected = selected[selected[column_end_time] >= lower]
+            else:
+                selected = selected[selected[column_end_time] > lower]
         if end_time is not None:
             selected = selected[selected[column_start_time] < pd.to_datetime(end_time, utc=True)]
 

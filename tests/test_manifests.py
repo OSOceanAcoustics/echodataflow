@@ -156,3 +156,24 @@ def test_filter_time_range_with_start_and_end_selects_overlapping_records():
     )
 
     assert selected["name"].tolist() == ["crosses-start", "inside", "crosses-end"]
+
+
+def test_filter_time_range_can_exclude_interval_ending_at_exact_start():
+    frame = pd.DataFrame(
+        {
+            "name": ["touches-start", "overlaps"],
+            "start": pd.to_datetime(["2025-06-18T23:40:00Z", "2025-06-18T23:50:00Z"]),
+            "end": pd.to_datetime(["2025-06-19T00:00:00Z", "2025-06-19T00:05:00Z"]),
+        }
+    )
+
+    selected = filter_time_range(
+        frame,
+        "start",
+        "end",
+        "2025-06-19T00:00:00Z",
+        "2025-06-19T00:40:00Z",
+        include_exact_start_time=False,
+    )
+
+    assert selected["name"].tolist() == ["overlaps"]

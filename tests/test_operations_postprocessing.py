@@ -1,3 +1,5 @@
+import json
+
 import pandas as pd
 import pytest
 
@@ -234,9 +236,20 @@ def test_incomplete_prediction_uses_any_actual_ping_time_overlap_when_allowed():
     assert len(planned) == 1
     assert planned[0].filenames == ("overlapping.zarr",)
     assert planned[0].is_partial
-    assert planned[0].is_partial
 
 
-def test_prediction_length_must_align_with_mvbs_length():
-    with pytest.raises(ValueError, match="must be a multiple"):
-        build_prediction_ledger(pd.DataFrame(), 20, 30)
+def test_prediction_ledger_supports_overlapping_seven_minute_mvbs_slices():
+    starts = pd.date_range("2025-06-11T00:00:00Z", periods=6, freq="7min")
+    mvbs = pd.DataFrame(
+        {
+            "MVBS_filename": [f"slice-{index}.zarr" for index in range(6)],
+            "slice_start": starts,
+            "slice_end": starts + pd.Timedelta(minutes=7),
+        }
+    )
+
+    prediction = build_prediction_ledger(mvbs, 7, 40)
+
+    assert json.loads(prediction.loc[0, "MVBS_filenames"]) == [
+        f"slice-{index}.zarr" for index in range(6)
+    ]

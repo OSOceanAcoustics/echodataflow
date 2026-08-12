@@ -359,10 +359,7 @@ def flow_predict_hake_postprocessing(
         except Exception as exc:
             errors.append(exc)
             idx = df_prediction.index[df_prediction["prediction_filename_postfix"] == postfix][0]
-            df_prediction.loc[idx, ["prediction_status", "error"]] = [
-                "failed",
-                str(exc),
-            ]
+            df_prediction.loc[idx, ["prediction_status", "error"]] = ["failed", str(exc)]
             write_manifest(df_prediction.sort_values("slice_start"), file_prediction_csv)
             logger.error("Prediction window %s failed: %s", item.start_time, exc)
     if errors:

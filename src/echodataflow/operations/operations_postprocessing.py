@@ -182,8 +182,6 @@ def build_prediction_ledger(
     prediction_slice_mins: int = 40,
 ) -> pd.DataFrame:
     """Preplan every prediction window and its required MVBS slices."""
-    if prediction_slice_mins % mvbs_slice_mins != 0:
-        raise ValueError("prediction_slice_mins must be a multiple of mvbs_slice_mins")
     if mvbs_ledger.empty:
         return pd.DataFrame()
 
@@ -198,10 +196,14 @@ def build_prediction_ledger(
 
     records = []
     for window in windows:
-        required = df_MVBS[
-            (df_MVBS["slice_start"] >= window.start_time)
-            & (df_MVBS["slice_start"] < window.end_time)
-        ].sort_values("slice_start")
+        required = filter_time_range(
+            df=df_MVBS,
+            column_start_time="slice_start",
+            column_end_time="slice_end",
+            start_time=window.start_time,
+            end_time=window.end_time,
+            include_exact_start_time=False,
+        )
         records.append(
             {
                 "prediction_filename_postfix": window.start_time.strftime("%Y%m%dT%H%M%S"),
