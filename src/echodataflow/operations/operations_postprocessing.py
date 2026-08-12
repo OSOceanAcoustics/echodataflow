@@ -6,12 +6,11 @@ import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 import pandas as pd
 
 from echodataflow.utils.manifests import (
-    MVBS_COLUMNS_POSTPROCESSING,
-    SV_COLUMNS_POSTPROCESSING,
     filter_time_range,
     read_manifest,
     write_manifest,
@@ -177,34 +176,19 @@ def build_mvbs_ledger(sv_ledger: pd.DataFrame, slice_mins: int = 20) -> pd.DataF
     return pd.DataFrame.from_records(records)
 
 
-def read_or_create_sv_ledger(path_raw_list: str, ledger_path: Path) -> pd.DataFrame:
-    """Load the Sv ledger or initialize it from the complete raw file list."""
-    if ledger_path.exists():
-        return read_manifest(
-            ledger_path,
-            SV_COLUMNS_POSTPROCESSING,
-            ["timestamp", "first_ping_time", "last_ping_time"],
-        )
-
-    ledger = build_sv_ledger(pd.read_csv(path_raw_list))
-    write_manifest(ledger, ledger_path)
-    return ledger
-
-
-def read_or_create_mvbs_ledger(
+def read_or_create_ledger(
     ledger_path: Path,
-    sv_ledger: pd.DataFrame,
-    slice_mins: int,
+    columns: list[str],
+    date_columns: list[str],
+    builder: Callable[[], pd.DataFrame],
 ) -> pd.DataFrame:
-    """Load the MVBS ledger or initialize it based on the Sv ledger."""
+    """Load a ledger or create it with the supplied builder."""
     if ledger_path.exists():
         return read_manifest(
-            ledger_path,
-            MVBS_COLUMNS_POSTPROCESSING,
-            ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
+            path=ledger_path, columns=columns, date_columns=date_columns
         )
 
-    ledger = build_mvbs_ledger(sv_ledger, slice_mins)
+    ledger = builder()
     write_manifest(ledger, ledger_path)
     return ledger
 
@@ -245,9 +229,7 @@ def plan_mvbs_slices(
             PlannedSlice(
                 start_time=row.slice_start,
                 end_time=row.slice_end,
-                filenames=tuple(
-                    required_Sv.sort_values("timestamp")["Sv_filename"].astype(str)
-                ),
+                filenames=tuple(required_Sv.sort_values("timestamp")["Sv_filename"].astype(str)),
                 is_partial=(
                     required_Sv["first_ping_time"].min() > row.slice_start
                     or required_Sv["last_ping_time"].max() < row.slice_end

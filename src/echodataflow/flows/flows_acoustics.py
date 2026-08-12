@@ -33,9 +33,10 @@ from echodataflow.operations.operations_acoustics import (
     RawToSvWorkItem,
 )
 from echodataflow.operations.operations_postprocessing import (
-    read_or_create_mvbs_ledger,
-    read_or_create_sv_ledger,
+    build_mvbs_ledger,
+    build_sv_ledger,
     plan_mvbs_slices,
+    read_or_create_ledger,
 )
 from echodataflow.operations.operations_storage import S3CopySettings, S3CopyWorkItem
 from echodataflow.tasks.tasks_acoustics import (
@@ -430,7 +431,12 @@ def flow_raw2Sv_postprocessing(
     file_Sv_csv = Path(path_main) / file_Sv_csv
 
     # Initialize the complete ledger before selecting work for this run
-    df_Sv = read_or_create_sv_ledger(path_raw_list, file_Sv_csv)
+    df_Sv = read_or_create_ledger(
+        ledger_path=file_Sv_csv,
+        columns=SV_COLUMNS_POSTPROCESSING,
+        date_columns=["timestamp", "first_ping_time", "last_ping_time"],
+        builder=lambda: build_sv_ledger(pd.read_csv(path_raw_list)),
+    )
     selected = filter_time_range(
         df=df_Sv,
         column_start_time="timestamp",
@@ -538,7 +544,12 @@ def flow_create_MVBS_postprocessing(
         date_columns=["timestamp", "first_ping_time", "last_ping_time"],
     )
     # Preplan every MVBS row once from the complete raw-file timeline
-    df_MVBS = read_or_create_mvbs_ledger(file_MVBS_csv, df_Sv, slice_mins)
+    df_MVBS = read_or_create_ledger(
+        ledger_path=file_MVBS_csv,
+        columns=MVBS_COLUMNS_POSTPROCESSING,
+        date_columns=["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
+        builder=lambda: build_mvbs_ledger(df_Sv, slice_mins),
+    )
 
     # Get MVBS slices to be computed based on raw-to-Sv completions
     planned = plan_mvbs_slices(df_Sv, df_MVBS)
