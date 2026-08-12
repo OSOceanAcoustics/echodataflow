@@ -4,6 +4,45 @@ import pandas as pd
 from prefect import flow
 
 
+def get_changed_transects(
+    current: pd.DataFrame,
+    previous: pd.DataFrame,
+) -> pd.DataFrame:
+    """Return transect segments that are new or have been updated."""
+
+    key_columns = [
+        "transectPart",
+        "transectNumber",
+        "transectStart",
+        "transectEnd",
+    ]
+
+    return (
+        current.merge(
+            previous[key_columns],
+            on=key_columns,
+            how="left",
+            indicator=True,
+        )
+        .query("_merge == 'left_only'")
+        .drop(columns="_merge")
+        .drop_duplicates(subset=key_columns)
+    )
+
+
+def find_overlapping_sv_files(
+    df_sv: pd.DataFrame,
+    start_time: pd.Timestamp,
+    end_time: pd.Timestamp,
+) -> pd.DataFrame:
+    """Return Sv registry rows overlapping a transect time interval."""
+
+    return df_sv[
+        (df_sv["last_ping_time"] >= start_time)
+        & (df_sv["first_ping_time"] <= end_time)
+    ].copy()
+
+
 @flow(log_prints=True)
 def flow_transect_update(
     path_transect_csv: str,
@@ -41,24 +80,7 @@ def flow_transect_update(
         },
     )
 
-    key_columns = [
-        "transectPart",
-        "transectNumber",
-        "transectStart",
-        "transectEnd",
-    ]
-
-    changed = (
-        current.merge(
-            previous[key_columns],
-            on=key_columns,
-            how="left",
-            indicator=True,
-        )
-        .query("_merge == 'left_only'")
-        .drop(columns="_merge")
-        .drop_duplicates(subset=key_columns)
-    )
+    changed = get_changed_transects(current, previous)
 
     if changed.empty:
         print("No new or updated transect segments.")
@@ -91,12 +113,13 @@ def flow_transect_update(
         start_time = pd.to_datetime(transect["transectStart"], utc=True)
         end_time = pd.to_datetime(transect["transectEnd"], utc=True)
 
-        sv_filenames = sorted(
-            df_sv[
-                (df_sv["last_ping_time"] >= start_time)
-                & (df_sv["first_ping_time"] <= end_time)
-            ]["Sv_filename"].tolist()
+        overlapping_sv = find_overlapping_sv_files(
+            df_sv,
+            start_time,
+            end_time,
         )
+
+        sv_filenames = sorted(overlapping_sv["Sv_filename"].tolist())
 
         print(
             f"\nTransect {transect['transectPart']}: "

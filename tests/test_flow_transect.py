@@ -1,6 +1,10 @@
 import pandas as pd
 
-from echodataflow.flows.flows_transect import flow_transect_update
+from echodataflow.flows.flows_transect import (
+    find_overlapping_sv_files,
+    flow_transect_update,
+    get_changed_transects,
+)
 
 
 def test_flow_transect_update_initializes_snapshot(tmp_path):
@@ -103,3 +107,70 @@ def test_flow_transect_update_finds_overlapping_sv(tmp_path, capsys):
     assert "Transect 002" in output
     assert "Found 1 overlapping Sv file(s)" in output
     assert "overlap_Sv.zarr" in output
+
+
+def test_get_changed_transects():
+    previous = pd.DataFrame(
+        {
+            "transectPart": ["001"],
+            "transectNumber": ["001"],
+            "transectStart": ["2024-07-07T00:00:00Z"],
+            "transectEnd": ["2024-07-07T00:10:00Z"],
+        }
+    )
+
+    current = pd.concat(
+        [
+            previous,
+            pd.DataFrame(
+                {
+                    "transectPart": ["002"],
+                    "transectNumber": ["002"],
+                    "transectStart": ["2024-07-07T00:20:00Z"],
+                    "transectEnd": ["2024-07-07T00:30:00Z"],
+                }
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    changed = get_changed_transects(current, previous)
+
+    assert len(changed) == 1
+    assert changed.iloc[0]["transectPart"] == "002"
+
+
+def test_find_overlapping_sv_files():
+    df_sv = pd.DataFrame(
+        {
+            "Sv_filename": [
+                "before_Sv.zarr",
+                "overlap_Sv.zarr",
+                "after_Sv.zarr",
+            ],
+            "first_ping_time": pd.to_datetime(
+                [
+                    "2024-07-07T00:00:00Z",
+                    "2024-07-07T00:15:00Z",
+                    "2024-07-07T00:40:00Z",
+                ],
+                utc=True,
+            ),
+            "last_ping_time": pd.to_datetime(
+                [
+                    "2024-07-07T00:05:00Z",
+                    "2024-07-07T00:25:00Z",
+                    "2024-07-07T00:50:00Z",
+                ],
+                utc=True,
+            ),
+        }
+    )
+
+    overlapping = find_overlapping_sv_files(
+        df_sv,
+        pd.Timestamp("2024-07-07T00:20:00Z"),
+        pd.Timestamp("2024-07-07T00:30:00Z"),
+    )
+
+    assert overlapping["Sv_filename"].tolist() == ["overlap_Sv.zarr"]
