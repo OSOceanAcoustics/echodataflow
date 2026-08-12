@@ -15,7 +15,6 @@ from echodataflow.utils.manifests import (
     PREDICTION_COLUMNS_POSTPROCESSING,
     MVBS_COLUMNS_REALTIME,
     PREDICTION_COLUMNS_REALTIME,
-    filter_slices,
     read_manifest,
     write_manifest,
 )
@@ -283,15 +282,13 @@ def flow_predict_hake_postprocessing(
         ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
     )
     # Assemble aligned prediction windows from completed MVBS slices
-    planned = filter_slices(
-        plan_prediction_slices(
-            mvbs,
-            mvbs_slice_mins=mvbs_slice_mins,
-            prediction_slice_mins=prediction_slice_mins,
-            require_complete_window=require_complete_window,
-        ),
-        start_time,
-        end_time,
+    planned = plan_prediction_slices(
+        mvbs,
+        mvbs_slice_mins=mvbs_slice_mins,
+        prediction_slice_mins=prediction_slice_mins,
+        require_complete_window=require_complete_window,
+        start_time=start_time,
+        end_time=end_time,
     )
     completed = set(manifest["prediction_filename_postfix"].astype(str))
     planned = [

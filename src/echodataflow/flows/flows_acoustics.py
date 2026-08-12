@@ -20,7 +20,6 @@ from echodataflow.utils.manifests import (
     MVBS_COLUMNS_REALTIME,
     SV_COLUMNS_REALTIME,
     SV_COLUMNS_POSTPROCESSING,
-    filter_slices,
     filter_time_range,
     read_manifest,
     write_manifest,
@@ -517,8 +516,6 @@ def flow_raw2Sv_postprocessing(
 def flow_create_MVBS_postprocessing(
     path_main: str,
     slice_mins: int = 20,
-    start_time: str | None = None,
-    end_time: str | None = None,
     range_bin: str = "1m",
     ping_time_bin: str = "5s",
     file_Sv_csv: str = "Sv_files.csv",
@@ -543,16 +540,8 @@ def flow_create_MVBS_postprocessing(
     # Preplan every MVBS row once from the complete raw-file timeline
     df_MVBS = read_or_create_mvbs_ledger(file_MVBS_csv, df_Sv, slice_mins)
 
-    planned = filter_slices(plan_mvbs_slices(df_Sv, df_MVBS), start_time, end_time)
-    planned = [
-        item
-        for item in planned
-        if df_MVBS.loc[
-            df_MVBS["slice_start"] == item.start_time,
-            "MVBS_status",
-        ].iloc[0]
-        != "completed"
-    ]
+    # Get MVBS slices to be computed based on raw-to-Sv completions
+    planned = plan_mvbs_slices(df_Sv, df_MVBS)
     if not planned:
         logger.info("No newly ready MVBS slices")
         return
@@ -584,25 +573,25 @@ def flow_create_MVBS_postprocessing(
         item = futures[future]
         try:
             result = future.result()
-            record = [
+            idx = df_MVBS.index[df_MVBS["slice_start"] == item.start_time][0]
+            df_MVBS.loc[
+                idx,
+                [
+                    "MVBS_filename",
+                    "first_ping_time",
+                    "last_ping_time",
+                    "is_partial",
+                    "MVBS_status",
+                    "error",
+                ],
+            ] = [
                 result.mvbs_filename,
-                item.start_time,
-                item.end_time,
-                df_MVBS.loc[
-                    df_MVBS["slice_start"] == item.start_time,
-                    "raw_filenames",
-                ].iloc[0],
                 result.first_ping_time,
                 result.last_ping_time,
                 item.is_partial,
                 "completed",
                 "",
             ]
-            matches = df_MVBS.index[df_MVBS["MVBS_filename"] == result.mvbs_filename]
-            if len(matches):
-                df_MVBS.loc[matches[0], MVBS_COLUMNS_POSTPROCESSING] = record
-            else:
-                df_MVBS.loc[len(df_MVBS), MVBS_COLUMNS_POSTPROCESSING] = record
         except Exception as exc:
             errors.append(exc)
             filename = f"MVBS_{item.start_time:%Y%m%dT%H%M%S}.zarr"

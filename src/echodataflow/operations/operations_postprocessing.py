@@ -12,6 +12,7 @@ import pandas as pd
 from echodataflow.utils.manifests import (
     MVBS_COLUMNS_POSTPROCESSING,
     SV_COLUMNS_POSTPROCESSING,
+    filter_time_range,
     read_manifest,
     write_manifest,
 )
@@ -140,23 +141,26 @@ def build_mvbs_ledger(sv_ledger: pd.DataFrame, slice_mins: int = 20) -> pd.DataF
     if sv_ledger.empty:
         return pd.DataFrame()
 
-    ledger = sv_ledger.copy()
-    ledger["timestamp"] = pd.to_datetime(ledger["timestamp"], utc=True)
+    df_Sv = sv_ledger.copy()
+    df_Sv["timestamp"] = pd.to_datetime(df_Sv["timestamp"], utc=True)
     duration = pd.Timedelta(minutes=slice_mins)
-    final_end = ledger["timestamp"].max().floor(f"{slice_mins}min") + duration
+    final_end = df_Sv["timestamp"].max().floor(f"{slice_mins}min") + duration
     windows = generate_aligned_windows(
-        ledger["timestamp"].min(),
+        df_Sv["timestamp"].min(),
         final_end,
         slice_mins,
     )
 
     records = []
     for window in windows:
-        required = ledger[
-            (ledger["timestamp"] >= window.start_time) & (ledger["timestamp"] < window.end_time)
-        ]
-        predecessor = ledger[ledger["timestamp"] < window.start_time].tail(1)
-        required = pd.concat([predecessor, required]).drop_duplicates("s3_path")
+        # Record the raw files required by this slice, including its predecessor
+        required = filter_time_range(
+            df=df_Sv,
+            column_start_time="timestamp",
+            column_end_time=None,
+            start_time=window.start_time,
+            end_time=window.end_time,
+        )
         records.append(
             {
                 "MVBS_filename": f"MVBS_{window.start_time:%Y%m%dT%H%M%S}.zarr",
@@ -224,6 +228,10 @@ def plan_mvbs_slices(
 
     slices: list[PlannedSlice] = []
     for row in df_MVBS.itertuples(index=False):
+        # Skip slices that have already been created successfully
+        if row.MVBS_status == "completed":
+            continue
+
         required_raw = json.loads(row.raw_filenames)
         required_Sv = df_Sv[df_Sv["raw_filename"].isin(required_raw)]
         if len(required_Sv) != len(required_raw):
@@ -233,23 +241,16 @@ def plan_mvbs_slices(
         if not required_Sv["raw2Sv_status"].eq("completed").all():
             continue
 
-        window = TimeWindow(row.slice_start, row.slice_end)
-        overlapping = select_overlapping_records(
-            required_Sv,
-            window,
-            "first_ping_time",
-            "last_ping_time",
-        ).sort_values("first_ping_time")
-        if overlapping.empty:
-            continue
         slices.append(
             PlannedSlice(
-                start_time=window.start_time,
-                end_time=window.end_time,
-                filenames=tuple(overlapping["Sv_filename"].astype(str)),
+                start_time=row.slice_start,
+                end_time=row.slice_end,
+                filenames=tuple(
+                    required_Sv.sort_values("timestamp")["Sv_filename"].astype(str)
+                ),
                 is_partial=(
-                    overlapping["first_ping_time"].min() > window.start_time
-                    or overlapping["last_ping_time"].max() < window.end_time
+                    required_Sv["first_ping_time"].min() > row.slice_start
+                    or required_Sv["last_ping_time"].max() < row.slice_end
                 ),
             )
         )
@@ -261,6 +262,8 @@ def plan_prediction_slices(
     mvbs_slice_mins: int = 20,
     prediction_slice_mins: int = 40,
     require_complete_window: bool = True,
+    start_time: str | None = None,
+    end_time: str | None = None,
 ) -> list[PlannedSlice]:
     """Group completed MVBS slices into aligned prediction windows."""
     if prediction_slice_mins % mvbs_slice_mins != 0:
@@ -280,7 +283,22 @@ def plan_prediction_slices(
         last_time=df_MVBS["last_ping_time"].max().ceil(f"{prediction_slice_mins}min"),
         window_mins=prediction_slice_mins,
     )
-    for window in windows:
+    window_frame = pd.DataFrame(
+        {
+            "start_time": [window.start_time for window in windows],
+            "end_time": [window.end_time for window in windows],
+        }
+    )
+    # Filter the generated windows based on the specified time range
+    window_frame = filter_time_range(
+        df=window_frame,
+        column_start_time="start_time",
+        column_end_time="end_time",
+        start_time=start_time,
+        end_time=end_time,
+    )
+    for row in window_frame.itertuples(index=False):
+        window = TimeWindow(row.start_time, row.end_time)
         # Match the real-time flow's actual ping-time overlap selection
         contributing = select_overlapping_records(
             df_MVBS,

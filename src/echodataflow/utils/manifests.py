@@ -3,12 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
-
 import pandas as pd
-
-if TYPE_CHECKING:
-    from echodataflow.operations.operations_postprocessing import PlannedSlice
 
 SV_COLUMNS_REALTIME = [
     "raw_filename",
@@ -122,7 +117,7 @@ def filter_time_range(
         if start_time is not None:
             selected = selected[selected[column_start_time] >= pd.to_datetime(start_time, utc=True)]
             # Include the last file starting before the requested interval
-            prev = ordered[ordered[column_start_time] < pd.to_datetime(start_time, utc=True)].tail(1)
+            prev = ordered[ordered[column_start_time] < pd.to_datetime(start_time, utc=True)].tail(1)  # noqa
             selected = pd.concat([selected, prev]).drop_duplicates()
         if end_time is not None:
             selected = selected[selected[column_start_time] < pd.to_datetime(end_time, utc=True)]
@@ -135,18 +130,3 @@ def filter_time_range(
             selected = selected[selected[column_start_time] < pd.to_datetime(end_time, utc=True)]
 
     return selected.sort_values(column_start_time)
-
-
-def filter_slices(
-    slices: list[PlannedSlice],
-    start_time: str | None,
-    end_time: str | None,
-) -> list[PlannedSlice]:
-    # Require complete slice containment within optional user bounds
-    lower = pd.to_datetime(start_time, utc=True) if start_time else None
-    upper = pd.to_datetime(end_time, utc=True) if end_time else None
-    return [
-        item
-        for item in slices
-        if (lower is None or item.start_time >= lower) and (upper is None or item.end_time <= upper)
-    ]
