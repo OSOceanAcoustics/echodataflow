@@ -77,7 +77,8 @@ def read_manifest(path: Path, columns: list[str], date_columns: list[str]) -> pd
     # Set datetime columns to UTC
     for column in date_columns:
         if column in df:
-            df[column] = pd.to_datetime(df[column], utc=True)
+            # Ledger updates can mix legacy naive values with UTC-qualified values
+            df[column] = pd.to_datetime(df[column], format="mixed", utc=True)
     return df
 
 

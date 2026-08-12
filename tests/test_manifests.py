@@ -54,6 +54,30 @@ def test_manifest_round_trip_normalizes_utc(tmp_path):
     assert not Path(f"{path}.tmp").exists()
 
 
+def test_read_manifest_accepts_mixed_naive_and_utc_timestamps(tmp_path):
+    path = tmp_path / "manifest.csv"
+    pd.DataFrame(
+        {
+            "filename": ["first.zarr", "second.zarr"],
+            "first_ping_time": [
+                "2025-06-19 00:00:00",
+                "2025-06-19 00:20:00+00:00",
+            ],
+        }
+    ).to_csv(path)
+
+    manifest = read_manifest(
+        path,
+        ["filename", "first_ping_time"],
+        ["first_ping_time"],
+    )
+
+    assert manifest["first_ping_time"].tolist() == [
+        pd.Timestamp("2025-06-19T00:00:00Z"),
+        pd.Timestamp("2025-06-19T00:20:00Z"),
+    ]
+
+
 @pytest.mark.parametrize(
     ("stored_columns", "error_text"),
     [
