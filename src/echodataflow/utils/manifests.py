@@ -44,14 +44,17 @@ MVBS_COLUMNS_POSTPROCESSING = [
 ]
 PREDICTION_COLUMNS_POSTPROCESSING = [
     "prediction_filename_postfix",
+    "slice_start",
+    "slice_end",
+    "MVBS_filenames",
     "score_filename",
     "softmax_filename",
     "prediction_filename",
     "evr_filename",
-    "slice_start",
-    "slice_end",
     "first_ping_time",
     "last_ping_time",
+    "prediction_status",
+    "error",
 ]
 
 

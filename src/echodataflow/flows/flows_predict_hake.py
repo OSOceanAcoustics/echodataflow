@@ -18,7 +18,11 @@ from echodataflow.utils.manifests import (
     read_manifest,
     write_manifest,
 )
-from echodataflow.operations.operations_postprocessing import plan_prediction_slices
+from echodataflow.operations.operations_postprocessing import (
+    build_prediction_ledger,
+    plan_prediction_slices,
+    read_or_create_ledger,
+)
 from echodataflow.operations.operations_predict_hake import (
     ComputeNASCSettings,
     ComputeNASCWorkItem,
@@ -248,10 +252,6 @@ def flow_predict_hake_postprocessing(
     path_weight: str,
     mvbs_slice_mins: int = 20,
     prediction_slice_mins: int = 40,
-    start_time: str | None = None,
-    end_time: str | None = None,
-    require_complete_window: bool = True,
-    overwrite: bool = False,
     temperature: float = 0.5,
     softmax_threshold: float = 0.5,
     max_depth: float = 590.0,
@@ -261,41 +261,34 @@ def flow_predict_hake_postprocessing(
     file_prediction_csv: str = "prediction_files.csv",
 ) -> None:
     """Predict all newly ready windows, combining aligned MVBS slices."""
-    if overwrite and (start_time is None or end_time is None):
-        raise ValueError("overwrite=True requires explicit start_time and end_time")
-
     logger = get_run_logger()
+
     # Create persistent destinations before loading the model
     for directory in ["prediction", "EVR", "NASC"]:
         (Path(path_main) / directory).mkdir(parents=True, exist_ok=True)
+
     # Load available MVBS slices and prior prediction results for resume behavior
-    mvbs = read_manifest(
+    df_MVBS = read_manifest(
         Path(path_main) / file_MVBS_csv,
         MVBS_COLUMNS_POSTPROCESSING,
         ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
     )
-    mvbs = mvbs[mvbs["MVBS_status"] == "completed"]
-    manifest_path = Path(path_main) / file_prediction_csv
-    manifest = read_manifest(
-        manifest_path,
-        PREDICTION_COLUMNS_POSTPROCESSING,
-        ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
+    file_prediction_csv = Path(path_main) / file_prediction_csv
+    df_prediction = read_or_create_ledger(
+        ledger_path=file_prediction_csv,
+        columns=PREDICTION_COLUMNS_POSTPROCESSING,
+        date_columns=["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
+        builder=lambda: build_prediction_ledger(
+            df_MVBS,
+            mvbs_slice_mins,
+            prediction_slice_mins,
+        ),
     )
     # Assemble aligned prediction windows from completed MVBS slices
     planned = plan_prediction_slices(
-        mvbs,
-        mvbs_slice_mins=mvbs_slice_mins,
-        prediction_slice_mins=prediction_slice_mins,
-        require_complete_window=require_complete_window,
-        start_time=start_time,
-        end_time=end_time,
+        df_MVBS,
+        df_prediction,
     )
-    completed = set(manifest["prediction_filename_postfix"].astype(str))
-    planned = [
-        item
-        for item in planned
-        if overwrite or item.start_time.strftime("%Y%m%dT%H%M%S") not in completed
-    ]
     if not planned:
         logger.info("No newly ready prediction windows")
         return
@@ -338,26 +331,39 @@ def flow_predict_hake_postprocessing(
                 ),
                 nasc_settings,
             )
-            record = [
-                postfix,
+            idx = df_prediction.index[df_prediction["prediction_filename_postfix"] == postfix][0]
+            df_prediction.loc[
+                idx,
+                [
+                    "score_filename",
+                    "softmax_filename",
+                    "prediction_filename",
+                    "evr_filename",
+                    "first_ping_time",
+                    "last_ping_time",
+                    "prediction_status",
+                    "error",
+                ],
+            ] = [
                 result.score_filename,
                 result.softmax_filename,
                 result.prediction_filename,
                 result.evr_filename,
-                item.start_time,
-                item.end_time,
                 result.first_ping_time,
                 result.last_ping_time,
+                "completed",
+                "",
             ]
             # Persist after each window so a failed later window does not lose progress
-            matches = manifest.index[manifest["prediction_filename_postfix"] == postfix]
-            if len(matches):
-                manifest.loc[matches[0], PREDICTION_COLUMNS_POSTPROCESSING] = record
-            else:
-                manifest.loc[len(manifest), PREDICTION_COLUMNS_POSTPROCESSING] = record
-            write_manifest(manifest.sort_values("slice_start"), manifest_path)
+            write_manifest(df_prediction.sort_values("slice_start"), file_prediction_csv)
         except Exception as exc:
             errors.append(exc)
+            idx = df_prediction.index[df_prediction["prediction_filename_postfix"] == postfix][0]
+            df_prediction.loc[idx, ["prediction_status", "error"]] = [
+                "failed",
+                str(exc),
+            ]
+            write_manifest(df_prediction.sort_values("slice_start"), file_prediction_csv)
             logger.error("Prediction window %s failed: %s", item.start_time, exc)
     if errors:
         raise RuntimeError(f"{len(errors)} prediction windows failed")

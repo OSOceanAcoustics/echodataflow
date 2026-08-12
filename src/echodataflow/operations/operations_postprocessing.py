@@ -176,6 +176,51 @@ def build_mvbs_ledger(sv_ledger: pd.DataFrame, slice_mins: int = 20) -> pd.DataF
     return pd.DataFrame.from_records(records)
 
 
+def build_prediction_ledger(
+    mvbs_ledger: pd.DataFrame,
+    mvbs_slice_mins: int = 20,
+    prediction_slice_mins: int = 40,
+) -> pd.DataFrame:
+    """Preplan every prediction window and its required MVBS slices."""
+    if prediction_slice_mins % mvbs_slice_mins != 0:
+        raise ValueError("prediction_slice_mins must be a multiple of mvbs_slice_mins")
+    if mvbs_ledger.empty:
+        return pd.DataFrame()
+
+    df_MVBS = mvbs_ledger.copy()
+    df_MVBS["slice_start"] = pd.to_datetime(df_MVBS["slice_start"], utc=True)
+    df_MVBS["slice_end"] = pd.to_datetime(df_MVBS["slice_end"], utc=True)
+    windows = generate_aligned_windows(
+        df_MVBS["slice_start"].min(),
+        df_MVBS["slice_end"].max(),
+        prediction_slice_mins,
+    )
+
+    records = []
+    for window in windows:
+        required = df_MVBS[
+            (df_MVBS["slice_start"] >= window.start_time)
+            & (df_MVBS["slice_start"] < window.end_time)
+        ].sort_values("slice_start")
+        records.append(
+            {
+                "prediction_filename_postfix": window.start_time.strftime("%Y%m%dT%H%M%S"),
+                "slice_start": window.start_time,
+                "slice_end": window.end_time,
+                "MVBS_filenames": json.dumps(required["MVBS_filename"].tolist()),
+                "score_filename": pd.NA,
+                "softmax_filename": pd.NA,
+                "prediction_filename": pd.NA,
+                "evr_filename": pd.NA,
+                "first_ping_time": pd.NaT,
+                "last_ping_time": pd.NaT,
+                "prediction_status": "pending",
+                "error": "",
+            }
+        )
+    return pd.DataFrame.from_records(records)
+
+
 def read_or_create_ledger(
     ledger_path: Path,
     columns: list[str],
@@ -184,9 +229,7 @@ def read_or_create_ledger(
 ) -> pd.DataFrame:
     """Load a ledger or create it with the supplied builder."""
     if ledger_path.exists():
-        return read_manifest(
-            path=ledger_path, columns=columns, date_columns=date_columns
-        )
+        return read_manifest(path=ledger_path, columns=columns, date_columns=date_columns)
 
     ledger = builder()
     write_manifest(ledger, ledger_path)
@@ -240,70 +283,45 @@ def plan_mvbs_slices(
 
 
 def plan_prediction_slices(
-    df_MVBS_in: pd.DataFrame,
-    mvbs_slice_mins: int = 20,
-    prediction_slice_mins: int = 40,
-    require_complete_window: bool = True,
-    start_time: str | None = None,
-    end_time: str | None = None,
+    mvbs_ledger: pd.DataFrame,
+    prediction_ledger: pd.DataFrame,
 ) -> list[PlannedSlice]:
-    """Group completed MVBS slices into aligned prediction windows."""
-    if prediction_slice_mins % mvbs_slice_mins != 0:
-        raise ValueError("prediction_slice_mins must be a multiple of mvbs_slice_mins")
-    if df_MVBS_in.empty:
+    """Return pending prediction windows whose required MVBS slices are ready."""
+    if mvbs_ledger.empty or prediction_ledger.empty:
         return []
 
-    df_MVBS = df_MVBS_in.copy()
-    df_MVBS["first_ping_time"] = pd.to_datetime(df_MVBS["first_ping_time"], utc=True)
-    df_MVBS["last_ping_time"] = pd.to_datetime(df_MVBS["last_ping_time"], utc=True)
-    expected_count = prediction_slice_mins // mvbs_slice_mins
+    df_MVBS = mvbs_ledger.copy()
+    df_prediction = prediction_ledger.copy()
+    df_prediction["slice_start"] = pd.to_datetime(df_prediction["slice_start"], utc=True)
+    df_prediction["slice_end"] = pd.to_datetime(df_prediction["slice_end"], utc=True)
 
     slices: list[PlannedSlice] = []
-    # Derive prediction windows directly from the available ping-time coverage
-    windows = generate_aligned_windows(
-        first_time=df_MVBS["first_ping_time"].min(),
-        last_time=df_MVBS["last_ping_time"].max().ceil(f"{prediction_slice_mins}min"),
-        window_mins=prediction_slice_mins,
-    )
-    window_frame = pd.DataFrame(
-        {
-            "start_time": [window.start_time for window in windows],
-            "end_time": [window.end_time for window in windows],
-        }
-    )
-    # Filter the generated windows based on the specified time range
-    window_frame = filter_time_range(
-        df=window_frame,
-        column_start_time="start_time",
-        column_end_time="end_time",
-        start_time=start_time,
-        end_time=end_time,
-    )
-    for row in window_frame.itertuples(index=False):
-        window = TimeWindow(row.start_time, row.end_time)
-        # Match the real-time flow's actual ping-time overlap selection
-        contributing = select_overlapping_records(
-            df_MVBS,
-            window,
-            "first_ping_time",
-            "last_ping_time",
-        ).sort_values("first_ping_time")
-        # Optional completeness requires the expected number of non-partial inputs
-        complete = len(contributing) == expected_count
-        partial = False
-        if "is_partial" in contributing:
-            partial = (
-                contributing["is_partial"]
-                .map(lambda value: str(value).strip().lower() in {"true", "1", "yes"})
-                .any()
+    for row in df_prediction.itertuples(index=False):
+        if row.prediction_status == "completed":
+            continue
+
+        required_names = json.loads(row.MVBS_filenames)
+        required_MVBS = df_MVBS[df_MVBS["MVBS_filename"].isin(required_names)]
+        if len(required_MVBS) != len(required_names):
+            raise ValueError(f"Prediction ledger references unknown MVBS files: {required_names}")
+
+        if not required_MVBS["MVBS_status"].eq("completed").all():
+            continue
+
+        partial = (
+            required_MVBS["is_partial"]
+            .map(lambda value: str(value).strip().lower() in {"true", "1", "yes"})
+            .any()
+        )
+
+        slices.append(
+            PlannedSlice(
+                start_time=row.slice_start,
+                end_time=row.slice_end,
+                filenames=tuple(
+                    required_MVBS.sort_values("slice_start")["MVBS_filename"].astype(str)
+                ),
+                is_partial=bool(partial),
             )
-        if not contributing.empty and (not require_complete_window or (complete and not partial)):
-            slices.append(
-                PlannedSlice(
-                    start_time=window.start_time,
-                    end_time=window.end_time,
-                    filenames=tuple(contributing["MVBS_filename"].astype(str)),
-                    is_partial=not complete or bool(partial),
-                )
-            )
+        )
     return slices

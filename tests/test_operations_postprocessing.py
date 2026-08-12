@@ -3,6 +3,7 @@ import pytest
 
 from echodataflow.operations.operations_postprocessing import (
     TimeWindow,
+    build_prediction_ledger,
     build_mvbs_ledger,
     build_sv_ledger,
     generate_aligned_windows,
@@ -160,13 +161,17 @@ def test_prediction_combines_two_aligned_mvbs_slices():
     mvbs = pd.DataFrame(
         {
             "MVBS_filename": ["first.zarr", "second.zarr"],
+            "slice_start": pd.to_datetime(["2025-06-11T00:00:00Z", "2025-06-11T00:20:00Z"]),
+            "slice_end": pd.to_datetime(["2025-06-11T00:20:00Z", "2025-06-11T00:40:00Z"]),
             "first_ping_time": pd.to_datetime(["2025-06-11T00:00:05Z", "2025-06-11T00:20:05Z"]),
             "last_ping_time": pd.to_datetime(["2025-06-11T00:19:55Z", "2025-06-11T00:39:55Z"]),
             "is_partial": [False, False],
+            "MVBS_status": ["completed", "completed"],
         }
     )
 
-    planned = plan_prediction_slices(mvbs, 20, 40)
+    prediction = build_prediction_ledger(mvbs, 20, 40)
+    planned = plan_prediction_slices(mvbs, prediction)
 
     assert len(planned) == 1
     assert planned[0].start_time == pd.Timestamp("2025-06-11T00:00:00Z")
@@ -174,41 +179,64 @@ def test_prediction_combines_two_aligned_mvbs_slices():
     assert planned[0].filenames == ("first.zarr", "second.zarr")
 
 
+def test_prediction_planner_skips_completed_prediction_windows():
+    mvbs = pd.DataFrame(
+        {
+            "MVBS_filename": ["first.zarr", "second.zarr"],
+            "slice_start": pd.to_datetime(["2025-06-11T00:00:00Z", "2025-06-11T00:20:00Z"]),
+            "slice_end": pd.to_datetime(["2025-06-11T00:20:00Z", "2025-06-11T00:40:00Z"]),
+            "first_ping_time": pd.to_datetime(["2025-06-11T00:00:05Z", "2025-06-11T00:20:05Z"]),
+            "last_ping_time": pd.to_datetime(["2025-06-11T00:19:55Z", "2025-06-11T00:39:55Z"]),
+            "is_partial": [False, False],
+            "MVBS_status": ["completed", "completed"],
+        }
+    )
+    prediction = build_prediction_ledger(mvbs, 20, 40)
+    prediction.loc[0, "prediction_status"] = "completed"
+
+    planned = plan_prediction_slices(mvbs, prediction)
+
+    assert planned == []
+
+
 def test_prediction_requires_both_mvbs_slices_by_default():
     mvbs = pd.DataFrame(
         {
             "MVBS_filename": ["first.zarr"],
+            "slice_start": pd.to_datetime(["2025-06-11T00:00:00Z"]),
+            "slice_end": pd.to_datetime(["2025-06-11T00:20:00Z"]),
             "first_ping_time": pd.to_datetime(["2025-06-11T00:00:05Z"]),
             "last_ping_time": pd.to_datetime(["2025-06-11T00:19:55Z"]),
             "is_partial": [False],
+            "MVBS_status": ["completed"],
         }
     )
 
-    assert plan_prediction_slices(mvbs, 20, 40) == []
+    assert build_prediction_ledger(mvbs, 20, 40).empty
 
 
 def test_incomplete_prediction_uses_any_actual_ping_time_overlap_when_allowed():
     mvbs = pd.DataFrame(
         {
             "MVBS_filename": ["overlapping.zarr", "outside.zarr"],
+            "slice_start": pd.to_datetime(["2025-06-11T00:00:00Z", "2025-06-11T00:40:00Z"]),
+            "slice_end": pd.to_datetime(["2025-06-11T00:20:00Z", "2025-06-11T01:00:00Z"]),
             "first_ping_time": pd.to_datetime(["2025-06-11T00:05:00Z", "2025-06-11T00:40:00Z"]),
             "last_ping_time": pd.to_datetime(["2025-06-11T00:15:00Z", "2025-06-11T00:45:00Z"]),
             "is_partial": [True, True],
+            "MVBS_status": ["completed", "completed"],
         }
     )
+    prediction = build_prediction_ledger(mvbs, 20, 40)
 
-    planned = plan_prediction_slices(
-        mvbs,
-        20,
-        40,
-        require_complete_window=False,
-    )
+    planned = plan_prediction_slices(mvbs, prediction)
 
-    assert len(planned) == 2
+    assert len(planned) == 1
     assert planned[0].filenames == ("overlapping.zarr",)
-    assert planned[1].filenames == ("outside.zarr",)
+    assert planned[0].is_partial
+    assert planned[0].is_partial
 
 
 def test_prediction_length_must_align_with_mvbs_length():
     with pytest.raises(ValueError, match="must be a multiple"):
-        plan_prediction_slices(pd.DataFrame(), 20, 30)
+        build_prediction_ledger(pd.DataFrame(), 20, 30)
