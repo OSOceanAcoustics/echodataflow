@@ -16,7 +16,6 @@ from echodataflow.utils.manifests import (
     MVBS_COLUMNS_REALTIME,
     PREDICTION_COLUMNS_REALTIME,
     filter_slices,
-    manifest_signature_changed,
     read_manifest,
     write_manifest,
 )
@@ -274,8 +273,9 @@ def flow_predict_hake_postprocessing(
     mvbs = read_manifest(
         Path(path_main) / file_MVBS_csv,
         MVBS_COLUMNS_POSTPROCESSING,
-        ["first_ping_time", "last_ping_time"],
+        ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
     )
+    mvbs = mvbs[mvbs["MVBS_status"] == "completed"]
     manifest_path = Path(path_main) / file_prediction_csv
     manifest = read_manifest(
         manifest_path,
@@ -293,16 +293,11 @@ def flow_predict_hake_postprocessing(
         start_time,
         end_time,
     )
+    completed = set(manifest["prediction_filename_postfix"].astype(str))
     planned = [
         item
         for item in planned
-        if overwrite
-        or manifest_signature_changed(
-            manifest,
-            "prediction_filename_postfix",
-            item.start_time.strftime("%Y%m%dT%H%M%S"),
-            item.input_signature,
-        )
+        if overwrite or item.start_time.strftime("%Y%m%dT%H%M%S") not in completed
     ]
     if not planned:
         logger.info("No newly ready prediction windows")
@@ -356,7 +351,6 @@ def flow_predict_hake_postprocessing(
                 item.end_time,
                 result.first_ping_time,
                 result.last_ping_time,
-                item.input_signature,
             ]
             # Persist after each window so a failed later window does not lose progress
             matches = manifest.index[manifest["prediction_filename_postfix"] == postfix]

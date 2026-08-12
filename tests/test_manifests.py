@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from echodataflow.utils.manifests import (
     filter_time_range,
@@ -23,13 +24,13 @@ def test_manifest_signature_detects_missing_and_changed_outputs():
     assert manifest_signature_changed(manifest, "filename", "missing.zarr", "current")
 
 
-def test_manifest_round_trip_repairs_schema_and_normalizes_utc(tmp_path):
+def test_manifest_round_trip_normalizes_utc(tmp_path):
     path = tmp_path / "manifest.csv"
     pd.DataFrame(
         {
             "filename": ["example.zarr"],
             "first_ping_time": ["2025-06-19T00:00:00"],
-            "legacy_column": ["ignored"],
+            "last_ping_time": ["2025-06-19T00:01:00"],
         }
     ).to_csv(path)
 
@@ -45,7 +46,7 @@ def test_manifest_round_trip_repairs_schema_and_normalizes_utc(tmp_path):
         "last_ping_time",
     ]
     assert manifest.loc[0, "first_ping_time"] == pd.Timestamp("2025-06-19T00:00:00Z")
-    assert pd.isna(manifest.loc[0, "last_ping_time"])
+    assert manifest.loc[0, "last_ping_time"] == pd.Timestamp("2025-06-19T00:01:00Z")
 
     write_manifest(manifest, path)
 
@@ -53,7 +54,25 @@ def test_manifest_round_trip_repairs_schema_and_normalizes_utc(tmp_path):
     assert not Path(f"{path}.tmp").exists()
 
 
-def test_filter_time_range_can_include_one_file_outside_each_boundary():
+@pytest.mark.parametrize(
+    ("stored_columns", "error_text"),
+    [
+        (["filename"], "missing columns=['first_ping_time']"),
+        (
+            ["filename", "first_ping_time", "legacy_column"],
+            "unexpected columns=['legacy_column']",
+        ),
+    ],
+)
+def test_read_manifest_rejects_schema_drift(tmp_path, stored_columns, error_text):
+    path = tmp_path / "manifest.csv"
+    pd.DataFrame([{column: "value" for column in stored_columns}]).to_csv(path)
+
+    with pytest.raises(ValueError, match=error_text.replace("[", r"\[").replace("]", r"\]")):
+        read_manifest(path, ["filename", "first_ping_time"], ["first_ping_time"])
+
+
+def test_filter_time_range_with_start_only_includes_preceding_file():
     frame = pd.DataFrame(
         {
             "s3_path": ["before.raw", "first.raw", "last.raw", "after.raw", "later.raw"],
@@ -72,16 +91,15 @@ def test_filter_time_range_can_include_one_file_outside_each_boundary():
     selected = filter_time_range(
         frame,
         "timestamp",
+        None,
         "2025-06-19T00:00:00Z",
         "2025-06-19T02:00:00Z",
-        include_boundary_neighbors=True,
     )
 
     assert selected["s3_path"].tolist() == [
         "before.raw",
         "first.raw",
         "last.raw",
-        "after.raw",
     ]
 
 
@@ -96,8 +114,45 @@ def test_filter_time_range_remains_half_open_without_neighbors():
     selected = filter_time_range(
         frame,
         "timestamp",
+        None,
         "2025-06-19T00:00:00Z",
         "2025-06-19T02:00:00Z",
     )
 
     assert selected["s3_path"].tolist() == ["start.raw"]
+
+
+def test_filter_time_range_with_start_and_end_selects_overlapping_records():
+    frame = pd.DataFrame(
+        {
+            "name": ["before", "crosses-start", "inside", "crosses-end", "after"],
+            "first_ping_time": pd.to_datetime(
+                [
+                    "2025-06-18T23:40:00Z",
+                    "2025-06-18T23:55:00Z",
+                    "2025-06-19T00:20:00Z",
+                    "2025-06-19T01:55:00Z",
+                    "2025-06-19T02:00:00Z",
+                ]
+            ),
+            "last_ping_time": pd.to_datetime(
+                [
+                    "2025-06-18T23:50:00Z",
+                    "2025-06-19T00:05:00Z",
+                    "2025-06-19T00:30:00Z",
+                    "2025-06-19T02:05:00Z",
+                    "2025-06-19T02:10:00Z",
+                ]
+            ),
+        }
+    )
+
+    selected = filter_time_range(
+        frame,
+        "first_ping_time",
+        "last_ping_time",
+        "2025-06-19T00:00:00Z",
+        "2025-06-19T02:00:00Z",
+    )
+
+    assert selected["name"].tolist() == ["crosses-start", "inside", "crosses-end"]

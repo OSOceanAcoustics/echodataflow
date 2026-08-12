@@ -17,13 +17,11 @@ from prefect import runtime
 from echodataflow.flows.flows_helper import deployment_already_running
 from echodataflow.utils.manifests import (
     MVBS_COLUMNS_POSTPROCESSING,
-    RAW_COLUMNS,
     MVBS_COLUMNS_REALTIME,
     SV_COLUMNS_REALTIME,
     SV_COLUMNS_POSTPROCESSING,
     filter_slices,
     filter_time_range,
-    manifest_signature_changed,
     read_manifest,
     write_manifest,
 )
@@ -35,7 +33,11 @@ from echodataflow.operations.operations_acoustics import (
     RawToSvSettings,
     RawToSvWorkItem,
 )
-from echodataflow.operations.operations_postprocessing import plan_mvbs_slices
+from echodataflow.operations.operations_postprocessing import (
+    read_or_create_mvbs_ledger,
+    read_or_create_sv_ledger,
+    plan_mvbs_slices,
+)
 from echodataflow.operations.operations_storage import S3CopySettings, S3CopyWorkItem
 from echodataflow.tasks.tasks_acoustics import (
     task_create_MVBS,
@@ -409,7 +411,6 @@ def flow_raw2Sv_postprocessing(
     start_time: str | None = None,
     end_time: str | None = None,
     new_file_num_limit: int = -1,
-    overwrite: bool = False,
     task_retries: int = 3,
     task_retry_delay_seconds: int = 30,
     encode_mode: str = "power",
@@ -418,67 +419,36 @@ def flow_raw2Sv_postprocessing(
     sonar_model: str = "EK80",
     datagram_type: str | None = None,
     nmea_sentence: str | None = None,
-    file_raw_processing_csv: str = "raw_processing.csv",
     file_Sv_csv: str = "Sv_files.csv",
 ) -> None:
-    """Stage selected S3 raw files and convert them concurrently to Sv."""
-    if overwrite and (start_time is None or end_time is None):
-        raise ValueError("overwrite=True requires explicit start_time and end_time")
-
+    """Convert raw files and update corresponding rows in the Sv ledger."""
     logger = get_run_logger()
     # Keep temporary raw files separate from persistent Sv outputs
     path_raw_staging = Path(path_main) / "raw_staging"
     path_Sv = Path(path_main) / "Sv"
     path_raw_staging.mkdir(parents=True, exist_ok=True)
     path_Sv.mkdir(parents=True, exist_ok=True)
-    raw_manifest_path = Path(path_main) / file_raw_processing_csv
-    sv_manifest_path = Path(path_main) / file_Sv_csv
+    file_Sv_csv = Path(path_main) / file_Sv_csv
 
-    # Select the requested portion of the reusable S3 source manifest
-    source = pd.read_csv(path_raw_list)
-    required = {"s3_path", "timestamp"}
-    if not required.issubset(source.columns):
-        raise ValueError(f"raw list must contain columns: {sorted(required)}")
-    source["timestamp"] = pd.to_datetime(source["timestamp"], utc=True)
-    source = filter_time_range(
-        source,
-        "timestamp",
-        start_time,
-        end_time,
-        include_boundary_neighbors=True,
+    # Initialize the complete ledger before selecting work for this run
+    df_Sv = read_or_create_sv_ledger(path_raw_list, file_Sv_csv)
+    selected = filter_time_range(
+        df=df_Sv,
+        column_start_time="timestamp",
+        column_end_time=None,
+        start_time=start_time,
+        end_time=end_time,
     )
-    if source["s3_path"].map(lambda value: Path(str(value)).name).duplicated().any():
-        raise ValueError("selected S3 paths contain duplicate basenames")
-
-    # Resume from durable processing and output manifests
-    df_raw = read_manifest(raw_manifest_path, RAW_COLUMNS, ["timestamp"])
-    df_Sv = read_manifest(
-        sv_manifest_path, SV_COLUMNS_POSTPROCESSING, ["first_ping_time", "last_ping_time"]
-    )
-    completed = set(df_raw.loc[df_raw["status"] == "completed", "s3_path"])
-    selected = source if overwrite else source[~source["s3_path"].isin(completed)]
+    selected = selected[selected["raw2Sv_status"] != "completed"]
     if new_file_num_limit != -1:
         selected = selected.head(new_file_num_limit)
     if selected.empty:
         logger.info("No raw files require processing")
         return
 
-    # Register all selected inputs before workers begin completing out of order
-    for row in selected.itertuples(index=False):
-        key = str(row.s3_path)
-        values = {
-            "s3_path": key,
-            "timestamp": row.timestamp,
-            "raw_filename": Path(key).name,
-            "status": "pending",
-            "error": "",
-        }
-        matches = df_raw.index[df_raw["s3_path"] == key]
-        if len(matches):
-            df_raw.loc[matches[0], RAW_COLUMNS] = list(values.values())
-        else:
-            df_raw.loc[len(df_raw), RAW_COLUMNS] = list(values.values())
-    write_manifest(df_raw, raw_manifest_path)
+    # Mark submitted work before workers begin completing out of order
+    df_Sv.loc[selected.index, ["raw2Sv_status", "error"]] = ["pending", ""]
+    write_manifest(df_Sv, file_Sv_csv)
 
     copy_settings = S3CopySettings(s3_bucket=s3_bucket, endpoint_url=endpoint_url)
     sv_settings = RawToSvSettings(
@@ -511,29 +481,33 @@ def flow_raw2Sv_postprocessing(
     # Persist each result immediately so polling MVBS runs can observe progress
     for future in as_completed(conversion_futures):
         key = conversion_futures[future]
-        idx = df_raw.index[df_raw["s3_path"] == key][0]
+        idx = df_Sv.index[df_Sv["s3_path"] == key][0]
         try:
             result = future.result()
-            record = [
-                key,
-                result.raw_filename,
-                result.sv_filename,
+            df_Sv.loc[
+                idx,
+                [
+                    "raw_filename",
+                    "Sv_filename",
+                    "raw2Sv_status",
+                    "first_ping_time",
+                    "last_ping_time",
+                    "error",
+                ],
+            ] = [
+                result.filename_raw,
+                result.filename_Sv,
+                "completed",
                 result.first_ping_time,
                 result.last_ping_time,
+                "",
             ]
-            matches = df_Sv.index[df_Sv["s3_path"] == key]
-            if len(matches):
-                df_Sv.loc[matches[0], SV_COLUMNS_POSTPROCESSING] = record
-            else:
-                df_Sv.loc[len(df_Sv), SV_COLUMNS_POSTPROCESSING] = record
-            df_raw.loc[idx, ["status", "error"]] = ["completed", ""]
-            write_manifest(df_Sv, sv_manifest_path)
-            write_manifest(df_raw, raw_manifest_path)
+            write_manifest(df_Sv, file_Sv_csv)
             logger.info("Completed %s", key)
         except Exception as exc:
             errors.append(exc)
-            df_raw.loc[idx, ["status", "error"]] = ["failed", str(exc)]
-            write_manifest(df_raw, raw_manifest_path)
+            df_Sv.loc[idx, ["raw2Sv_status", "error"]] = ["failed", str(exc)]
+            write_manifest(df_Sv, file_Sv_csv)
             logger.error("Failed to download or convert %s: %s", key, exc)
     if errors:
         raise RuntimeError(f"{len(errors)} raw-to-Sv conversions failed")
@@ -545,43 +519,39 @@ def flow_create_MVBS_postprocessing(
     slice_mins: int = 20,
     start_time: str | None = None,
     end_time: str | None = None,
-    overwrite: bool = False,
     range_bin: str = "1m",
     ping_time_bin: str = "5s",
-    file_raw_processing_csv: str = "raw_processing.csv",
     file_Sv_csv: str = "Sv_files.csv",
     file_MVBS_csv: str = "MVBS_files.csv",
 ) -> None:
-    """Create every newly ready MVBS slice registered by raw-to-Sv runs."""
-    if overwrite and (start_time is None or end_time is None):
-        raise ValueError("overwrite=True requires explicit start_time and end_time")
-
+    """Create preplanned MVBS slices after all required raw conversions finish."""
     logger = get_run_logger()
+    file_Sv_csv = Path(path_main) / file_Sv_csv
+    if not file_Sv_csv.exists():
+        logger.info("Sv ledger does not yet exist")
+        return
+
     path_MVBS = Path(path_main) / "MVBS"
     path_MVBS.mkdir(parents=True, exist_ok=True)
-    # Load input state and previously completed MVBS outputs
-    df_raw = read_manifest(Path(path_main) / file_raw_processing_csv, RAW_COLUMNS, ["timestamp"])
+    file_MVBS_csv = Path(path_main) / file_MVBS_csv
+    # Raw-to-Sv owns Sv ledger initialization
     df_Sv = read_manifest(
-        Path(path_main) / file_Sv_csv, SV_COLUMNS_POSTPROCESSING, ["first_ping_time", "last_ping_time"]
+        path=file_Sv_csv,
+        columns=SV_COLUMNS_POSTPROCESSING,
+        date_columns=["timestamp", "first_ping_time", "last_ping_time"],
     )
-    manifest_path = Path(path_main) / file_MVBS_csv
-    df_MVBS = read_manifest(
-        manifest_path,
-        MVBS_COLUMNS_POSTPROCESSING,
-        ["first_ping_time", "last_ping_time"],
-    )
-    # Plan sealed slices and retain new outputs or outputs with changed inputs
-    planned = filter_slices(plan_mvbs_slices(df_raw, df_Sv, slice_mins), start_time, end_time)
+    # Preplan every MVBS row once from the complete raw-file timeline
+    df_MVBS = read_or_create_mvbs_ledger(file_MVBS_csv, df_Sv, slice_mins)
+
+    planned = filter_slices(plan_mvbs_slices(df_Sv, df_MVBS), start_time, end_time)
     planned = [
         item
         for item in planned
-        if overwrite
-        or manifest_signature_changed(
-            df_MVBS,
-            "MVBS_filename",
-            f"MVBS_{item.start_time:%Y%m%dT%H%M%S}.zarr",
-            item.input_signature,
-        )
+        if df_MVBS.loc[
+            df_MVBS["slice_start"] == item.start_time,
+            "MVBS_status",
+        ].iloc[0]
+        != "completed"
     ]
     if not planned:
         logger.info("No newly ready MVBS slices")
@@ -616,10 +586,17 @@ def flow_create_MVBS_postprocessing(
             result = future.result()
             record = [
                 result.mvbs_filename,
+                item.start_time,
+                item.end_time,
+                df_MVBS.loc[
+                    df_MVBS["slice_start"] == item.start_time,
+                    "raw_filenames",
+                ].iloc[0],
                 result.first_ping_time,
                 result.last_ping_time,
                 item.is_partial,
-                item.input_signature,
+                "completed",
+                "",
             ]
             matches = df_MVBS.index[df_MVBS["MVBS_filename"] == result.mvbs_filename]
             if len(matches):
@@ -628,7 +605,10 @@ def flow_create_MVBS_postprocessing(
                 df_MVBS.loc[len(df_MVBS), MVBS_COLUMNS_POSTPROCESSING] = record
         except Exception as exc:
             errors.append(exc)
+            filename = f"MVBS_{item.start_time:%Y%m%dT%H%M%S}.zarr"
+            idx = df_MVBS.index[df_MVBS["MVBS_filename"] == filename][0]
+            df_MVBS.loc[idx, ["MVBS_status", "error"]] = ["failed", str(exc)]
             logger.error("MVBS slice %s failed: %s", item.start_time, exc)
-    write_manifest(df_MVBS.sort_values("first_ping_time"), manifest_path)
+    write_manifest(df_MVBS.sort_values("slice_start"), file_MVBS_csv)
     if errors:
         raise RuntimeError(f"{len(errors)} MVBS slices failed")

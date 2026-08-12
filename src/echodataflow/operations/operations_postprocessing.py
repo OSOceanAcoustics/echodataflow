@@ -5,8 +5,17 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
+from pathlib import Path
 
 import pandas as pd
+
+from echodataflow.utils.manifests import (
+    MVBS_COLUMNS_POSTPROCESSING,
+    SV_COLUMNS_POSTPROCESSING,
+    read_manifest,
+    write_manifest,
+)
+from echodataflow.utils.utils import extract_datetime_from_filename
 
 
 @dataclass(frozen=True)
@@ -28,25 +37,17 @@ class TimeWindow:
     end_time: pd.Timestamp
 
 
-def _utc(value) -> pd.Timestamp:
-    return pd.to_datetime(value, utc=True)
-
-
-def _interval_floor(value, minutes: int) -> pd.Timestamp:
-    if minutes <= 0:
-        raise ValueError("slice length must be greater than zero")
-    return _utc(value).floor(f"{minutes}min")
-
-
 def generate_aligned_windows(
     first_time,
     last_time,
     window_mins: int,
 ) -> list[TimeWindow]:
     """Generate complete UTC-aligned windows between two timestamps."""
+    if window_mins <= 0:
+        raise ValueError("slice length must be greater than zero")
     duration = pd.Timedelta(minutes=window_mins)
-    start = _interval_floor(first_time, window_mins)
-    final_end = _interval_floor(last_time, window_mins)
+    start = pd.to_datetime(first_time, utc=True).floor(f"{window_mins}min")
+    final_end = pd.to_datetime(last_time, utc=True).floor(f"{window_mins}min")
 
     windows: list[TimeWindow] = []
     while start + duration <= final_end:
@@ -106,76 +107,152 @@ def build_input_signature(
     return hashlib.sha256(serialized.encode()).hexdigest()
 
 
-def plan_mvbs_slices(
-    df_raw_in: pd.DataFrame,
-    df_Sv_in: pd.DataFrame,
-    slice_mins: int = 20,
-) -> list[PlannedSlice]:
-    """Return MVBS slices whose registered raw inputs are complete.
+def build_sv_ledger(raw_files: pd.DataFrame) -> pd.DataFrame:
+    """Build the fixed post-processing Sv ledger from the complete raw list."""
+    required = {"s3_path"}
+    if not required.issubset(raw_files.columns):
+        raise ValueError(f"raw list must contain columns: {sorted(required)}")
 
-    A slice is sealed only after the completion watermark has reached its end.
-    Failed or pending raw files whose source timestamps fall in the slice keep it
-    from becoming ready.
-    """
-    if df_raw_in.empty or df_Sv_in.empty:
-        return []
+    ledger = raw_files[["s3_path"]].copy()
+    ledger["s3_path"] = ledger["s3_path"].astype(str)
+    ledger["raw_filename"] = ledger["s3_path"].map(lambda value: Path(value).name)
+    if ledger["s3_path"].duplicated().any():
+        raise ValueError("raw list contains duplicate S3 paths")
+    if ledger["raw_filename"].duplicated().any():
+        raise ValueError("raw list contains duplicate basenames")
 
-    df_raw = df_raw_in.copy()
-    df_Sv = df_Sv_in.copy()
-    df_raw["timestamp"] = pd.to_datetime(df_raw["timestamp"], utc=True)
-    df_Sv["first_ping_time"] = pd.to_datetime(df_Sv["first_ping_time"], utc=True)
-    df_Sv["last_ping_time"] = pd.to_datetime(df_Sv["last_ping_time"], utc=True)
+    ledger["timestamp"] = ledger["raw_filename"].map(extract_datetime_from_filename)
+    invalid = ledger.loc[ledger["timestamp"].isna(), "raw_filename"].tolist()
+    if invalid:
+        raise ValueError(f"Could not parse timestamps from raw filenames: {invalid}")
+    ledger["timestamp"] = pd.to_datetime(ledger["timestamp"], utc=True)
 
-    df_completed = df_raw[df_raw["status"] == "completed"]
-    if df_completed.empty:
-        return []
+    ledger["Sv_filename"] = pd.NA
+    ledger["raw2Sv_status"] = "pending"
+    ledger["first_ping_time"] = pd.NaT
+    ledger["last_ping_time"] = pd.NaT
+    ledger["error"] = ""
+    return ledger.sort_values("timestamp").reset_index(drop=True)
 
-    # The watermark seals only intervals ending before the latest completed input
-    completed_keys = set(df_completed["s3_path"].astype(str))
-    watermark = df_completed["timestamp"].max()
-    coverage_start = df_Sv["first_ping_time"].min()
-    coverage_end = df_Sv["last_ping_time"].max()
 
-    slices: list[PlannedSlice] = []
+def build_mvbs_ledger(sv_ledger: pd.DataFrame, slice_mins: int = 20) -> pd.DataFrame:
+    """Preplan every MVBS slice and its required raw files."""
+    if sv_ledger.empty:
+        return pd.DataFrame()
+
+    ledger = sv_ledger.copy()
+    ledger["timestamp"] = pd.to_datetime(ledger["timestamp"], utc=True)
+    duration = pd.Timedelta(minutes=slice_mins)
+    final_end = ledger["timestamp"].max().floor(f"{slice_mins}min") + duration
     windows = generate_aligned_windows(
-        df_Sv["first_ping_time"].min(),
-        watermark,
+        ledger["timestamp"].min(),
+        final_end,
         slice_mins,
     )
+
+    records = []
     for window in windows:
-        # Include the preceding raw file because it may cross the slice boundary
-        expected = df_raw[
-            (df_raw["timestamp"] >= window.start_time) & (df_raw["timestamp"] < window.end_time)
+        required = ledger[
+            (ledger["timestamp"] >= window.start_time) & (ledger["timestamp"] < window.end_time)
         ]
-        predecessor = df_raw[df_raw["timestamp"] < window.start_time].sort_values("timestamp").tail(1)
-        if not predecessor.empty:
-            expected = pd.concat([predecessor, expected], ignore_index=True)
-        expected_keys = set(expected["s3_path"].astype(str))
-        if expected_keys and expected_keys.issubset(completed_keys):
-            # Pass every converted Sv store that overlaps the half-open slice
-            overlapping = select_overlapping_records(
-                df_Sv,
-                window,
-                "first_ping_time",
-                "last_ping_time",
-            ).sort_values("first_ping_time")
-            if not overlapping.empty:
-                input_signature = build_input_signature(
-                    overlapping,
-                    ["Sv_filename", "first_ping_time", "last_ping_time"],
-                    window,
-                )
-                slices.append(
-                    PlannedSlice(
-                        start_time=window.start_time,
-                        end_time=window.end_time,
-                        filenames=tuple(overlapping["Sv_filename"].astype(str)),
-                        is_partial=(
-                            coverage_start > window.start_time or coverage_end < window.end_time
-                        ),
-                        input_signature=input_signature,
-                    )
-                )
+        predecessor = ledger[ledger["timestamp"] < window.start_time].tail(1)
+        required = pd.concat([predecessor, required]).drop_duplicates("s3_path")
+        records.append(
+            {
+                "MVBS_filename": f"MVBS_{window.start_time:%Y%m%dT%H%M%S}.zarr",
+                "slice_start": window.start_time,
+                "slice_end": window.end_time,
+                "raw_filenames": json.dumps(required["raw_filename"].tolist()),
+                "first_ping_time": pd.NaT,
+                "last_ping_time": pd.NaT,
+                "is_partial": pd.NA,
+                "MVBS_status": "pending",
+                "error": "",
+            }
+        )
+    return pd.DataFrame.from_records(records)
+
+
+def read_or_create_sv_ledger(path_raw_list: str, ledger_path: Path) -> pd.DataFrame:
+    """Load the Sv ledger or initialize it from the complete raw file list."""
+    if ledger_path.exists():
+        return read_manifest(
+            ledger_path,
+            SV_COLUMNS_POSTPROCESSING,
+            ["timestamp", "first_ping_time", "last_ping_time"],
+        )
+
+    ledger = build_sv_ledger(pd.read_csv(path_raw_list))
+    write_manifest(ledger, ledger_path)
+    return ledger
+
+
+def read_or_create_mvbs_ledger(
+    ledger_path: Path,
+    sv_ledger: pd.DataFrame,
+    slice_mins: int,
+) -> pd.DataFrame:
+    """Load the MVBS ledger or initialize it based on the Sv ledger."""
+    if ledger_path.exists():
+        return read_manifest(
+            ledger_path,
+            MVBS_COLUMNS_POSTPROCESSING,
+            ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
+        )
+
+    ledger = build_mvbs_ledger(sv_ledger, slice_mins)
+    write_manifest(ledger, ledger_path)
+    return ledger
+
+
+def plan_mvbs_slices(
+    sv_ledger: pd.DataFrame,
+    mvbs_ledger: pd.DataFrame,
+) -> list[PlannedSlice]:
+    """Return pending MVBS slices whose required raw conversions are complete."""
+    if sv_ledger.empty or mvbs_ledger.empty:
+        return []
+
+    df_Sv = sv_ledger.copy()
+    df_MVBS = mvbs_ledger.copy()
+
+    # Ensure datetime columns are in UTC
+    df_Sv["first_ping_time"] = pd.to_datetime(df_Sv["first_ping_time"], utc=True)
+    df_Sv["last_ping_time"] = pd.to_datetime(df_Sv["last_ping_time"], utc=True)
+    df_MVBS["slice_start"] = pd.to_datetime(df_MVBS["slice_start"], utc=True)
+    df_MVBS["slice_end"] = pd.to_datetime(df_MVBS["slice_end"], utc=True)
+
+    slices: list[PlannedSlice] = []
+    for row in df_MVBS.itertuples(index=False):
+        required_raw = json.loads(row.raw_filenames)
+        required_Sv = df_Sv[df_Sv["raw_filename"].isin(required_raw)]
+        if len(required_Sv) != len(required_raw):
+            raise ValueError(f"MVBS ledger references unknown raw files: {required_raw}")
+
+        # Skip if any required Sv conversions are not yet completed
+        if not required_Sv["raw2Sv_status"].eq("completed").all():
+            continue
+
+        window = TimeWindow(row.slice_start, row.slice_end)
+        overlapping = select_overlapping_records(
+            required_Sv,
+            window,
+            "first_ping_time",
+            "last_ping_time",
+        ).sort_values("first_ping_time")
+        if overlapping.empty:
+            continue
+        slices.append(
+            PlannedSlice(
+                start_time=window.start_time,
+                end_time=window.end_time,
+                filenames=tuple(overlapping["Sv_filename"].astype(str)),
+                is_partial=(
+                    overlapping["first_ping_time"].min() > window.start_time
+                    or overlapping["last_ping_time"].max() < window.end_time
+                ),
+            )
+        )
     return slices
 
 
@@ -199,9 +276,9 @@ def plan_prediction_slices(
     slices: list[PlannedSlice] = []
     # Derive prediction windows directly from the available ping-time coverage
     windows = generate_aligned_windows(
-        df_MVBS["first_ping_time"].min(),
-        df_MVBS["last_ping_time"].max().ceil(f"{prediction_slice_mins}min"),
-        prediction_slice_mins,
+        first_time=df_MVBS["first_ping_time"].min(),
+        last_time=df_MVBS["last_ping_time"].max().ceil(f"{prediction_slice_mins}min"),
+        window_mins=prediction_slice_mins,
     )
     for window in windows:
         # Match the real-time flow's actual ping-time overlap selection
@@ -221,22 +298,12 @@ def plan_prediction_slices(
                 .any()
             )
         if not contributing.empty and (not require_complete_window or (complete and not partial)):
-            signature_columns = ["MVBS_filename", "first_ping_time", "last_ping_time"]
-            if "input_signature" in contributing:
-                # Propagate upstream Sv changes even when MVBS ping bounds stay fixed
-                signature_columns.append("input_signature")
-            input_signature = build_input_signature(
-                contributing,
-                signature_columns,
-                window,
-            )
             slices.append(
                 PlannedSlice(
                     start_time=window.start_time,
                     end_time=window.end_time,
                     filenames=tuple(contributing["MVBS_filename"].astype(str)),
                     is_partial=not complete or bool(partial),
-                    input_signature=input_signature,
                 )
             )
     return slices

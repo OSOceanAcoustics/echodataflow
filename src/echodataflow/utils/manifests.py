@@ -10,7 +10,6 @@ import pandas as pd
 if TYPE_CHECKING:
     from echodataflow.operations.operations_postprocessing import PlannedSlice
 
-RAW_COLUMNS = ["s3_path", "timestamp", "raw_filename", "status", "error"]
 SV_COLUMNS_REALTIME = [
     "raw_filename",
     "Sv_filename",
@@ -29,17 +28,24 @@ PREDICTION_COLUMNS_REALTIME = [
 ]
 SV_COLUMNS_POSTPROCESSING = [
     "s3_path",
+    "timestamp",
     "raw_filename",
     "Sv_filename",
+    "raw2Sv_status",
     "first_ping_time",
     "last_ping_time",
+    "error",
 ]
 MVBS_COLUMNS_POSTPROCESSING = [
     "MVBS_filename",
+    "slice_start",
+    "slice_end",
+    "raw_filenames",
     "first_ping_time",
     "last_ping_time",
     "is_partial",
-    "input_signature",
+    "MVBS_status",
+    "error",
 ]
 PREDICTION_COLUMNS_POSTPROCESSING = [
     "prediction_filename_postfix",
@@ -51,7 +57,6 @@ PREDICTION_COLUMNS_POSTPROCESSING = [
     "slice_end",
     "first_ping_time",
     "last_ping_time",
-    "input_signature",
 ]
 
 
@@ -60,11 +65,18 @@ def read_manifest(path: Path, columns: list[str], date_columns: list[str]) -> pd
     if not path.exists():
         return pd.DataFrame(columns=columns)
     df = pd.read_csv(path, index_col=0)
-    # Add newly introduced columns while preserving older manifest files
-    for column in columns:
-        if column not in df:
-            df[column] = pd.NA
+
+    # Validation: catch missing or unexpected columns
+    missing = [column for column in columns if column not in df.columns]
+    unexpected = [column for column in df.columns if column not in columns]
+    if missing or unexpected:
+        raise ValueError(
+            f"Invalid manifest schema for {path}: "
+            f"missing columns={missing}, unexpected columns={unexpected}"
+        )
     df = df[columns]
+
+    # Set datetime columns to UTC
     for column in date_columns:
         if column in df:
             df[column] = pd.to_datetime(df[column], utc=True)
@@ -96,32 +108,33 @@ def manifest_signature_changed(
 
 def filter_time_range(
     df: pd.DataFrame,
-    column: str,
+    column_start_time: str,
+    column_end_time: str | None,
     start_time: str | None,
     end_time: str | None,
-    include_boundary_neighbors: bool = False,
 ) -> pd.DataFrame:
     # Treat requested ranges as half-open: [start_time, end_time)
-    ordered = df.sort_values(column)
-    selected = ordered
-    if start_time is not None:
-        selected = selected[selected[column] >= pd.to_datetime(start_time, utc=True)]
-    if end_time is not None:
-        selected = selected[selected[column] < pd.to_datetime(end_time, utc=True)]
+    ordered = df.sort_values(column_start_time)
+    selected = ordered.copy()
 
-    if include_boundary_neighbors:
-        neighbors = []
+    # When only column_start_time is provided (e.g. raw filename that only marks start time)
+    if column_end_time is None:
         if start_time is not None:
+            selected = selected[selected[column_start_time] >= pd.to_datetime(start_time, utc=True)]
             # Include the last file starting before the requested interval
-            before = ordered[ordered[column] < pd.to_datetime(start_time, utc=True)].tail(1)
-            neighbors.append(before)
+            prev = ordered[ordered[column_start_time] < pd.to_datetime(start_time, utc=True)].tail(1)
+            selected = pd.concat([selected, prev]).drop_duplicates()
         if end_time is not None:
-            # Include the first file starting at or after the requested interval
-            after = ordered[ordered[column] >= pd.to_datetime(end_time, utc=True)].head(1)
-            neighbors.append(after)
-        selected = pd.concat([selected, *neighbors]).drop_duplicates()
+            selected = selected[selected[column_start_time] < pd.to_datetime(end_time, utc=True)]
 
-    return selected.sort_values(column)
+    # When both column_start_time and column_end_time are provided (e.g. slices that mark start and end time)
+    else:
+        if start_time is not None:
+            selected = selected[selected[column_end_time] >= pd.to_datetime(start_time, utc=True)]
+        if end_time is not None:
+            selected = selected[selected[column_start_time] < pd.to_datetime(end_time, utc=True)]
+
+    return selected.sort_values(column_start_time)
 
 
 def filter_slices(

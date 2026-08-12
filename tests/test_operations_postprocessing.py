@@ -3,6 +3,8 @@ import pytest
 
 from echodataflow.operations.operations_postprocessing import (
     TimeWindow,
+    build_mvbs_ledger,
+    build_sv_ledger,
     generate_aligned_windows,
     plan_mvbs_slices,
     plan_prediction_slices,
@@ -70,110 +72,88 @@ def test_shared_record_selectors_apply_overlap_and_containment_rules():
     assert contained["name"].tolist() == ["contained"]
 
 
-def _raw_manifest(statuses=("completed", "completed", "completed", "completed")):
-    return pd.DataFrame(
+def _sv_ledger(statuses=("completed", "completed", "completed", "completed")):
+    raw = pd.DataFrame(
         {
-            "s3_path": ["a.raw", "b.raw", "c.raw", "d.raw"],
-            "timestamp": pd.to_datetime(
-                [
-                    "2025-06-11T00:01:00Z",
-                    "2025-06-11T00:07:00Z",
-                    "2025-06-11T00:14:00Z",
-                    "2025-06-11T00:21:00Z",
-                ]
-            ),
-            "status": statuses,
+            "s3_path": [
+                "survey/IWCPS-D20250611-T000100.raw",
+                "survey/IWCPS-D20250611-T000700.raw",
+                "survey/IWCPS-D20250611-T001400.raw",
+                "survey/IWCPS-D20250611-T002100.raw",
+            ],
+        }
+    )
+    ledger = build_sv_ledger(raw)
+    ledger["Sv_filename"] = ["a.zarr", "b.zarr", "c.zarr", "d.zarr"]
+    ledger["raw2Sv_status"] = statuses
+    ledger["first_ping_time"] = pd.to_datetime(
+        [
+            "2025-06-11T00:01:00Z",
+            "2025-06-11T00:07:00Z",
+            "2025-06-11T00:14:00Z",
+            "2025-06-11T00:21:00Z",
+        ]
+    )
+    ledger["last_ping_time"] = pd.to_datetime(
+        [
+            "2025-06-11T00:06:59Z",
+            "2025-06-11T00:13:59Z",
+            "2025-06-11T00:20:59Z",
+            "2025-06-11T00:27:00Z",
+        ]
+    )
+    return ledger
+
+
+def test_ledgers_predeclare_raw_files_and_mvbs_slices():
+    sv = _sv_ledger(("pending",) * 4)
+    mvbs = build_mvbs_ledger(sv, slice_mins=20)
+
+    assert sv["raw_filename"].tolist() == [
+        "IWCPS-D20250611-T000100.raw",
+        "IWCPS-D20250611-T000700.raw",
+        "IWCPS-D20250611-T001400.raw",
+        "IWCPS-D20250611-T002100.raw",
+    ]
+    assert mvbs["slice_start"].tolist() == [
+        pd.Timestamp("2025-06-11T00:00:00Z"),
+        pd.Timestamp("2025-06-11T00:20:00Z"),
+    ]
+    assert mvbs["raw_filenames"].tolist() == [
+        '["IWCPS-D20250611-T000100.raw", "IWCPS-D20250611-T000700.raw", '
+        '"IWCPS-D20250611-T001400.raw"]',
+        '["IWCPS-D20250611-T001400.raw", "IWCPS-D20250611-T002100.raw"]',
+    ]
+
+
+def test_sv_ledger_derives_timestamp_only_from_s3_path():
+    raw = pd.DataFrame(
+        {
+            "s3_path": ["survey/IWCPS-D20250611-T000100.raw"],
+            "timestamp": ["1999-01-01T00:00:00Z"],
         }
     )
 
+    ledger = build_sv_ledger(raw)
 
-def _sv_manifest():
-    return pd.DataFrame(
-        {
-            "s3_path": ["a.raw", "b.raw", "c.raw", "d.raw"],
-            "Sv_filename": ["a.zarr", "b.zarr", "c.zarr", "d.zarr"],
-            "first_ping_time": pd.to_datetime(
-                [
-                    "2025-06-11T00:01:00Z",
-                    "2025-06-11T00:07:00Z",
-                    "2025-06-11T00:14:00Z",
-                    "2025-06-11T00:21:00Z",
-                ]
-            ),
-            "last_ping_time": pd.to_datetime(
-                [
-                    "2025-06-11T00:06:59Z",
-                    "2025-06-11T00:13:59Z",
-                    "2025-06-11T00:20:59Z",
-                    "2025-06-11T00:27:00Z",
-                ]
-            ),
-        }
-    )
+    assert ledger.loc[0, "timestamp"] == pd.Timestamp("2025-06-11T00:01:00Z")
 
 
-def test_mvbs_slice_is_released_after_watermark_passes_end():
-    planned = plan_mvbs_slices(_raw_manifest(), _sv_manifest(), slice_mins=20)
+def test_mvbs_slice_is_released_when_all_required_raw_files_complete():
+    sv = _sv_ledger()
+    planned = plan_mvbs_slices(sv, build_mvbs_ledger(sv, slice_mins=20))
 
-    assert len(planned) == 1
+    assert len(planned) == 2
     assert planned[0].start_time == pd.Timestamp("2025-06-11T00:00:00Z")
     assert planned[0].end_time == pd.Timestamp("2025-06-11T00:20:00Z")
     assert planned[0].filenames == ("a.zarr", "b.zarr", "c.zarr")
     assert planned[0].is_partial
-    assert len(planned[0].input_signature) == 64
-
-
-def test_mvbs_signature_changes_when_sv_ping_bounds_change():
-    original = plan_mvbs_slices(_raw_manifest(), _sv_manifest(), slice_mins=20)[0]
-    changed_sv = _sv_manifest()
-    changed_sv.loc[0, "last_ping_time"] = pd.Timestamp("2025-06-11T00:07:01Z")
-
-    changed = plan_mvbs_slices(_raw_manifest(), changed_sv, slice_mins=20)[0]
-
-    assert changed.filenames == original.filenames
-    assert changed.input_signature != original.input_signature
-
-
-def test_mvbs_signature_changes_when_an_sv_file_is_added():
-    original = plan_mvbs_slices(_raw_manifest(), _sv_manifest(), slice_mins=20)[0]
-    changed_raw = pd.concat(
-        [
-            _raw_manifest(),
-            pd.DataFrame(
-                {
-                    "s3_path": ["late.raw"],
-                    "timestamp": pd.to_datetime(["2025-06-11T00:18:00Z"]),
-                    "status": ["completed"],
-                }
-            ),
-        ],
-        ignore_index=True,
-    )
-    changed_sv = pd.concat(
-        [
-            _sv_manifest(),
-            pd.DataFrame(
-                {
-                    "s3_path": ["late.raw"],
-                    "Sv_filename": ["late.zarr"],
-                    "first_ping_time": pd.to_datetime(["2025-06-11T00:18:00Z"]),
-                    "last_ping_time": pd.to_datetime(["2025-06-11T00:19:00Z"]),
-                }
-            ),
-        ],
-        ignore_index=True,
-    )
-
-    changed = plan_mvbs_slices(changed_raw, changed_sv, slice_mins=20)[0]
-
-    assert changed.filenames == ("a.zarr", "b.zarr", "c.zarr", "late.zarr")
-    assert changed.input_signature != original.input_signature
 
 
 def test_pending_raw_input_keeps_its_mvbs_slice_closed():
-    raw = _raw_manifest(("completed", "completed", "pending", "completed"))
+    sv = _sv_ledger(("completed", "completed", "pending", "completed"))
 
-    assert plan_mvbs_slices(raw, _sv_manifest(), slice_mins=20) == []
+    assert plan_mvbs_slices(sv, build_mvbs_ledger(sv, slice_mins=20)) == []
 
 
 def test_prediction_combines_two_aligned_mvbs_slices():
@@ -183,7 +163,6 @@ def test_prediction_combines_two_aligned_mvbs_slices():
             "first_ping_time": pd.to_datetime(["2025-06-11T00:00:05Z", "2025-06-11T00:20:05Z"]),
             "last_ping_time": pd.to_datetime(["2025-06-11T00:19:55Z", "2025-06-11T00:39:55Z"]),
             "is_partial": [False, False],
-            "input_signature": ["sv-signature-1", "sv-signature-2"],
         }
     )
 
@@ -193,42 +172,6 @@ def test_prediction_combines_two_aligned_mvbs_slices():
     assert planned[0].start_time == pd.Timestamp("2025-06-11T00:00:00Z")
     assert planned[0].end_time == pd.Timestamp("2025-06-11T00:40:00Z")
     assert planned[0].filenames == ("first.zarr", "second.zarr")
-    assert len(planned[0].input_signature) == 64
-
-
-def test_prediction_signature_changes_when_mvbs_ping_bounds_change():
-    mvbs = pd.DataFrame(
-        {
-            "MVBS_filename": ["first.zarr", "second.zarr"],
-            "first_ping_time": pd.to_datetime(["2025-06-11T00:00:05Z", "2025-06-11T00:20:05Z"]),
-            "last_ping_time": pd.to_datetime(["2025-06-11T00:19:55Z", "2025-06-11T00:39:55Z"]),
-            "is_partial": [False, False],
-        }
-    )
-    original = plan_prediction_slices(mvbs, 20, 40)[0]
-    mvbs.loc[1, "first_ping_time"] = pd.Timestamp("2025-06-11T00:20:10Z")
-
-    changed = plan_prediction_slices(mvbs, 20, 40)[0]
-
-    assert changed.input_signature != original.input_signature
-
-
-def test_prediction_signature_propagates_changed_mvbs_signature():
-    mvbs = pd.DataFrame(
-        {
-            "MVBS_filename": ["first.zarr", "second.zarr"],
-            "first_ping_time": pd.to_datetime(["2025-06-11T00:00:05Z", "2025-06-11T00:20:05Z"]),
-            "last_ping_time": pd.to_datetime(["2025-06-11T00:19:55Z", "2025-06-11T00:39:55Z"]),
-            "is_partial": [False, False],
-            "input_signature": ["original-1", "original-2"],
-        }
-    )
-    original = plan_prediction_slices(mvbs, 20, 40)[0]
-    mvbs.loc[1, "input_signature"] = "changed-2"
-
-    changed = plan_prediction_slices(mvbs, 20, 40)[0]
-
-    assert changed.input_signature != original.input_signature
 
 
 def test_prediction_requires_both_mvbs_slices_by_default():
