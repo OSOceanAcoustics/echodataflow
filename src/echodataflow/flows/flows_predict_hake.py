@@ -261,6 +261,10 @@ def flow_predict_hake_postprocessing(
 ) -> None:
     """Predict all newly ready windows, combining aligned MVBS slices."""
     logger = get_run_logger()
+    file_MVBS_csv = Path(path_main) / file_MVBS_csv
+    if not file_MVBS_csv.exists():
+        logger.info("MVBS ledger does not yet exist")
+        return
 
     # Create persistent destinations before loading the model
     for directory in ["prediction", "EVR", "NASC"]:
@@ -268,7 +272,7 @@ def flow_predict_hake_postprocessing(
 
     # Load available MVBS slices and prior prediction results for resume behavior
     df_MVBS = read_manifest(
-        Path(path_main) / file_MVBS_csv,
+        file_MVBS_csv,
         MVBS_COLUMNS_POSTPROCESSING,
         ["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
     )
