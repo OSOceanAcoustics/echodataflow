@@ -7,7 +7,7 @@ import os
 
 from prefect_dask import DaskTaskRunner
 
-TASK_RUNNER_ENV_VAR = "ECHODATAFLOW_TASK_RUNNER"
+from echodataflow.deployment.core import TASK_RUNNER_ENV_VAR
 
 
 def dask_task_runner_from_environment() -> DaskTaskRunner:

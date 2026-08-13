@@ -32,6 +32,8 @@ def _run_from_specs(
     # Validate the deployment schema and paired flow coverage.
     validate_deploy_config(deploy_cfg)
     validate_flow_coverage(param_cfg, deploy_cfg)
+    if deploy_cfg.get("flow_start_time") is not None:
+        print(f"Time travel mode: flow start time is {deploy_cfg['flow_start_time']}")
 
     # Validate registry keys and import only the flows requested by this recipe.
     resolved_flows = resolve_registered_flows(deploy_cfg)

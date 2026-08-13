@@ -26,8 +26,8 @@ from echodataflow.deployment.core import (
     ALLOWED_TASK_RUNNER_KEYS,
     ALLOWED_TRIGGER_KEYS,
     DEFAULT_ENTRYPOINT_ROOT,
+    TASK_RUNNER_ENV_VAR,
 )
-from echodataflow.deployment.task_runners import TASK_RUNNER_ENV_VAR
 
 
 @dataclass(frozen=True)

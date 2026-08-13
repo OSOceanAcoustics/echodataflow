@@ -1,4 +1,5 @@
 DEFAULT_ENTRYPOINT_ROOT = "echodataflow/flows"
+TASK_RUNNER_ENV_VAR = "ECHODATAFLOW_TASK_RUNNER"
 
 ALLOWED_DEPLOY_KEYS = {
     "concurrency_groups",
