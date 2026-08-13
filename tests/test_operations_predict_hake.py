@@ -115,14 +115,14 @@ def test_predict_hake_result_chains_into_compute_NASC(monkeypatch, tmp_path):
         operations_predict_hake.PredictHakeWorkItem(
             start_time=pd.Timestamp("2026-01-01T00:00:00Z"),
             end_time=pd.Timestamp("2026-01-01T00:10:00Z"),
-            mvbs_filenames=("first.zarr", "second.zarr"),
+            filenames_MVBS=("first.zarr", "second.zarr"),
             filename_postfix="20260101T000000",
         ),
         operations_predict_hake.PredictHakeSettings(
             model=model,
-            mvbs_directory=str(tmp_path / "MVBS"),
-            prediction_directory=str(tmp_path / "prediction"),
-            evr_directory=str(tmp_path / "EVR"),
+            directory_MVBS=str(tmp_path / "MVBS"),
+            directory_prediction=str(tmp_path / "prediction"),
+            directory_evr=str(tmp_path / "EVR"),
             temperature=0.75,
             softmax_threshold=0.6,
             max_depth=590,

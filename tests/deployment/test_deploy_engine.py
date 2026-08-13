@@ -63,7 +63,7 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
         "copy_raw": "flows_simulation",
         "raw2Sv": "flows_acoustics",
         "create_MVBS": "flows_acoustics",
-        "predict_hake": "flow_predict_hake",
+        "predict_hake": "flows_predict_hake",
         "file_upload_acoustics": "flows_helper",
         "file_upload_trawl": "flows_helper",
     }
@@ -107,7 +107,7 @@ def test_local_deploy_specs_generate_current_flow_targets(install_prefect_stubs)
         "copy_raw": "echodataflow/flows/flows_simulation.py:flow_copy_raw",
         "raw2Sv": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
         "create_MVBS": "echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
-        "predict_hake": "echodataflow/flows/flow_predict_hake.py:flow_predict_hake",
+        "predict_hake": "echodataflow/flows/flows_predict_hake.py:flow_predict_hake",
         "file_upload_acoustics": "echodataflow/flows/flows_helper.py:flow_file_upload",
         "file_upload_trawl": "echodataflow/flows/flows_helper.py:flow_file_upload",
     }
@@ -143,12 +143,124 @@ def test_build_deploy_specs_passes_target_flow_parameters_directly(install_prefe
     assert specs[0].parameters == {"msg": "hello"}
 
 
+def test_build_deploy_specs_preserves_runner_and_concurrency_group(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+    runner_config = {
+        "type": "dask",
+        "cluster_kwargs": {
+            "n_workers": 4,
+            "threads_per_worker": 1,
+            "processes": True,
+        },
+    }
+
+    specs = engine.build_deploy_specs(
+        param_cfg={"flows": {"raw2Sv_postprocessing": {}}},
+        deploy_cfg={
+            "concurrency_groups": {"postprocessing": {"limit": 1}},
+            "flows": {
+                "raw2Sv_postprocessing": {
+                    "concurrency_group": "postprocessing",
+                    "task_runner": runner_config,
+                }
+            },
+        },
+        resolved_flows={
+            "raw2Sv_postprocessing": {
+                "flow_obj": object(),
+                "entrypoint": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv_postprocessing",
+            }
+        },
+    )
+
+    assert specs[0].concurrency_group == "postprocessing"
+    assert specs[0].task_runner == runner_config
+
+
+def test_create_deployments_applies_runner_and_shared_queue(
+    install_prefect_stubs,
+):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+    calls = {}
+
+    class SourcedFlow:
+        def to_deployment(self, **kwargs):
+            calls["deployment"] = kwargs
+            return kwargs
+
+    class RegisteredFlow:
+        def from_source(self, **kwargs):
+            calls["source"] = kwargs
+            return SourcedFlow()
+
+    spec = engine.DeploymentSpec(
+        flow_key="raw2Sv_postprocessing",
+        deployment_name="raw2Sv-postprocessing",
+        flow_obj=RegisteredFlow(),
+        entrypoint="echodataflow/flows/flows_acoustics.py:flow_raw2Sv_postprocessing",
+        parameters={},
+        concurrency_group="postprocessing",
+        task_runner={"type": "dask", "cluster_kwargs": {"n_workers": 4}},
+    )
+
+    grouped, standalone = engine.create_deployments(
+        specs=[spec],
+        source="local-source",
+        default_work_pool_name="local",
+    )
+
+    assert calls["deployment"]["work_queue_name"] == "postprocessing"
+    runtime_config = calls["deployment"]["job_variables"]["env"]["ECHODATAFLOW_TASK_RUNNER"]
+    assert runtime_config == ('{"type": "dask", "cluster_kwargs": {"n_workers": 4}}')
+    assert len(grouped) == 1
+    assert standalone == []
+
+
+@pytest.mark.parametrize(
+    ("task_runner", "expected_message"),
+    [
+        ({"type": "unknown"}, "type must be 'dask'"),
+        (
+            {"type": "dask", "cluster_kwargs": {"n_workers": 0}},
+            "n_workers must be a positive integer",
+        ),
+        (
+            {"type": "dask", "cluster_kwargs": {"processes": "yes"}},
+            "processes must be a boolean",
+        ),
+    ],
+)
+def test_validate_deploy_config_rejects_invalid_task_runner(
+    install_prefect_stubs,
+    task_runner,
+    expected_message,
+):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    with pytest.raises(ValueError, match=expected_message):
+        engine.validate_deploy_config({"flows": {"raw2Sv": {"task_runner": task_runner}}})
+
+
+def test_validate_deploy_config_rejects_undefined_concurrency_group(
+    install_prefect_stubs,
+):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    with pytest.raises(ValueError, match="references undefined group 'missing'"):
+        engine.validate_deploy_config({"flows": {"raw2Sv": {"concurrency_group": "missing"}}})
+
+
 def test_validate_deploy_config_accepts_every_allowed_key(install_prefect_stubs):
     install_prefect_stubs()
     core = importlib.import_module("echodataflow.deployment.core")
     engine = importlib.import_module("echodataflow.deployment.deployment_engine")
 
     deploy_cfg = {
+        "concurrency_groups": {"postprocessing": {"limit": 2}},
         "flow_start_time": "2026-01-01T00:00:00+00:00",
         "default_work_pool_name": "default-pool",
         "source": {
@@ -160,12 +272,21 @@ def test_validate_deploy_config_accepts_every_allowed_key(install_prefect_stubs)
         },
         "flows": {
             "scheduled": {
+                "concurrency_group": "postprocessing",
                 "deployment_name": "scheduled-deployment",
                 "flow": "actual_flow_name",
                 "interval": 10,
                 "cron_offset": 3,
                 "inject_time_offset": True,
                 "work_pool_name": "special-pool",
+                "task_runner": {
+                    "type": "dask",
+                    "cluster_kwargs": {
+                        "n_workers": 4,
+                        "threads_per_worker": 1,
+                        "processes": True,
+                    },
+                },
             },
             "event_driven": {
                 "triggers": [
@@ -181,19 +302,30 @@ def test_validate_deploy_config_accepts_every_allowed_key(install_prefect_stubs)
     engine.validate_deploy_config(deploy_cfg)
 
     assert core.ALLOWED_DEPLOY_KEYS == {
+        "concurrency_groups",
         "flow_start_time",
         "default_work_pool_name",
         "source",
         "flows",
     }
     assert core.ALLOWED_FLOW_DEPLOY_KEYS == {
+        "concurrency_group",
         "deployment_name",
         "flow",
         "interval",
         "cron_offset",
         "triggers",
         "inject_time_offset",
+        "task_runner",
         "work_pool_name",
+    }
+    assert core.ALLOWED_CONCURRENCY_GROUP_KEYS == {"limit"}
+    assert core.ALLOWED_TASK_RUNNER_KEYS == {"type", "cluster_kwargs"}
+    assert core.ALLOWED_DASK_CLUSTER_KEYS == {
+        "memory_limit",
+        "n_workers",
+        "processes",
+        "threads_per_worker",
     }
     assert core.ALLOWED_TRIGGER_KEYS == {"expect", "resource_name"}
     assert core.ALLOWED_SOURCE_KEYS == {"mode", "git"}

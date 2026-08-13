@@ -47,6 +47,20 @@ def test_flow_registry_contains_current_raw2sv_entrypoint():
     )
 
 
+def test_postprocessing_flows_are_registered_with_realtime_modules():
+    registry = importlib.import_module("echodataflow.deployment.flow_registry")
+
+    assert registry.FLOW_REGISTRY["raw2Sv_postprocessing"].entrypoint == (
+        "echodataflow/flows/flows_acoustics.py:flow_raw2Sv_postprocessing"
+    )
+    assert registry.FLOW_REGISTRY["create_MVBS_postprocessing"].entrypoint == (
+        "echodataflow/flows/flows_acoustics.py:flow_create_MVBS_postprocessing"
+    )
+    assert registry.FLOW_REGISTRY["predict_hake_postprocessing"].entrypoint == (
+        "echodataflow/flows/flows_predict_hake.py:flow_predict_hake_postprocessing"
+    )
+
+
 def test_resolve_registered_flows_defaults_to_recipe_key(
     monkeypatch,
     install_prefect_stubs,

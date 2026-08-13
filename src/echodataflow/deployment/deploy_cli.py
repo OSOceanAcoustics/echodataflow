@@ -6,10 +6,10 @@ import argparse
 from pathlib import Path
 
 from prefect import deploy
-from prefect.variables import Variable
 
 from echodataflow.deployment.deployment_engine import (
     build_deploy_specs,
+    configure_concurrency_groups,
     create_deployments,
     load_config,
     resolve_registered_flows,
@@ -32,9 +32,8 @@ def _run_from_specs(
     # Validate the deployment schema and paired flow coverage.
     validate_deploy_config(deploy_cfg)
     validate_flow_coverage(param_cfg, deploy_cfg)
-
-    # Set "flow_start_time" as a Prefect variable
-    Variable.set("flow_start_time", deploy_cfg.get("flow_start_time"), overwrite=True)
+    if deploy_cfg.get("flow_start_time") is not None:
+        print(f"Time travel mode: flow start time is {deploy_cfg['flow_start_time']}")
 
     # Validate registry keys and import only the flows requested by this recipe.
     resolved_flows = resolve_registered_flows(deploy_cfg)
@@ -53,6 +52,11 @@ def _run_from_specs(
         param_cfg=param_cfg,
         deploy_cfg=deploy_cfg,
         resolved_flows=resolved_flows,
+    )
+    configure_concurrency_groups(
+        specs=specs,
+        concurrency_groups=deploy_cfg.get("concurrency_groups", {}),
+        default_work_pool_name=default_work_pool_name,
     )
     grouped, standalone = create_deployments(
         specs=specs,
@@ -80,9 +84,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--default-work-pool-name",
         required=True,
         default="local",
-        help=(
-            "Default work pool name for deployments."
-        ),
+        help="Default work pool name for deployments.",
     )
     run_parser.add_argument(
         "--param-config",

@@ -35,8 +35,6 @@ dependencies = [
     "boto3",
     "bokeh",
     "cartopy",
-    # "echopype>=0.11.0",
-    # "echoshader",
     "geopandas",
     "geopy",
     "geoviews",
@@ -55,6 +53,11 @@ dependencies = [
 dynamic = ["version"]
 
 [project.optional-dependencies]
+mission = [
+    "echopype",
+    "echoshader",
+    "opencv",
+]
 notebook = [
     "ipykernel",
 ]

@@ -1,8 +1,8 @@
-"""Reusable Prefect tasks for simulated data arrival."""
+"""Reusable Prefect tasks for storage operations."""
 
 from prefect import task
 
-from echodataflow.operations.operations_simulation import (
+from echodataflow.operations.operations_storage import (
     S3CopyResult,
     S3CopySettings,
     S3CopyWorkItem,

@@ -9,6 +9,7 @@ from echodataflow.operations import operations_acoustics
 class FakeSvDataset:
     def __init__(self):
         self.selection = None
+        self.sizes = {"ping_time": 2}
 
     def sel(self, **kwargs):
         self.selection = kwargs
@@ -92,8 +93,7 @@ def test_create_MVBS_processes_one_time_slice(monkeypatch, tmp_path):
     assert sv_dataset.selection == {
         "ping_time": slice(
             pd.Timestamp("2026-01-01T00:00:00"),
-            pd.Timestamp("2026-01-01T00:10:00")
-            - pd.to_timedelta("1nanoseconds"),
+            pd.Timestamp("2026-01-01T00:10:00") - pd.to_timedelta("1nanoseconds"),
         )
     }
     assert compute_call["ds_Sv"] is sv_dataset
@@ -109,4 +109,49 @@ def test_create_MVBS_processes_one_time_slice(monkeypatch, tmp_path):
         mvbs_filename="MVBS_20260101T000000.zarr",
         first_ping_time=pd.Timestamp("2026-01-01T00:00:05"),
         last_ping_time=pd.Timestamp("2026-01-01T00:09:55"),
+    )
+
+
+def test_create_MVBS_returns_no_data_before_computation(monkeypatch, tmp_path):
+    sv_dataset = FakeSvDataset()
+    sv_dataset.sizes = {"ping_time": 0}
+    compute_called = False
+
+    monkeypatch.setattr(
+        operations_acoustics.xr,
+        "open_mfdataset",
+        lambda *args, **kwargs: sv_dataset,
+    )
+
+    def fake_compute_MVBS(**kwargs):
+        nonlocal compute_called
+        compute_called = True
+
+    monkeypatch.setattr(
+        operations_acoustics.ep.commongrid,
+        "compute_MVBS",
+        fake_compute_MVBS,
+    )
+
+    result = operations_acoustics.create_MVBS(
+        operations_acoustics.CreateMVBSWorkItem(
+            start_time=pd.Timestamp("2026-01-01T04:20:00Z"),
+            end_time=pd.Timestamp("2026-01-01T04:40:00Z"),
+            sv_filenames=("last_daytime_Sv.zarr",),
+            mvbs_filename="MVBS_20260101T042000.zarr",
+        ),
+        operations_acoustics.CreateMVBSSettings(
+            sv_directory=str(tmp_path / "Sv"),
+            output_directory=str(tmp_path / "MVBS"),
+            range_bin="1m",
+            ping_time_bin="5s",
+        ),
+    )
+
+    assert not compute_called
+    assert result == operations_acoustics.CreateMVBSResult(
+        mvbs_filename="MVBS_20260101T042000.zarr",
+        first_ping_time=None,
+        last_ping_time=None,
+        has_data=False,
     )
