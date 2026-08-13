@@ -33,8 +33,8 @@ from echodataflow.operations.operations_acoustics import (
     RawToSvWorkItem,
 )
 from echodataflow.operations.operations_postprocessing import (
-    build_mvbs_ledger,
-    build_sv_ledger,
+    build_MVBS_ledger,
+    build_Sv_ledger,
     plan_mvbs_slices,
     read_or_create_ledger,
 )
@@ -438,7 +438,7 @@ def flow_raw2Sv_postprocessing(
         ledger_path=file_Sv_csv,
         columns=SV_COLUMNS_POSTPROCESSING,
         date_columns=["timestamp", "first_ping_time", "last_ping_time"],
-        builder=lambda: build_sv_ledger(pd.read_csv(path_raw_list)),
+        builder=lambda: build_Sv_ledger(pd.read_csv(path_raw_list)),
     )
     selected = filter_time_range(
         df=df_Sv,
@@ -551,7 +551,7 @@ def flow_create_MVBS_postprocessing(
         ledger_path=file_MVBS_csv,
         columns=MVBS_COLUMNS_POSTPROCESSING,
         date_columns=["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
-        builder=lambda: build_mvbs_ledger(df_Sv, slice_mins),
+        builder=lambda: build_MVBS_ledger(df_Sv, slice_mins),
     )
 
     # Get MVBS slices to be computed based on raw-to-Sv completions

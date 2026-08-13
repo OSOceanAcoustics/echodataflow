@@ -6,8 +6,8 @@ import pytest
 from echodataflow.operations.operations_postprocessing import (
     TimeWindow,
     build_prediction_ledger,
-    build_mvbs_ledger,
-    build_sv_ledger,
+    build_MVBS_ledger,
+    build_Sv_ledger,
     generate_aligned_windows,
     plan_mvbs_slices,
     plan_prediction_slices,
@@ -90,7 +90,7 @@ def _sv_ledger(statuses=("completed", "completed", "completed", "completed")):
             ],
         }
     )
-    ledger = build_sv_ledger(raw)
+    ledger = build_Sv_ledger(raw)
     ledger["Sv_filename"] = ["a.zarr", "b.zarr", "c.zarr", "d.zarr"]
     ledger["raw2Sv_status"] = statuses
     ledger["first_ping_time"] = pd.to_datetime(
@@ -114,7 +114,7 @@ def _sv_ledger(statuses=("completed", "completed", "completed", "completed")):
 
 def test_ledgers_predeclare_raw_files_and_mvbs_slices():
     sv = _sv_ledger(("pending",) * 4)
-    mvbs = build_mvbs_ledger(sv, slice_mins=20)
+    mvbs = build_MVBS_ledger(sv, slice_mins=20)
 
     assert sv["raw_filename"].tolist() == [
         "IWCPS-D20250611-T000100.raw",
@@ -141,14 +141,14 @@ def test_sv_ledger_derives_timestamp_only_from_s3_path():
         }
     )
 
-    ledger = build_sv_ledger(raw)
+    ledger = build_Sv_ledger(raw)
 
     assert ledger.loc[0, "timestamp"] == pd.Timestamp("2025-06-11T00:01:00Z")
 
 
 def test_mvbs_slice_is_released_when_all_required_raw_files_complete():
     sv = _sv_ledger()
-    planned = plan_mvbs_slices(sv, build_mvbs_ledger(sv, slice_mins=20))
+    planned = plan_mvbs_slices(sv, build_MVBS_ledger(sv, slice_mins=20))
 
     assert len(planned) == 2
     assert planned[0].start_time == pd.Timestamp("2025-06-11T00:00:00Z")
@@ -160,11 +160,11 @@ def test_mvbs_slice_is_released_when_all_required_raw_files_complete():
 def test_pending_raw_input_keeps_its_mvbs_slice_closed():
     sv = _sv_ledger(("completed", "completed", "pending", "completed"))
 
-    assert plan_mvbs_slices(sv, build_mvbs_ledger(sv, slice_mins=20)) == []
+    assert plan_mvbs_slices(sv, build_MVBS_ledger(sv, slice_mins=20)) == []
 
 
 def test_empty_sv_ledger_builds_header_only_mvbs_ledger():
-    mvbs = build_mvbs_ledger(pd.DataFrame(), slice_mins=20)
+    mvbs = build_MVBS_ledger(pd.DataFrame(), slice_mins=20)
 
     assert mvbs.empty
     assert mvbs.columns.tolist() == MVBS_COLUMNS_POSTPROCESSING

@@ -109,7 +109,7 @@ def build_input_signature(
     return hashlib.sha256(serialized.encode()).hexdigest()
 
 
-def build_sv_ledger(raw_files: pd.DataFrame) -> pd.DataFrame:
+def build_Sv_ledger(raw_files: pd.DataFrame) -> pd.DataFrame:
     """Build the fixed post-processing Sv ledger from the complete raw list."""
     required = {"s3_path"}
     if not required.issubset(raw_files.columns):
@@ -137,12 +137,12 @@ def build_sv_ledger(raw_files: pd.DataFrame) -> pd.DataFrame:
     return ledger.sort_values("timestamp").reset_index(drop=True)
 
 
-def build_mvbs_ledger(sv_ledger: pd.DataFrame, slice_mins: int = 20) -> pd.DataFrame:
+def build_MVBS_ledger(ledger_Sv: pd.DataFrame, slice_mins: int = 20) -> pd.DataFrame:
     """Preplan every MVBS slice and its required raw files."""
-    if sv_ledger.empty:
+    if ledger_Sv.empty:
         return pd.DataFrame(columns=MVBS_COLUMNS_POSTPROCESSING)
 
-    df_Sv = sv_ledger.copy()
+    df_Sv = ledger_Sv.copy()
     df_Sv["timestamp"] = pd.to_datetime(df_Sv["timestamp"], utc=True)
     duration = pd.Timedelta(minutes=slice_mins)
     final_end = df_Sv["timestamp"].max().floor(f"{slice_mins}min") + duration
@@ -179,14 +179,14 @@ def build_mvbs_ledger(sv_ledger: pd.DataFrame, slice_mins: int = 20) -> pd.DataF
 
 
 def build_prediction_ledger(
-    mvbs_ledger: pd.DataFrame,
+    ledger_MVBS: pd.DataFrame,
     prediction_slice_mins: int = 40,
 ) -> pd.DataFrame:
     """Preplan every prediction window and its required MVBS slices."""
-    if mvbs_ledger.empty:
+    if ledger_MVBS.empty:
         return pd.DataFrame(columns=PREDICTION_COLUMNS_POSTPROCESSING)
 
-    df_MVBS = mvbs_ledger.copy()
+    df_MVBS = ledger_MVBS.copy()
     df_MVBS["slice_start"] = pd.to_datetime(df_MVBS["slice_start"], utc=True)
     df_MVBS["slice_end"] = pd.to_datetime(df_MVBS["slice_end"], utc=True)
     windows = generate_aligned_windows(
@@ -240,15 +240,15 @@ def read_or_create_ledger(
 
 
 def plan_mvbs_slices(
-    sv_ledger: pd.DataFrame,
-    mvbs_ledger: pd.DataFrame,
+    ledger_Sv: pd.DataFrame,
+    ledger_MVBS: pd.DataFrame,
 ) -> list[PlannedSlice]:
     """Return pending MVBS slices whose required raw conversions are complete."""
-    if sv_ledger.empty or mvbs_ledger.empty:
+    if ledger_Sv.empty or ledger_MVBS.empty:
         return []
 
-    df_Sv = sv_ledger.copy()
-    df_MVBS = mvbs_ledger.copy()
+    df_Sv = ledger_Sv.copy()
+    df_MVBS = ledger_MVBS.copy()
 
     # Ensure datetime columns are in UTC
     df_Sv["first_ping_time"] = pd.to_datetime(df_Sv["first_ping_time"], utc=True)
@@ -286,15 +286,17 @@ def plan_mvbs_slices(
 
 
 def plan_prediction_slices(
-    mvbs_ledger: pd.DataFrame,
-    prediction_ledger: pd.DataFrame,
+    ledger_MVBS: pd.DataFrame,
+    ledger_prediction: pd.DataFrame,
 ) -> list[PlannedSlice]:
     """Return pending prediction windows whose required MVBS slices are ready."""
-    if mvbs_ledger.empty or prediction_ledger.empty:
+    if ledger_MVBS.empty or ledger_prediction.empty:
         return []
 
-    df_MVBS = mvbs_ledger.copy()
-    df_prediction = prediction_ledger.copy()
+    df_MVBS = ledger_MVBS.copy()
+    df_prediction = ledger_prediction.copy()
+
+    # Ensure datetime columns are in UTC
     df_prediction["slice_start"] = pd.to_datetime(df_prediction["slice_start"], utc=True)
     df_prediction["slice_end"] = pd.to_datetime(df_prediction["slice_end"], utc=True)
 
