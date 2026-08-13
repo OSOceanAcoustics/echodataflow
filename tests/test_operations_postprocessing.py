@@ -14,6 +14,10 @@ from echodataflow.operations.operations_postprocessing import (
     select_contained_records,
     select_overlapping_records,
 )
+from echodataflow.utils.manifests import (
+    MVBS_COLUMNS_POSTPROCESSING,
+    PREDICTION_COLUMNS_POSTPROCESSING,
+)
 
 
 def test_generate_aligned_windows_returns_only_complete_windows():
@@ -159,6 +163,13 @@ def test_pending_raw_input_keeps_its_mvbs_slice_closed():
     assert plan_mvbs_slices(sv, build_mvbs_ledger(sv, slice_mins=20)) == []
 
 
+def test_empty_sv_ledger_builds_header_only_mvbs_ledger():
+    mvbs = build_mvbs_ledger(pd.DataFrame(), slice_mins=20)
+
+    assert mvbs.empty
+    assert mvbs.columns.tolist() == MVBS_COLUMNS_POSTPROCESSING
+
+
 def test_prediction_combines_two_aligned_mvbs_slices():
     mvbs = pd.DataFrame(
         {
@@ -172,7 +183,7 @@ def test_prediction_combines_two_aligned_mvbs_slices():
         }
     )
 
-    prediction = build_prediction_ledger(mvbs, 20, 40)
+    prediction = build_prediction_ledger(mvbs, 40)
     planned = plan_prediction_slices(mvbs, prediction)
 
     assert len(planned) == 1
@@ -193,7 +204,7 @@ def test_prediction_planner_skips_completed_prediction_windows():
             "MVBS_status": ["completed", "completed"],
         }
     )
-    prediction = build_prediction_ledger(mvbs, 20, 40)
+    prediction = build_prediction_ledger(mvbs, 40)
     prediction.loc[0, "prediction_status"] = "completed"
 
     planned = plan_prediction_slices(mvbs, prediction)
@@ -214,7 +225,10 @@ def test_prediction_requires_both_mvbs_slices_by_default():
         }
     )
 
-    assert build_prediction_ledger(mvbs, 20, 40).empty
+    prediction = build_prediction_ledger(mvbs, 40)
+
+    assert prediction.empty
+    assert prediction.columns.tolist() == PREDICTION_COLUMNS_POSTPROCESSING
 
 
 def test_incomplete_prediction_uses_any_actual_ping_time_overlap_when_allowed():
@@ -229,7 +243,7 @@ def test_incomplete_prediction_uses_any_actual_ping_time_overlap_when_allowed():
             "MVBS_status": ["completed", "completed"],
         }
     )
-    prediction = build_prediction_ledger(mvbs, 20, 40)
+    prediction = build_prediction_ledger(mvbs, 40)
 
     planned = plan_prediction_slices(mvbs, prediction)
 
@@ -248,7 +262,7 @@ def test_prediction_ledger_supports_overlapping_seven_minute_mvbs_slices():
         }
     )
 
-    prediction = build_prediction_ledger(mvbs, 7, 40)
+    prediction = build_prediction_ledger(mvbs, 40)
 
     assert json.loads(prediction.loc[0, "MVBS_filenames"]) == [
         f"slice-{index}.zarr" for index in range(6)

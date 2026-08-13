@@ -10,6 +10,7 @@ from prefect.variables import Variable
 
 from echodataflow.deployment.deployment_engine import (
     build_deploy_specs,
+    configure_concurrency_groups,
     create_deployments,
     load_config,
     resolve_registered_flows,
@@ -54,6 +55,11 @@ def _run_from_specs(
         deploy_cfg=deploy_cfg,
         resolved_flows=resolved_flows,
     )
+    configure_concurrency_groups(
+        specs=specs,
+        concurrency_groups=deploy_cfg.get("concurrency_groups", {}),
+        default_work_pool_name=default_work_pool_name,
+    )
     grouped, standalone = create_deployments(
         specs=specs,
         source=source,
@@ -80,9 +86,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--default-work-pool-name",
         required=True,
         default="local",
-        help=(
-            "Default work pool name for deployments."
-        ),
+        help="Default work pool name for deployments.",
     )
     run_parser.add_argument(
         "--param-config",

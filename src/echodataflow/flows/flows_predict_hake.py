@@ -250,7 +250,6 @@ async def flow_predict_hake(
 def flow_predict_hake_postprocessing(
     path_main: str,
     path_weight: str,
-    mvbs_slice_mins: int = 20,
     prediction_slice_mins: int = 40,
     temperature: float = 0.5,
     softmax_threshold: float = 0.5,
@@ -280,7 +279,6 @@ def flow_predict_hake_postprocessing(
         date_columns=["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
         builder=lambda: build_prediction_ledger(
             df_MVBS,
-            mvbs_slice_mins,
             prediction_slice_mins,
         ),
     )

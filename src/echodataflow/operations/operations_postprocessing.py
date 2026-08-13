@@ -11,6 +11,8 @@ from typing import Callable
 import pandas as pd
 
 from echodataflow.utils.manifests import (
+    MVBS_COLUMNS_POSTPROCESSING,
+    PREDICTION_COLUMNS_POSTPROCESSING,
     filter_time_range,
     read_manifest,
     write_manifest,
@@ -138,7 +140,7 @@ def build_sv_ledger(raw_files: pd.DataFrame) -> pd.DataFrame:
 def build_mvbs_ledger(sv_ledger: pd.DataFrame, slice_mins: int = 20) -> pd.DataFrame:
     """Preplan every MVBS slice and its required raw files."""
     if sv_ledger.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=MVBS_COLUMNS_POSTPROCESSING)
 
     df_Sv = sv_ledger.copy()
     df_Sv["timestamp"] = pd.to_datetime(df_Sv["timestamp"], utc=True)
@@ -173,17 +175,16 @@ def build_mvbs_ledger(sv_ledger: pd.DataFrame, slice_mins: int = 20) -> pd.DataF
                 "error": "",
             }
         )
-    return pd.DataFrame.from_records(records)
+    return pd.DataFrame.from_records(records, columns=MVBS_COLUMNS_POSTPROCESSING)
 
 
 def build_prediction_ledger(
     mvbs_ledger: pd.DataFrame,
-    mvbs_slice_mins: int = 20,
     prediction_slice_mins: int = 40,
 ) -> pd.DataFrame:
     """Preplan every prediction window and its required MVBS slices."""
     if mvbs_ledger.empty:
-        return pd.DataFrame()
+        return pd.DataFrame(columns=PREDICTION_COLUMNS_POSTPROCESSING)
 
     df_MVBS = mvbs_ledger.copy()
     df_MVBS["slice_start"] = pd.to_datetime(df_MVBS["slice_start"], utc=True)
@@ -220,7 +221,7 @@ def build_prediction_ledger(
                 "error": "",
             }
         )
-    return pd.DataFrame.from_records(records)
+    return pd.DataFrame.from_records(records, columns=PREDICTION_COLUMNS_POSTPROCESSING)
 
 
 def read_or_create_ledger(

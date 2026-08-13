@@ -10,11 +10,11 @@ import echopype as ep
 
 from prefect import flow, get_run_logger, get_client
 from prefect.futures import as_completed
-from prefect_dask import DaskTaskRunner
 from prefect.states import Cancelled, Failed
 from prefect import runtime
 
 from echodataflow.flows.flows_helper import deployment_already_running
+from echodataflow.deployment.task_runners import dask_task_runner_from_environment
 from echodataflow.utils.manifests import (
     MVBS_COLUMNS_POSTPROCESSING,
     MVBS_COLUMNS_REALTIME,
@@ -55,7 +55,7 @@ from echodataflow.utils.utils import (
 ep.utils.log.verbose()
 
 
-@flow(log_prints=True, task_runner=DaskTaskRunner())
+@flow(log_prints=True, task_runner=dask_task_runner_from_environment())
 def flow_raw2Sv(
     exclude_before: str | None = None,
     exclude_raw_file: list[str] = [],
@@ -405,7 +405,7 @@ async def flow_create_MVBS(
         raise Exception(error_msg)
 
 
-@flow(log_prints=True, task_runner=DaskTaskRunner())
+@flow(log_prints=True, task_runner=dask_task_runner_from_environment())
 def flow_raw2Sv_postprocessing(
     path_raw_list: str,
     path_main: str,
@@ -521,7 +521,7 @@ def flow_raw2Sv_postprocessing(
         raise RuntimeError(f"{len(errors)} raw-to-Sv conversions failed")
 
 
-@flow(log_prints=True, task_runner=DaskTaskRunner())
+@flow(log_prints=True, task_runner=dask_task_runner_from_environment())
 def flow_create_MVBS_postprocessing(
     path_main: str,
     slice_mins: int = 20,
