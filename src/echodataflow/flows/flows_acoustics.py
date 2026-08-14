@@ -13,7 +13,6 @@ from prefect.futures import as_completed
 from prefect.states import Failed
 from prefect import runtime
 
-from echodataflow.flows.flows_helper import cancel_if_deployment_already_running
 from echodataflow.deployment.task_runners import dask_task_runner_from_environment
 from echodataflow.utils.manifests import (
     MVBS_COLUMNS_POSTPROCESSING,
@@ -70,9 +69,6 @@ def flow_raw2Sv(
     file_Sv_csv: str = "Sv_files.csv",
     new_file_num_limit: int = 50,
 ):
-
-    if cancel_if_deployment_already_running():
-        return
 
     # Assemble paths
     path_Sv_zarr = Path(path_main) / "Sv"
@@ -516,9 +512,6 @@ def flow_create_MVBS_postprocessing(
     file_MVBS_csv: str = "MVBS_files.csv",
 ) -> None:
     """Create preplanned MVBS slices after all required raw conversions finish."""
-    
-    if cancel_if_deployment_already_running():
-        return
 
     logger = get_run_logger()
     file_Sv_csv = Path(path_main) / file_Sv_csv
