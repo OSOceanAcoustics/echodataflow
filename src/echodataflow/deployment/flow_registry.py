@@ -66,4 +66,8 @@ FLOW_REGISTRY: dict[str, FlowRegistration] = {
     "update_cache_MVBS": FlowRegistration(
         entrypoint="echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
     ),
+    "transect_update": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_transect.py:flow_transect_update",
+        description="Process updates to transect start/end information.",
+    ),
 }
