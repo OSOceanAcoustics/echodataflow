@@ -83,12 +83,7 @@ lint = [
     "pylint",
 ]
 docs = [
-    "jupyter-book",
-    "matplotlib",
-    "nbsphinx",
-    "recommonmark",
-    "sphinx",
-    "sphinx-automodapi",
+    "jupyter-book>=2.0.0",
 ]
 
 [project.scripts]
