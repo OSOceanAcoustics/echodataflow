@@ -58,12 +58,14 @@ def flow_transect_update(
 
     # Read the current transect information, preserving transect identifiers
     # as strings so values with leading zeros (e.g., "002") are not converted
-    # to integers by pandas.
+    # to integers by pandas
     current = pd.read_csv(
         path_transect,
         dtype={
-            "transectPart": str,
-            "transectNumber": str,
+            "transectPart": "string",
+            "transectNumber": "string",
+            "transectStart": "string",
+            "transectEnd": "string",
         },
     )
 
@@ -75,12 +77,17 @@ def flow_transect_update(
     previous = pd.read_csv(
         path_snapshot,
         dtype={
-            "transectPart": str,
-            "transectNumber": str,
+            "transectPart": "string",
+            "transectNumber": "string",
+            "transectStart": "string",
+            "transectEnd": "string",
         },
     )
 
     changed = get_changed_transects(current, previous)
+
+    # Only process completed transects
+    changed = changed.dropna(subset=["transectEnd"])
 
     if changed.empty:
         print("No new or updated transect segments.")
