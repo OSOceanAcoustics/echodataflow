@@ -10,6 +10,7 @@ import pandas as pd
 from prefect import flow, get_client, get_run_logger, runtime
 from prefect.states import Failed
 
+from echodataflow.flows.flows_helper import cancel_if_deployment_already_running
 from echodataflow.utils.manifests import (
     MVBS_COLUMNS_POSTPROCESSING,
     PREDICTION_COLUMNS_POSTPROCESSING,
@@ -260,6 +261,10 @@ def flow_predict_hake_postprocessing(
     file_prediction_csv: str = "prediction_files.csv",
 ) -> None:
     """Predict all newly ready windows, combining aligned MVBS slices."""
+    
+    if cancel_if_deployment_already_running():
+        return
+
     logger = get_run_logger()
     file_MVBS_csv = Path(path_main) / file_MVBS_csv
     if not file_MVBS_csv.exists():

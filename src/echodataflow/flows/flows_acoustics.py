@@ -10,10 +10,10 @@ import echopype as ep
 
 from prefect import flow, get_run_logger, get_client
 from prefect.futures import as_completed
-from prefect.states import Cancelled, Failed
+from prefect.states import Failed
 from prefect import runtime
 
-from echodataflow.flows.flows_helper import deployment_already_running
+from echodataflow.flows.flows_helper import cancel_if_deployment_already_running
 from echodataflow.deployment.task_runners import dask_task_runner_from_environment
 from echodataflow.utils.manifests import (
     MVBS_COLUMNS_POSTPROCESSING,
@@ -71,19 +71,8 @@ def flow_raw2Sv(
     new_file_num_limit: int = 50,
 ):
 
-    # Check if the deployment is already running
-    already_running = asyncio.run(deployment_already_running())
-    if already_running:
-
-        async def cancel_run():
-            async with get_client() as client:
-                await client.set_flow_run_state(
-                    flow_run_id=runtime.flow_run.id,
-                    state=Cancelled(message="Another instance of this flow is already running"),
-                )
-
-        asyncio.run(cancel_run())
-        return  # exit the flow early
+    if cancel_if_deployment_already_running():
+        return
 
     # Assemble paths
     path_Sv_zarr = Path(path_main) / "Sv"
@@ -527,6 +516,10 @@ def flow_create_MVBS_postprocessing(
     file_MVBS_csv: str = "MVBS_files.csv",
 ) -> None:
     """Create preplanned MVBS slices after all required raw conversions finish."""
+    
+    if cancel_if_deployment_already_running():
+        return
+
     logger = get_run_logger()
     file_Sv_csv = Path(path_main) / file_Sv_csv
     if not file_Sv_csv.exists():

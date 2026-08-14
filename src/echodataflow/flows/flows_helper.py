@@ -1,8 +1,10 @@
 from pathlib import Path
+import asyncio
 import datetime
 
 from prefect import flow, get_client, runtime, task
 from prefect.client.schemas.filters import FlowRunFilter
+from prefect.states import Cancelled
 
 
 @flow(timeout_seconds=600, log_prints=True)
@@ -92,3 +94,19 @@ async def deployment_already_running() -> bool:
         )
 
         return len(running_flows) > 1
+
+
+def cancel_if_deployment_already_running() -> bool:
+    """Cancel this flow run and return True when its deployment already has a run."""
+    if not asyncio.run(deployment_already_running()):
+        return False
+
+    async def cancel_run():
+        async with get_client() as client:
+            await client.set_flow_run_state(
+                flow_run_id=runtime.flow_run.id,
+                state=Cancelled(message="Another instance of this flow is already running"),
+            )
+
+    asyncio.run(cancel_run())
+    return True
