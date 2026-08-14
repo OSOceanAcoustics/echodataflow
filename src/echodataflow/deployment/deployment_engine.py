@@ -227,18 +227,31 @@ def build_cron(interval: int | None, cron_offset: int = 0) -> str | None:
     return f"*/{interval} * * * *"
 
 
-def build_triggers(trigger_items: list[dict[str, Any]]) -> list[Any]:
-    return [
-        DeploymentEventTrigger(
-            expect={item["expect"]},
-            match_related={
+def build_triggers(
+    trigger_items: list[dict[str, Any]],
+) -> list[Any]:
+    triggers = []
+
+    for item in trigger_items:
+        kwargs = {
+            "expect": {item["expect"]},
+        }
+
+        if item["resource_scope"] == "primary":
+            kwargs["match"] = {
+                "prefect.resource.name": item["resource_name"],
+            }
+        else:
+            kwargs["match_related"] = {
                 "prefect.resource.name": item["resource_name"],
                 "prefect.resource.role": "deployment",
-            },
-        )
-        for item in trigger_items
-    ]
+            }
 
+        triggers.append(
+            DeploymentEventTrigger(**kwargs)
+        )
+
+    return triggers
 
 def _reject_unknown_keys(
     value: dict[str, Any],
@@ -397,34 +410,55 @@ def validate_triggers(
     When configured, triggers must be a non-empty list of mappings with
     non-empty string values for `expect` and `resource_name`.
     """
+
     triggers = validate_optional_non_empty_list(
         triggers,
         field_name=f"deploy_cfg.flows.{flow_key}.triggers",
         item_label="trigger",
     )
+
     if triggers is None:
         return None
 
     validated_triggers: list[dict[str, Any]] = []
+
     for trigger_item in triggers:
         if not isinstance(trigger_item, dict):
             raise ValueError(f"deploy_cfg.flows.{flow_key}.triggers entries must be mappings")
 
         expect = trigger_item.get("expect")
         resource_name = trigger_item.get("resource_name")
+        resource_scope = trigger_item.get(
+            "resource_scope",
+            "related",
+        )
+
         if not isinstance(expect, str) or not expect.strip():
             raise ValueError(
-                f"deploy_cfg.flows.{flow_key}.triggers entries must define a non-empty 'expect'"
+                f"deploy_cfg.flows.{flow_key}.triggers entries "
+                "must define a non-empty 'expect'"
             )
+
         if not isinstance(resource_name, str) or not resource_name.strip():
             raise ValueError(
-                f"deploy_cfg.flows.{flow_key}.triggers entries must define a non-empty 'resource_name'"
+                f"deploy_cfg.flows.{flow_key}.triggers entries "
+                "must define a non-empty 'resource_name'"
+            )
+
+        if resource_scope not in {
+            "primary",
+            "related",
+        }:
+            raise ValueError(
+                f"deploy_cfg.flows.{flow_key}.triggers "
+                "resource_scope must be 'primary' or 'related'"
             )
 
         validated_triggers.append(
             {
                 "expect": expect.strip(),
                 "resource_name": resource_name.strip(),
+                "resource_scope": resource_scope,
             }
         )
 
