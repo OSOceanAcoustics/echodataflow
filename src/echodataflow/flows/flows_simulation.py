@@ -217,3 +217,156 @@ def flow_copy_trawl(
     )
     print(f"Flow complete. Downloaded {len(results)} files for trawl {trawl_num_str}.")
     return results
+
+@flow(log_prints=True)
+def flow_simulate_transects(
+    path_transect_csv: str,
+    survey_start: str,
+    transect_duration_minutes: int = 60,
+    start_transect_num: int = 1,
+    max_transects: int = 20,
+) -> None:
+    """Simulate realtime opening and closing of transects."""
+
+    path_transect = Path(path_transect_csv)
+    path_transect.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    survey_start_time = pd.to_datetime(
+        survey_start,
+        utc=True,
+    )
+
+    state = Variable.get(
+        _var_key(prefix="transect_state"),
+        default=None,
+    )
+
+    # ---------------------------------------------
+    # First run: open first transect
+    # ---------------------------------------------
+    if state is None:
+        transect_num_curr = start_transect_num
+        action = "open"
+    else:
+        transect_num_curr, action = state.split(":")
+        transect_num_curr = int(transect_num_curr)
+
+    if transect_num_curr > max_transects:
+        print("All simulated transects have been generated.")
+        return
+
+    transect_num = f"{transect_num_curr:03d}"
+
+    transect_start = (
+        survey_start_time
+        + pd.Timedelta(
+            minutes=(
+                transect_num_curr
+                - start_transect_num
+            )
+            * transect_duration_minutes
+        )
+    )
+
+    transect_end = (
+        transect_start
+        + pd.Timedelta(
+            minutes=transect_duration_minutes
+        )
+    )
+
+    if path_transect.exists():
+        df = pd.read_csv(
+            path_transect,
+            dtype={
+                "transectPart": "string",
+                "transectNumber": "string",
+                "transectStart": "string",
+                "transectEnd": "string",
+            },
+        )
+    else:
+        df = pd.DataFrame(
+            columns=[
+                "transectPart",
+                "transectNumber",
+                "transectStart",
+                "transectEnd",
+            ]
+        )
+
+    # ---------------------------------------------
+    # OPEN transect
+    # ---------------------------------------------
+    if action == "open":
+        row = pd.DataFrame(
+            [
+                {
+                    "transectPart": transect_num,
+                    "transectNumber": transect_num,
+                    "transectStart": transect_start.isoformat(),
+                    "transectEnd": pd.NA,
+                }
+            ]
+        )
+
+        df = pd.concat(
+            [df, row],
+            ignore_index=True,
+        )
+
+        df.to_csv(
+            path_transect,
+            index=False,
+        )
+
+        Variable.set(
+            _var_key(prefix="transect_state"),
+            f"{transect_num_curr}:close",
+            overwrite=True,
+        )
+
+        print(
+            f"Opened simulated transect {transect_num}: "
+            f"{transect_start}"
+        )
+
+        return
+
+    # ---------------------------------------------
+    # CLOSE transect
+    # ---------------------------------------------
+    idx = (
+        df["transectPart"]
+        == transect_num
+    )
+
+    if not idx.any():
+        raise ValueError(
+            f"Cannot close transect {transect_num}: "
+            "transect not found in CSV."
+        )
+
+    df.loc[
+        idx,
+        "transectEnd",
+    ] = transect_end.isoformat()
+
+    df.to_csv(
+        path_transect,
+        index=False,
+    )
+
+    print(
+        f"Closed simulated transect {transect_num}: "
+        f"{transect_end}"
+    )
+
+    Variable.set(
+        _var_key(prefix="transect_state"),
+        f"{transect_num_curr + 1}:open",
+        overwrite=True,
+    )

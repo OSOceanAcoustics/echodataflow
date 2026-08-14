@@ -71,6 +71,9 @@ def flow_raw2Sv(
     path_raw: str = "",
     file_Sv_csv: str = "Sv_files.csv",
     new_file_num_limit: int = 50,
+    add_depth: bool = True,
+    add_location: bool = True,
+    add_splitbeam_angle: bool = False,
 ):
 
     # Check if the deployment is already running
@@ -164,6 +167,9 @@ def flow_raw2Sv(
         sonar_model=sonar_model,
         datagram_type=datagram_type,
         nmea_sentence=nmea_sentence,
+        add_depth=add_depth,
+        add_location=add_location,
+        add_splitbeam_angle=add_splitbeam_angle,
     )
     errors = []
     results: list[RawToSvResult] = []

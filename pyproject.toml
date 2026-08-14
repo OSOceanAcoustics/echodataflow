@@ -57,6 +57,7 @@ dynamic = ["version"]
 mission = [
     "echopype",
     "echoshader",
+    "echoregions",
     "opencv",
 ]
 notebook = [
