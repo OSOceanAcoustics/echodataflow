@@ -44,6 +44,12 @@ class RawToSvResult:
     last_ping_time: pd.Timestamp
 
 
+def _clean_reversed_ping_time(x):
+    if ep.qc.exist_reversed_time(x, "ping_time"):
+        ep.qc.coerce_increasing_time(x)
+    return x
+
+
 def convert_raw_to_Sv(
     item: RawToSvWorkItem,
     settings: RawToSvSettings,
@@ -148,8 +154,10 @@ def create_MVBS(
         coords="minimal",
         data_vars="minimal",
         compat="override",
-        chunks={"channel": 1, "ping_time": 1000, "range_sample": -1},
         engine="zarr",  # use zarr engine for reading
+        preprocess=_clean_reversed_ping_time,
+    ).chunk(
+        chunks={"channel": 1, "ping_time": 1000, "range_sample": -1},
     ).sel(
         # slice start/end, end exclusive
         ping_time=slice(start_time, end_time - pd.to_timedelta("1nanoseconds"))

@@ -8,8 +8,13 @@ from echodataflow.operations import operations_acoustics
 
 class FakeSvDataset:
     def __init__(self):
+        self.chunks = None
         self.selection = None
         self.sizes = {"ping_time": 2}
+
+    def chunk(self, chunks):
+        self.chunks = chunks
+        return self
 
     def sel(self, **kwargs):
         self.selection = kwargs
@@ -86,9 +91,14 @@ def test_create_MVBS_processes_one_time_slice(monkeypatch, tmp_path):
             "coords": "minimal",
             "data_vars": "minimal",
             "compat": "override",
-            "chunks": {"channel": 1, "ping_time": 1000, "range_sample": -1},
             "engine": "zarr",
+            "preprocess": operations_acoustics._clean_reversed_ping_time,
         },
+    }
+    assert sv_dataset.chunks == {
+        "channel": 1,
+        "ping_time": 1000,
+        "range_sample": -1,
     }
     assert sv_dataset.selection == {
         "ping_time": slice(
@@ -155,3 +165,24 @@ def test_create_MVBS_returns_no_data_before_computation(monkeypatch, tmp_path):
         last_ping_time=None,
         has_data=False,
     )
+
+
+def test_clean_reversed_ping_time_coerces_only_reversed_datasets(monkeypatch):
+    reversed_dataset = object()
+    increasing_dataset = object()
+    coerced = []
+
+    monkeypatch.setattr(
+        operations_acoustics.ep.qc,
+        "exist_reversed_time",
+        lambda dataset, coordinate: dataset is reversed_dataset and coordinate == "ping_time",
+    )
+    monkeypatch.setattr(
+        operations_acoustics.ep.qc,
+        "coerce_increasing_time",
+        lambda dataset: coerced.append(dataset),
+    )
+
+    assert operations_acoustics._clean_reversed_ping_time(reversed_dataset) is reversed_dataset
+    assert operations_acoustics._clean_reversed_ping_time(increasing_dataset) is increasing_dataset
+    assert coerced == [reversed_dataset]
