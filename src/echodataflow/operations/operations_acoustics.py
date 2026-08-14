@@ -189,7 +189,7 @@ def create_MVBS(
     )
 
 
-def compute_NASC(
+def compute_NASC_from_masked_Sv(
     ds_Sv_masked: xr.Dataset,
     range_bin: str = "10m",
     dist_bin: str = "0.5nmi",

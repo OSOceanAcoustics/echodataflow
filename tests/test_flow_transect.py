@@ -174,3 +174,46 @@ def test_find_overlapping_sv_files():
     )
 
     assert overlapping["Sv_filename"].tolist() == ["overlap_Sv.zarr"]
+    
+def test_flow_transect_update_ignores_open_transect(tmp_path, capsys):
+    transect_csv = tmp_path / "transects.csv"
+    snapshot_csv = tmp_path / "snapshot.csv"
+    path_main = tmp_path / "output"
+    path_main.mkdir()
+
+    previous = pd.DataFrame(
+        {
+            "transectPart": ["001"],
+            "transectNumber": ["001"],
+            "transectStart": ["2024-07-07T00:00:00Z"],
+            "transectEnd": ["2024-07-07T00:10:00Z"],
+        }
+    )
+
+    current = pd.concat(
+        [
+            previous,
+            pd.DataFrame(
+                {
+                    "transectPart": ["002"],
+                    "transectNumber": ["002"],
+                    "transectStart": ["2024-07-07T00:20:00Z"],
+                    "transectEnd": [pd.NA],
+                }
+            ),
+        ],
+        ignore_index=True,
+    )
+
+    previous.to_csv(snapshot_csv, index=False)
+    current.to_csv(transect_csv, index=False)
+
+    flow_transect_update.fn(
+        path_transect_csv=str(transect_csv),
+        path_snapshot_csv=str(snapshot_csv),
+        path_main=str(path_main),
+    )
+
+    output = capsys.readouterr().out
+
+    assert "No new or updated transect segments." in output
