@@ -63,6 +63,9 @@ FLOW_REGISTRY: dict[str, FlowRegistration] = {
     "copy_trawl": FlowRegistration(
         entrypoint="echodataflow/flows/flows_simulation.py:flow_copy_trawl",
     ),
+    "simulate_transects": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_simulation.py:flow_simulate_transects",
+    ),
     "update_cache_MVBS": FlowRegistration(
         entrypoint="echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
     ),
