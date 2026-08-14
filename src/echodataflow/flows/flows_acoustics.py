@@ -38,12 +38,10 @@ from echodataflow.operations.operations_postprocessing import (
     plan_mvbs_slices,
     read_or_create_ledger,
 )
-from echodataflow.operations.operations_storage import S3CopySettings, S3CopyWorkItem
 from echodataflow.tasks.tasks_acoustics import (
     task_create_MVBS,
     task_raw2Sv,
 )
-from echodataflow.tasks.tasks_postprocessing import task_s3_raw2Sv
 from echodataflow.utils.utils import (
     round_up_mins,
     get_slice_start_end_times,
@@ -408,9 +406,8 @@ async def flow_create_MVBS(
 @flow(log_prints=True, task_runner=dask_task_runner_from_environment())
 def flow_raw2Sv_postprocessing(
     path_raw_list: str,
+    path_raw: str,
     path_main: str,
-    s3_bucket: str = "noaa-wcsd-pds",
-    endpoint_url: str | None = "https://sdsc.osn.xsede.org",
     start_time: str | None = None,
     end_time: str | None = None,
     new_file_num_limit: int = -1,
@@ -424,12 +421,13 @@ def flow_raw2Sv_postprocessing(
     nmea_sentence: str | None = None,
     file_Sv_csv: str = "Sv_files.csv",
 ) -> None:
-    """Convert raw files and update corresponding rows in the Sv ledger."""
+    """Convert local raw files and update corresponding rows in the Sv ledger."""
     logger = get_run_logger()
-    # Keep temporary raw files separate from persistent Sv outputs
-    path_raw_staging = Path(path_main) / "raw_staging"
+    path_raw = Path(path_raw)
+    if not path_raw.is_dir():
+        raise ValueError(f"Local raw directory does not exist: {path_raw}")
+
     path_Sv = Path(path_main) / "Sv"
-    path_raw_staging.mkdir(parents=True, exist_ok=True)
     path_Sv.mkdir(parents=True, exist_ok=True)
     file_Sv_csv = Path(path_main) / file_Sv_csv
 
@@ -458,7 +456,6 @@ def flow_raw2Sv_postprocessing(
     df_Sv.loc[selected.index, ["raw2Sv_status", "error"]] = ["pending", ""]
     write_manifest(df_Sv, file_Sv_csv)
 
-    copy_settings = S3CopySettings(s3_bucket=s3_bucket, endpoint_url=endpoint_url)
     sv_settings = RawToSvSettings(
         output_directory=str(path_Sv),
         encode_mode=encode_mode,
@@ -469,19 +466,18 @@ def flow_raw2Sv_postprocessing(
         nmea_sentence=nmea_sentence,
     )
 
-    # Submit one download-plus-conversion task per raw object
+    # Submit one conversion task per local raw file
     errors = []
     conversion_futures = {}
     for row in selected.itertuples(index=False):
         key = str(row.s3_path)
         filename = Path(key).name
-        future = task_s3_raw2Sv.with_options(
+        future = task_raw2Sv.with_options(
             task_run_name=f"raw2Sv_{filename}",
             retries=task_retries,
             retry_delay_seconds=task_retry_delay_seconds,
         ).submit(
-            S3CopyWorkItem(s3_path=key, local_path=str(path_raw_staging / filename)),
-            copy_settings,
+            RawToSvWorkItem(raw_path=str(path_raw / filename)),
             sv_settings,
         )
         conversion_futures[future] = key
@@ -516,7 +512,7 @@ def flow_raw2Sv_postprocessing(
             errors.append(exc)
             df_Sv.loc[idx, ["raw2Sv_status", "error"]] = ["failed", str(exc)]
             write_manifest(df_Sv, file_Sv_csv)
-            logger.error("Failed to download or convert %s: %s", key, exc)
+            logger.error("Failed to convert %s: %s", key, exc)
     if errors:
         raise RuntimeError(f"{len(errors)} raw-to-Sv conversions failed")
 
