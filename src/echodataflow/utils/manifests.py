@@ -27,6 +27,7 @@ SV_COLUMNS_POSTPROCESSING = [
     "raw_filename",
     "Sv_filename",
     "raw2Sv_status",
+    "attempt_count",
     "first_ping_time",
     "last_ping_time",
     "error",
@@ -40,6 +41,7 @@ MVBS_COLUMNS_POSTPROCESSING = [
     "last_ping_time",
     "is_partial",
     "MVBS_status",
+    "attempt_count",
     "error",
 ]
 PREDICTION_COLUMNS_POSTPROCESSING = [

@@ -8,7 +8,9 @@ from echodataflow.operations.operations_postprocessing import (
     build_prediction_ledger,
     build_MVBS_ledger,
     build_Sv_ledger,
+    failure_state,
     generate_aligned_windows,
+    propagate_blocked_status,
     plan_mvbs_slices,
     plan_prediction_slices,
     select_contained_records,
@@ -131,6 +133,38 @@ def test_ledgers_predeclare_raw_files_and_mvbs_slices():
         '"IWCPS-D20250611-T001400.raw"]',
         '["IWCPS-D20250611-T001400.raw", "IWCPS-D20250611-T002100.raw"]',
     ]
+    assert sv["attempt_count"].tolist() == [0, 0, 0, 0]
+    assert mvbs["attempt_count"].tolist() == [0, 0]
+
+
+def test_failure_state_becomes_terminal_at_configured_attempt():
+    assert failure_state(0, 3) == (1, "failed")
+    assert failure_state(2, 3) == (3, "always_failed")
+
+    with pytest.raises(ValueError, match="positive integer"):
+        failure_state(0, 0)
+
+
+def test_terminal_raw_failure_blocks_dependent_mvbs_slice():
+    df_Sv = _sv_ledger()
+    df_Sv.loc[1, "raw2Sv_status"] = "always_failed"
+    df_MVBS = build_MVBS_ledger(df_Sv, slice_mins=20)
+
+    blocked = propagate_blocked_status(
+        df_Sv,
+        df_MVBS,
+        upstream_filename_column="raw_filename",
+        upstream_status_column="raw2Sv_status",
+        downstream_filenames_column="raw_filenames",
+        downstream_status_column="MVBS_status",
+        upstream_label="raw files",
+    )
+
+    assert blocked.loc[0, "MVBS_status"] == "blocked"
+    assert "IWCPS-D20250611-T000700.raw" in blocked.loc[0, "error"]
+    assert blocked.loc[1, "MVBS_status"] == "pending"
+    planned = plan_mvbs_slices(df_Sv, blocked)
+    assert [item.start_time for item in planned] == [pd.Timestamp("2025-06-11T00:20:00Z")]
 
 
 def test_sv_ledger_derives_timestamp_only_from_s3_path():
@@ -210,6 +244,38 @@ def test_prediction_planner_skips_completed_prediction_windows():
     planned = plan_prediction_slices(mvbs, prediction)
 
     assert planned == []
+
+
+def test_terminal_mvbs_failure_blocks_dependent_prediction_window():
+    starts = pd.date_range("2025-06-11T00:00:00Z", periods=4, freq="20min")
+    mvbs = pd.DataFrame(
+        {
+            "MVBS_filename": [f"slice-{index}.zarr" for index in range(4)],
+            "slice_start": starts,
+            "slice_end": starts + pd.Timedelta(minutes=20),
+            "first_ping_time": starts,
+            "last_ping_time": starts + pd.Timedelta(minutes=20),
+            "is_partial": [False] * 4,
+            "MVBS_status": ["blocked", "completed", "completed", "completed"],
+        }
+    )
+    prediction = build_prediction_ledger(mvbs, 40)
+
+    blocked = propagate_blocked_status(
+        mvbs,
+        prediction,
+        upstream_filename_column="MVBS_filename",
+        upstream_status_column="MVBS_status",
+        downstream_filenames_column="MVBS_filenames",
+        downstream_status_column="prediction_status",
+        upstream_label="MVBS slices",
+    )
+
+    assert blocked.loc[0, "prediction_status"] == "blocked"
+    assert "slice-0.zarr" in blocked.loc[0, "error"]
+    assert blocked.loc[1, "prediction_status"] == "pending"
+    planned = plan_prediction_slices(mvbs, blocked)
+    assert [item.start_time for item in planned] == [pd.Timestamp("2025-06-11T00:40:00Z")]
 
 
 def test_prediction_requires_both_mvbs_slices_by_default():

@@ -131,6 +131,7 @@ def build_Sv_ledger(raw_files: pd.DataFrame) -> pd.DataFrame:
 
     ledger["Sv_filename"] = pd.NA
     ledger["raw2Sv_status"] = "pending"
+    ledger["attempt_count"] = 0
     ledger["first_ping_time"] = pd.NaT
     ledger["last_ping_time"] = pd.NaT
     ledger["error"] = ""
@@ -172,10 +173,62 @@ def build_MVBS_ledger(ledger_Sv: pd.DataFrame, slice_mins: int = 20) -> pd.DataF
                 "last_ping_time": pd.NaT,
                 "is_partial": pd.NA,
                 "MVBS_status": "pending",
+                "attempt_count": 0,
                 "error": "",
             }
         )
     return pd.DataFrame.from_records(records, columns=MVBS_COLUMNS_POSTPROCESSING)
+
+
+def failure_state(attempt_count: int, max_flow_run_attempts: int) -> tuple[int, str]:
+    """Increment a failure count and return its retryable or terminal status."""
+    if max_flow_run_attempts < 1:
+        raise ValueError("max_flow_run_attempts must be a positive integer")
+
+    attempt_count += 1
+    status = "always_failed" if attempt_count >= max_flow_run_attempts else "failed"
+    return attempt_count, status
+
+
+def propagate_blocked_status(
+    upstream_ledger: pd.DataFrame,
+    downstream_ledger: pd.DataFrame,
+    *,
+    upstream_filename_column: str,
+    upstream_status_column: str,
+    downstream_filenames_column: str,
+    downstream_status_column: str,
+    upstream_label: str,
+) -> pd.DataFrame:
+    """Mark downstream rows blocked by terminal upstream failures."""
+    updated = downstream_ledger.copy()
+    if upstream_ledger.empty or downstream_ledger.empty:
+        return updated
+
+    # Collect upstream files that are blocked or always_failed
+    terminal_inputs = set(
+        upstream_ledger.loc[
+            upstream_ledger[upstream_status_column].isin(["blocked", "always_failed"]),
+            upstream_filename_column,
+        ].astype(str)
+    )
+    if not terminal_inputs:
+        return updated
+
+    # Only pending or retryable rows can transition to blocked
+    for idx, row in updated.iterrows():
+        if row[downstream_status_column] not in {"pending", "failed"}:
+            continue
+        blocked_by = sorted(
+            terminal_inputs.intersection(json.loads(row[downstream_filenames_column]))
+        )
+        # Record the terminal inputs that prevent downstream processing
+        if blocked_by:
+            updated.loc[idx, [downstream_status_column, "error"]] = [
+                "blocked",
+                f"Required {upstream_label} cannot be processed: {blocked_by}",
+            ]
+    return updated
 
 
 def build_prediction_ledger(
@@ -259,7 +312,7 @@ def plan_mvbs_slices(
     slices: list[PlannedSlice] = []
     for row in df_MVBS.itertuples(index=False):
         # Skip slices that have already been created successfully
-        if row.MVBS_status in {"completed", "no_data"}:
+        if row.MVBS_status not in {"pending", "failed"}:
             continue
 
         required_raw = json.loads(row.raw_filenames)
@@ -302,7 +355,7 @@ def plan_prediction_slices(
 
     slices: list[PlannedSlice] = []
     for row in df_prediction.itertuples(index=False):
-        if row.prediction_status == "completed":
+        if row.prediction_status not in {"pending", "failed"}:
             continue
 
         required_names = json.loads(row.MVBS_filenames)

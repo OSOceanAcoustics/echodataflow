@@ -13,7 +13,7 @@ from prefect.futures import as_completed
 from prefect.states import Failed
 from prefect import runtime
 
-from echodataflow.deployment.task_runners import dask_task_runner_from_environment
+from echodataflow.deployment.task_runners import task_runner_from_environment
 from echodataflow.utils.manifests import (
     MVBS_COLUMNS_POSTPROCESSING,
     MVBS_COLUMNS_REALTIME,
@@ -34,6 +34,8 @@ from echodataflow.operations.operations_acoustics import (
 from echodataflow.operations.operations_postprocessing import (
     build_MVBS_ledger,
     build_Sv_ledger,
+    failure_state,
+    propagate_blocked_status,
     plan_mvbs_slices,
     read_or_create_ledger,
 )
@@ -52,7 +54,7 @@ from echodataflow.utils.utils import (
 ep.utils.log.verbose()
 
 
-@flow(log_prints=True, task_runner=dask_task_runner_from_environment())
+@flow(log_prints=True, task_runner=task_runner_from_environment())
 def flow_raw2Sv(
     exclude_before: str | None = None,
     exclude_raw_file: list[str] = [],
@@ -388,16 +390,18 @@ async def flow_create_MVBS(
         raise Exception(error_msg)
 
 
-@flow(log_prints=True, task_runner=dask_task_runner_from_environment())
+@flow(log_prints=True, task_runner=task_runner_from_environment())
 def flow_raw2Sv_postprocessing(
     path_raw_list: str,
     path_raw: str,
     path_main: str,
     start_time: str | None = None,
     end_time: str | None = None,
+    exclude_raw_file: list[str] = [],
     new_file_num_limit: int = -1,
     task_retries: int = 3,
     task_retry_delay_seconds: int = 30,
+    max_flow_run_attempts: int = 3,
     encode_mode: str = "power",
     waveform_mode: str = "CW",
     depth_offset: float = 9.5,
@@ -430,7 +434,13 @@ def flow_raw2Sv_postprocessing(
         start_time=start_time,
         end_time=end_time,
     )
-    selected = selected[selected["raw2Sv_status"] != "completed"]
+
+    # Skip files explicitly excluded from conversion
+    if exclude_raw_file:
+        print(f"Exclude {exclude_raw_file} from processing")
+        selected = selected[~selected["raw_filename"].isin(exclude_raw_file)]
+
+    selected = selected[selected["raw2Sv_status"].isin(["pending", "failed"])]
     if new_file_num_limit != -1:
         selected = selected.head(new_file_num_limit)
     if selected.empty:
@@ -495,17 +505,26 @@ def flow_raw2Sv_postprocessing(
             logger.info("Completed %s", key)
         except Exception as exc:
             errors.append(exc)
-            df_Sv.loc[idx, ["raw2Sv_status", "error"]] = ["failed", str(exc)]
+            attempt_count, status = failure_state(
+                int(df_Sv.loc[idx, "attempt_count"]), max_flow_run_attempts
+            )
+            df_Sv.loc[idx, ["raw2Sv_status", "attempt_count", "error"]] = [
+                status,
+                attempt_count,
+                str(exc),
+            ]
             write_manifest(df_Sv, file_Sv_csv)
             logger.error("Failed to convert %s: %s", key, exc)
     if errors:
         raise RuntimeError(f"{len(errors)} raw-to-Sv conversions failed")
 
 
-@flow(log_prints=True, task_runner=dask_task_runner_from_environment())
+@flow(log_prints=True, task_runner=task_runner_from_environment())
 def flow_create_MVBS_postprocessing(
     path_main: str,
     slice_mins: int = 20,
+    new_file_num_limit: int = -1,
+    max_flow_run_attempts: int = 3,
     range_bin: str = "1m",
     ping_time_bin: str = "5s",
     file_Sv_csv: str = "Sv_files.csv",
@@ -536,8 +555,24 @@ def flow_create_MVBS_postprocessing(
         builder=lambda: build_MVBS_ledger(df_Sv, slice_mins),
     )
 
+    # Make terminal raw failures explicit in downstream planning
+    updated_MVBS = propagate_blocked_status(
+        df_Sv,
+        df_MVBS,
+        upstream_filename_column="raw_filename",
+        upstream_status_column="raw2Sv_status",
+        downstream_filenames_column="raw_filenames",
+        downstream_status_column="MVBS_status",
+        upstream_label="raw files",
+    )
+    if not updated_MVBS.equals(df_MVBS):
+        df_MVBS = updated_MVBS
+        write_manifest(df_MVBS.sort_values("slice_start"), file_MVBS_csv)
+
     # Get MVBS slices to be computed based on raw-to-Sv completions
     planned = plan_mvbs_slices(df_Sv, df_MVBS)
+    if new_file_num_limit != -1:
+        planned = planned[:new_file_num_limit]
     if not planned:
         logger.info("No newly ready MVBS slices")
         return
@@ -599,7 +634,14 @@ def flow_create_MVBS_postprocessing(
             errors.append(exc)
             filename = f"MVBS_{item.start_time:%Y%m%dT%H%M%S}.zarr"
             idx = df_MVBS.index[df_MVBS["MVBS_filename"] == filename][0]
-            df_MVBS.loc[idx, ["MVBS_status", "error"]] = ["failed", str(exc)]
+            attempt_count, status = failure_state(
+                int(df_MVBS.loc[idx, "attempt_count"]), max_flow_run_attempts
+            )
+            df_MVBS.loc[idx, ["MVBS_status", "attempt_count", "error"]] = [
+                status,
+                attempt_count,
+                str(exc),
+            ]
             logger.error("MVBS slice %s failed: %s", item.start_time, exc)
     write_manifest(df_MVBS.sort_values("slice_start"), file_MVBS_csv)
     if errors:

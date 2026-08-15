@@ -20,6 +20,7 @@ from echodataflow.utils.manifests import (
 )
 from echodataflow.operations.operations_postprocessing import (
     build_prediction_ledger,
+    propagate_blocked_status,
     plan_prediction_slices,
     read_or_create_ledger,
 )
@@ -287,6 +288,21 @@ def flow_predict_hake_postprocessing(
             prediction_slice_mins,
         ),
     )
+
+    # Make terminal MVBS failures explicit in downstream planning
+    updated_prediction = propagate_blocked_status(
+        df_MVBS,
+        df_prediction,
+        upstream_filename_column="MVBS_filename",
+        upstream_status_column="MVBS_status",
+        downstream_filenames_column="MVBS_filenames",
+        downstream_status_column="prediction_status",
+        upstream_label="MVBS slices",
+    )
+    if not updated_prediction.equals(df_prediction):
+        df_prediction = updated_prediction
+        write_manifest(df_prediction.sort_values("slice_start"), file_prediction_csv)
+
     # Assemble aligned prediction windows from completed MVBS slices
     planned = plan_prediction_slices(
         df_MVBS,
