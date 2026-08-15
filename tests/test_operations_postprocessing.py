@@ -12,6 +12,7 @@ from echodataflow.operations.operations_postprocessing import (
     generate_aligned_windows,
     propagate_blocked_status,
     plan_mvbs_slices,
+    plan_Sv_cleanup,
     plan_prediction_slices,
     select_contained_records,
     select_overlapping_records,
@@ -195,6 +196,27 @@ def test_pending_raw_input_keeps_its_mvbs_slice_closed():
     sv = _sv_ledger(("completed", "completed", "pending", "completed"))
 
     assert plan_mvbs_slices(sv, build_MVBS_ledger(sv, slice_mins=20)) == []
+
+
+def test_sv_cleanup_waits_for_every_dependent_mvbs_slice():
+    sv = _sv_ledger()
+    mvbs = build_MVBS_ledger(sv, slice_mins=20)
+    mvbs["MVBS_status"] = ["completed", "pending"]
+
+    assert plan_Sv_cleanup(sv, mvbs) == ["a.zarr", "b.zarr"]
+
+    mvbs.loc[1, "MVBS_status"] = "no_data"
+
+    assert plan_Sv_cleanup(sv, mvbs) == ["a.zarr", "b.zarr", "c.zarr", "d.zarr"]
+
+
+def test_sv_cleanup_skips_files_already_recorded_as_deleted():
+    sv = _sv_ledger()
+    sv.loc[0, "Sv_cleanup_status"] = "deleted"
+    mvbs = build_MVBS_ledger(sv, slice_mins=20)
+    mvbs["MVBS_status"] = "completed"
+
+    assert plan_Sv_cleanup(sv, mvbs) == ["b.zarr", "c.zarr", "d.zarr"]
 
 
 def test_empty_sv_ledger_builds_header_only_mvbs_ledger():

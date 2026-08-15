@@ -31,6 +31,9 @@ SV_COLUMNS_POSTPROCESSING = [
     "first_ping_time",
     "last_ping_time",
     "error",
+    "Sv_cleanup_status",
+    "Sv_deleted_at",
+    "Sv_cleanup_error",
 ]
 MVBS_COLUMNS_POSTPROCESSING = [
     "MVBS_filename",

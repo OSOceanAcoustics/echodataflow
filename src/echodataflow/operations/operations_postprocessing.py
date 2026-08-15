@@ -135,6 +135,9 @@ def build_Sv_ledger(raw_files: pd.DataFrame) -> pd.DataFrame:
     ledger["first_ping_time"] = pd.NaT
     ledger["last_ping_time"] = pd.NaT
     ledger["error"] = ""
+    ledger["Sv_cleanup_status"] = "pending"
+    ledger["Sv_deleted_at"] = pd.NaT
+    ledger["Sv_cleanup_error"] = ""
     return ledger.sort_values("timestamp").reset_index(drop=True)
 
 
@@ -336,6 +339,32 @@ def plan_mvbs_slices(
             )
         )
     return slices
+
+
+def plan_Sv_cleanup(
+    ledger_Sv: pd.DataFrame,
+    ledger_MVBS: pd.DataFrame,
+) -> list[str]:
+    """Return Sv filenames safe to delete after all dependent MVBS work succeeds."""
+    if ledger_Sv.empty or ledger_MVBS.empty:
+        return []
+
+    dependencies: dict[str, list[str]] = {}
+    for row in ledger_MVBS.itertuples(index=False):
+        for raw_filename in json.loads(row.raw_filenames):
+            dependencies.setdefault(raw_filename, []).append(row.MVBS_status)
+
+    successful_statuses = {"completed", "no_data"}
+    cleanup_filenames = []
+    for _, row in ledger_Sv.iterrows():
+        if row["Sv_cleanup_status"] not in {"pending", "failed"}:
+            continue
+        if pd.isna(row["Sv_filename"]):
+            continue
+        statuses = dependencies.get(str(row["raw_filename"]), [])
+        if statuses and all(status in successful_statuses for status in statuses):
+            cleanup_filenames.append(str(row["Sv_filename"]))
+    return cleanup_filenames
 
 
 def plan_prediction_slices(

@@ -3,6 +3,9 @@ import pandas as pd
 import echodataflow.flows.flows_acoustics as flows_acoustics
 import echodataflow.flows.flows_predict_hake as flows_predict_hake
 
+from echodataflow.operations.operations_postprocessing import build_MVBS_ledger, build_Sv_ledger
+from echodataflow.utils.manifests import write_manifest
+
 from echodataflow.flows.flows_acoustics import (
     flow_create_MVBS_postprocessing,
     flow_raw2Sv_postprocessing,
@@ -92,13 +95,14 @@ def test_mvbs_postprocessing_applies_new_file_num_limit(tmp_path, monkeypatch):
     monkeypatch.setattr(
         flows_acoustics,
         "read_or_create_ledger",
-        lambda **_: pd.DataFrame(),
+        lambda **_: pd.DataFrame(columns=["slice_start"]),
     )
     monkeypatch.setattr(flows_acoustics, "plan_mvbs_slices", lambda *_: [object()])
 
     flow_create_MVBS_postprocessing.fn(
         path_main=str(tmp_path),
         new_file_num_limit=0,
+        remove_completed_Sv_files=False,
     )
 
     assert messages == ["No newly ready MVBS slices"]
@@ -132,3 +136,32 @@ def test_prediction_postprocessing_applies_new_file_num_limit(tmp_path, monkeypa
     )
 
     assert messages == ["No newly ready prediction windows"]
+
+
+def test_mvbs_postprocessing_removes_sv_after_all_dependencies_complete(tmp_path, monkeypatch):
+    sv = build_Sv_ledger(pd.DataFrame({"s3_path": ["survey/IWCPS-D20250611-T000100.raw"]}))
+    sv.loc[0, ["Sv_filename", "raw2Sv_status"]] = ["input.zarr", "completed"]
+    sv["first_ping_time"] = pd.to_datetime(["2025-06-11T00:01:00Z"], utc=True)
+    sv["last_ping_time"] = pd.to_datetime(["2025-06-11T00:10:00Z"], utc=True)
+    mvbs = build_MVBS_ledger(sv)
+    mvbs.loc[0, "MVBS_status"] = "completed"
+    write_manifest(sv, tmp_path / "Sv_files.csv")
+    write_manifest(mvbs, tmp_path / "MVBS_files.csv")
+    Sv_path = tmp_path / "Sv" / "input.zarr"
+    Sv_path.mkdir(parents=True)
+
+    class Logger:
+        def info(self, *_args):
+            pass
+
+        def error(self, *_args):
+            pass
+
+    monkeypatch.setattr(flows_acoustics, "get_run_logger", lambda: Logger())
+
+    flow_create_MVBS_postprocessing.fn(path_main=str(tmp_path))
+
+    cleaned = pd.read_csv(tmp_path / "Sv_files.csv", index_col=0)
+    assert not Sv_path.exists()
+    assert cleaned.loc[0, "Sv_cleanup_status"] == "deleted"
+    assert pd.notna(cleaned.loc[0, "Sv_deleted_at"])
