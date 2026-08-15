@@ -3,6 +3,8 @@ from pathlib import Path
 import pandas as pd
 from prefect import flow
 
+from echodataflow.utils.processing_ledger import get_completed_sv_files
+
 
 def get_changed_transects(
     current: pd.DataFrame,
@@ -30,31 +32,18 @@ def get_changed_transects(
     )
 
 
-def find_overlapping_sv_files(
-    df_sv: pd.DataFrame,
-    start_time: pd.Timestamp,
-    end_time: pd.Timestamp,
-) -> pd.DataFrame:
-    """Return Sv registry rows overlapping a transect time interval."""
-
-    return df_sv[
-        (df_sv["last_ping_time"] >= start_time)
-        & (df_sv["first_ping_time"] <= end_time)
-    ].copy()
-
-
 @flow(log_prints=True)
 def flow_transect_update(
     path_transect_csv: str,
     path_snapshot_csv: str,
     path_main: str,
-    file_Sv_csv: str = "Sv_files.csv",
+    processing_db: str = "processing.db",
 ):
     """Identify updated transects and find overlapping Sv files."""
 
     path_transect = Path(path_transect_csv)
     path_snapshot = Path(path_snapshot_csv)
-    path_sv_csv = Path(path_main) / file_Sv_csv
+    db_path = Path(path_main) / processing_db
 
     # Read the current transect information, preserving transect identifiers
     # as strings so values with leading zeros (e.g., "002") are not converted
@@ -97,41 +86,18 @@ def flow_transect_update(
     print(f"Found {len(changed)} new or updated transect segment(s):")
     print(changed)
 
-    # Load Sv tracking information created by raw2Sv
-    if not path_sv_csv.exists():
-        print(f"Sv tracking file does not exist yet: {path_sv_csv}")
-        return
-
-    df_sv = pd.read_csv(
-        path_sv_csv,
-        index_col=0,
-        date_format="ISO8601",
-        parse_dates=["first_ping_time", "last_ping_time"],
-    )
-
-    if df_sv["first_ping_time"].dt.tz is None:
-        df_sv["first_ping_time"] = df_sv["first_ping_time"].dt.tz_localize("UTC")
-
-    if df_sv["last_ping_time"].dt.tz is None:
-        df_sv["last_ping_time"] = df_sv["last_ping_time"].dt.tz_localize("UTC")
-
     # Find Sv files overlapping each changed transect
     for _, transect in changed.iterrows():
         start_time = pd.to_datetime(transect["transectStart"], utc=True)
         end_time = pd.to_datetime(transect["transectEnd"], utc=True)
 
-        overlapping_sv = find_overlapping_sv_files(
-            df_sv,
-            start_time,
-            end_time,
+        sv_filenames = get_completed_sv_files(
+            db_path,
+            start_time=start_time,
+            end_time=end_time,
         )
 
-        sv_filenames = sorted(overlapping_sv["Sv_filename"].tolist())
-
-        print(
-            f"\nTransect {transect['transectPart']}: "
-            f"{start_time} to {end_time}"
-        )
+        print(f"\nTransect {transect['transectPart']}: {start_time} to {end_time}")
         print(f"Found {len(sv_filenames)} overlapping Sv file(s):")
 
         for filename in sv_filenames:
