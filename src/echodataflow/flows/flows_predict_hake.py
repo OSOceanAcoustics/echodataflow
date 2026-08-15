@@ -252,6 +252,7 @@ def flow_predict_hake_postprocessing(
     path_main: str,
     path_weight: str,
     prediction_slice_mins: int = 40,
+    new_file_num_limit: int = -1,
     temperature: float = 0.5,
     softmax_threshold: float = 0.5,
     max_depth: float = 590.0,
@@ -308,6 +309,8 @@ def flow_predict_hake_postprocessing(
         df_MVBS,
         df_prediction,
     )
+    if new_file_num_limit != -1:
+        planned = planned[:new_file_num_limit]
     if not planned:
         logger.info("No newly ready prediction windows")
         return

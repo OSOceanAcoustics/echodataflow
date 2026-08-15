@@ -102,3 +102,33 @@ def test_mvbs_postprocessing_applies_new_file_num_limit(tmp_path, monkeypatch):
     )
 
     assert messages == ["No newly ready MVBS slices"]
+
+
+def test_prediction_postprocessing_applies_new_file_num_limit(tmp_path, monkeypatch):
+    (tmp_path / "MVBS_files.csv").touch()
+    messages = []
+
+    class Logger:
+        def info(self, message):
+            messages.append(message)
+
+    monkeypatch.setattr(flows_predict_hake, "get_run_logger", lambda: Logger())
+    monkeypatch.setattr(flows_predict_hake, "read_manifest", lambda *_, **__: pd.DataFrame())
+    monkeypatch.setattr(
+        flows_predict_hake,
+        "read_or_create_ledger",
+        lambda **_: pd.DataFrame(),
+    )
+    monkeypatch.setattr(
+        flows_predict_hake,
+        "plan_prediction_slices",
+        lambda *_: [object()],
+    )
+
+    flow_predict_hake_postprocessing.fn(
+        path_main=str(tmp_path),
+        path_weight="unused.ckpt",
+        new_file_num_limit=0,
+    )
+
+    assert messages == ["No newly ready prediction windows"]
