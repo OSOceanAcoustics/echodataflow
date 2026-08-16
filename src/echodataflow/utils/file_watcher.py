@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from pathlib import Path
 
@@ -5,6 +6,7 @@ from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 
+logger = logging.getLogger(__name__)
 class FileUpdateHandler(FileSystemEventHandler):
     """Run a callback when the target file is updated."""
 
@@ -46,20 +48,33 @@ class FileCreatedHandler(FileSystemEventHandler):
         self.callback = callback
         self.pattern = pattern
 
-    def _handle(self, event: FileSystemEvent) -> None:
-        if event.is_directory:
+    def _handle_path(self, path: str | Path) -> None:
+        event_path = Path(path).resolve()
+
+        if not event_path.match(self.pattern):
             return
 
-        event_path = Path(event.src_path).resolve()
-
-        if event_path.match(self.pattern):
+        try:
             self.callback(event_path)
+        except Exception:
+            logger.exception(
+                "Error handling filesystem update for %s",
+                event_path,
+            )
+
+    def _handle(self, event: FileSystemEvent) -> None:
+        if not event.is_directory:
+            self._handle_path(event.src_path)
 
     def on_created(self, event: FileSystemEvent) -> None:
         self._handle(event)
 
     def on_modified(self, event: FileSystemEvent) -> None:
         self._handle(event)
+
+    def on_moved(self, event: FileSystemEvent) -> None:
+        if not event.is_directory:
+            self._handle_path(event.dest_path)
 
 
 def watch_file(
