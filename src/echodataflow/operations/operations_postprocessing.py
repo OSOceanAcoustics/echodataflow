@@ -141,8 +141,14 @@ def build_Sv_ledger(raw_files: pd.DataFrame) -> pd.DataFrame:
     return ledger.sort_values("timestamp").reset_index(drop=True)
 
 
-def build_MVBS_ledger(ledger_Sv: pd.DataFrame, slice_mins: int = 20) -> pd.DataFrame:
+def build_MVBS_ledger(
+    ledger_Sv: pd.DataFrame,
+    slice_mins: int = 20,
+    no_data_gap_hours: float = 3.0,
+) -> pd.DataFrame:
     """Preplan every MVBS slice and its required raw files."""
+    if no_data_gap_hours <= 0:
+        raise ValueError("no_data_gap_hours must be greater than zero")
     if ledger_Sv.empty:
         return pd.DataFrame(columns=MVBS_COLUMNS_POSTPROCESSING)
 
@@ -157,6 +163,7 @@ def build_MVBS_ledger(ledger_Sv: pd.DataFrame, slice_mins: int = 20) -> pd.DataF
     )
 
     records = []
+    no_data_gap = pd.Timedelta(hours=no_data_gap_hours)
     for window in windows:
         # Record the raw files required by this slice, including its predecessor
         required = filter_time_range(
@@ -165,6 +172,13 @@ def build_MVBS_ledger(ledger_Sv: pd.DataFrame, slice_mins: int = 20) -> pd.DataF
             column_end_time=None,
             start_time=window.start_time,
             end_time=window.end_time,
+        )
+
+        # Set the slice status to no_data if there is a long gap 
+        # between the last Sv timestamp and the slice start
+        latest_Sv_timestamp = required["timestamp"].max()
+        is_long_gap = (
+            pd.notna(latest_Sv_timestamp) and window.start_time - latest_Sv_timestamp > no_data_gap
         )
         records.append(
             {
@@ -175,9 +189,13 @@ def build_MVBS_ledger(ledger_Sv: pd.DataFrame, slice_mins: int = 20) -> pd.DataF
                 "first_ping_time": pd.NaT,
                 "last_ping_time": pd.NaT,
                 "is_partial": pd.NA,
-                "MVBS_status": "pending",
+                "MVBS_status": "no_data" if is_long_gap else "pending",
                 "attempt_count": 0,
-                "error": "",
+                "error": (
+                    f"No Sv file timestamp within {no_data_gap_hours} hours before the slice start"
+                    if is_long_gap
+                    else ""
+                ),
             }
         )
     return pd.DataFrame.from_records(records, columns=MVBS_COLUMNS_POSTPROCESSING)

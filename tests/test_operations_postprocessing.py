@@ -138,6 +138,53 @@ def test_ledgers_predeclare_raw_files_and_mvbs_slices():
     assert mvbs["attempt_count"].tolist() == [0, 0]
 
 
+def test_mvbs_ledger_marks_slices_more_than_three_hours_after_sv_as_no_data():
+    sv = build_Sv_ledger(
+        pd.DataFrame(
+            {
+                "s3_path": [
+                    "survey/IWCPS-D20250611-T000000.raw",
+                    "survey/IWCPS-D20250611-T040100.raw",
+                ]
+            }
+        )
+    )
+
+    mvbs = build_MVBS_ledger(sv, slice_mins=20)
+    statuses = mvbs.set_index("slice_start")["MVBS_status"]
+
+    # Exactly three hours remains eligible, while later empty gap slices do not.
+    assert statuses[pd.Timestamp("2025-06-11T03:00:00Z")] == "pending"
+    assert statuses[pd.Timestamp("2025-06-11T03:20:00Z")] == "no_data"
+    assert statuses[pd.Timestamp("2025-06-11T03:40:00Z")] == "no_data"
+    # The slice containing the first raw file after the gap remains eligible.
+    assert statuses[pd.Timestamp("2025-06-11T04:00:00Z")] == "pending"
+
+
+def test_mvbs_ledger_accepts_custom_no_data_gap_hours():
+    sv = build_Sv_ledger(
+        pd.DataFrame(
+            {
+                "s3_path": [
+                    "survey/IWCPS-D20250611-T000000.raw",
+                    "survey/IWCPS-D20250611-T020100.raw",
+                ]
+            }
+        )
+    )
+
+    mvbs = build_MVBS_ledger(sv, slice_mins=20, no_data_gap_hours=1.0)
+    statuses = mvbs.set_index("slice_start")["MVBS_status"]
+
+    assert statuses[pd.Timestamp("2025-06-11T01:00:00Z")] == "pending"
+    assert statuses[pd.Timestamp("2025-06-11T01:20:00Z")] == "no_data"
+
+
+def test_mvbs_ledger_rejects_nonpositive_no_data_gap_hours():
+    with pytest.raises(ValueError, match="greater than zero"):
+        build_MVBS_ledger(pd.DataFrame(), no_data_gap_hours=0)
+
+
 def test_failure_state_becomes_terminal_at_configured_attempt():
     assert failure_state(0, 3) == (1, "failed")
     assert failure_state(2, 3) == (3, "always_failed")

@@ -531,6 +531,7 @@ def flow_raw2Sv_postprocessing(
 def flow_create_MVBS_postprocessing(
     path_main: str,
     slice_mins: int = 20,
+    no_data_gap_hours: float = 3.0,
     new_file_num_limit: int = -1,
     max_flow_run_attempts: int = 3,
     range_bin: str = "1m",
@@ -561,7 +562,11 @@ def flow_create_MVBS_postprocessing(
         ledger_path=file_MVBS_csv,
         columns=MVBS_COLUMNS_POSTPROCESSING,
         date_columns=["slice_start", "slice_end", "first_ping_time", "last_ping_time"],
-        builder=lambda: build_MVBS_ledger(df_Sv, slice_mins),
+        builder=lambda: build_MVBS_ledger(
+            ledger_Sv=df_Sv,
+            slice_mins=slice_mins,
+            no_data_gap_hours=no_data_gap_hours,
+        ),
     )
 
     # Make terminal raw failures explicit in downstream planning
