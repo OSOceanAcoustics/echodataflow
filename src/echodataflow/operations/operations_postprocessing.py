@@ -174,7 +174,7 @@ def build_MVBS_ledger(
             end_time=window.end_time,
         )
 
-        # Set the slice status to no_data if there is a long gap 
+        # Set the slice status to no_data if there is a long gap
         # between the last Sv timestamp and the slice start
         latest_Sv_timestamp = required["timestamp"].max()
         is_long_gap = (
@@ -211,7 +211,7 @@ def failure_state(attempt_count: int, max_flow_run_attempts: int) -> tuple[int, 
     return attempt_count, status
 
 
-def propagate_blocked_status(
+def propagate_status(
     upstream_ledger: pd.DataFrame,
     downstream_ledger: pd.DataFrame,
     *,
@@ -221,33 +221,43 @@ def propagate_blocked_status(
     downstream_status_column: str,
     upstream_label: str,
 ) -> pd.DataFrame:
-    """Mark downstream rows blocked by terminal upstream failures."""
+    """Propagate terminal blocked and all-no-data upstream states downstream."""
     updated = downstream_ledger.copy()
     if upstream_ledger.empty or downstream_ledger.empty:
         return updated
 
-    # Collect upstream files that are blocked or always_failed
-    terminal_inputs = set(
+    # A terminal failure in any dependency takes precedence over no-data.
+    blocked_inputs = set(
         upstream_ledger.loc[
             upstream_ledger[upstream_status_column].isin(["blocked", "always_failed"]),
             upstream_filename_column,
         ].astype(str)
     )
-    if not terminal_inputs:
-        return updated
-
-    # Only pending or retryable rows can transition to blocked
     for idx, row in updated.iterrows():
         if row[downstream_status_column] not in {"pending", "failed"}:
             continue
-        blocked_by = sorted(
-            terminal_inputs.intersection(json.loads(row[downstream_filenames_column]))
-        )
-        # Record the terminal inputs that prevent downstream processing
+        required_names = json.loads(row[downstream_filenames_column])
+        blocked_by = sorted(blocked_inputs.intersection(required_names))
         if blocked_by:
             updated.loc[idx, [downstream_status_column, "error"]] = [
                 "blocked",
                 f"Required {upstream_label} cannot be processed: {blocked_by}",
+            ]
+            continue
+
+        required_upstream = upstream_ledger[
+            upstream_ledger[upstream_filename_column].isin(required_names)
+        ]
+        # All dependencies must be known before propagating no-data.
+        if len(required_upstream) != len(required_names):
+            continue
+        if (
+            not required_upstream.empty
+            and required_upstream[upstream_status_column].eq("no_data").all()
+        ):
+            updated.loc[idx, [downstream_status_column, "error"]] = [
+                "no_data",
+                f"All required {upstream_label} have no data",
             ]
     return updated
 
@@ -279,6 +289,7 @@ def build_prediction_ledger(
             end_time=window.end_time,
             include_exact_start_time=False,
         )
+        is_no_data = not required.empty and required["MVBS_status"].eq("no_data").all()
         records.append(
             {
                 "prediction_filename_postfix": window.start_time.strftime("%Y%m%dT%H%M%S"),
@@ -291,8 +302,9 @@ def build_prediction_ledger(
                 "evr_filename": pd.NA,
                 "first_ping_time": pd.NaT,
                 "last_ping_time": pd.NaT,
-                "prediction_status": "pending",
-                "error": "",
+                "prediction_status": "no_data" if is_no_data else "pending",
+                "attempt_count": 0,
+                "error": "No MVBS data in the prediction window" if is_no_data else "",
             }
         )
     return pd.DataFrame.from_records(records, columns=PREDICTION_COLUMNS_POSTPROCESSING)
@@ -410,13 +422,19 @@ def plan_prediction_slices(
         if len(required_MVBS) != len(required_names):
             raise ValueError(f"Prediction ledger references unknown MVBS files: {required_names}")
 
-        if not required_MVBS["MVBS_status"].eq("completed").all():
+        # No-data slices are terminal and do not need to be passed to prediction.
+        if not required_MVBS["MVBS_status"].isin(["completed", "no_data"]).all():
+            continue
+
+        completed_MVBS = required_MVBS[required_MVBS["MVBS_status"] == "completed"]
+        if completed_MVBS.empty:
             continue
 
         partial = (
-            required_MVBS["is_partial"]
+            completed_MVBS["is_partial"]
             .map(lambda value: str(value).strip().lower() in {"true", "1", "yes"})
             .any()
+            or required_MVBS["MVBS_status"].eq("no_data").any()
         )
 
         slices.append(
@@ -424,7 +442,7 @@ def plan_prediction_slices(
                 start_time=row.slice_start,
                 end_time=row.slice_end,
                 filenames=tuple(
-                    required_MVBS.sort_values("slice_start")["MVBS_filename"].astype(str)
+                    completed_MVBS.sort_values("slice_start")["MVBS_filename"].astype(str)
                 ),
                 is_partial=bool(partial),
             )

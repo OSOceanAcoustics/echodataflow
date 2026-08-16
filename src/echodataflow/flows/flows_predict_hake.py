@@ -20,8 +20,9 @@ from echodataflow.utils.manifests import (
 )
 from echodataflow.operations.operations_postprocessing import (
     build_prediction_ledger,
-    propagate_blocked_status,
+    failure_state,
     plan_prediction_slices,
+    propagate_status,
     read_or_create_ledger,
 )
 from echodataflow.operations.operations_predict_hake import (
@@ -253,6 +254,7 @@ def flow_predict_hake_postprocessing(
     path_weight: str,
     prediction_slice_mins: int = 40,
     new_file_num_limit: int = -1,
+    max_flow_run_attempts: int = 3,
     temperature: float = 0.5,
     softmax_threshold: float = 0.5,
     max_depth: float = 590.0,
@@ -291,7 +293,7 @@ def flow_predict_hake_postprocessing(
     )
 
     # Make terminal MVBS failures explicit in downstream planning
-    updated_prediction = propagate_blocked_status(
+    updated_prediction = propagate_status(
         df_MVBS,
         df_prediction,
         upstream_filename_column="MVBS_filename",
@@ -381,7 +383,14 @@ def flow_predict_hake_postprocessing(
         except Exception as exc:
             errors.append(exc)
             idx = df_prediction.index[df_prediction["prediction_filename_postfix"] == postfix][0]
-            df_prediction.loc[idx, ["prediction_status", "error"]] = ["failed", str(exc)]
+            attempt_count, status = failure_state(
+                int(df_prediction.loc[idx, "attempt_count"]), max_flow_run_attempts
+            )
+            df_prediction.loc[idx, ["prediction_status", "attempt_count", "error"]] = [
+                status,
+                attempt_count,
+                str(exc),
+            ]
             write_manifest(df_prediction.sort_values("slice_start"), file_prediction_csv)
             logger.error("Prediction window %s failed: %s", item.start_time, exc)
     if errors:

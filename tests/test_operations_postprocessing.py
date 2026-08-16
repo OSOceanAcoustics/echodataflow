@@ -10,7 +10,7 @@ from echodataflow.operations.operations_postprocessing import (
     build_Sv_ledger,
     failure_state,
     generate_aligned_windows,
-    propagate_blocked_status,
+    propagate_status,
     plan_mvbs_slices,
     plan_Sv_cleanup,
     plan_prediction_slices,
@@ -198,7 +198,7 @@ def test_terminal_raw_failure_blocks_dependent_mvbs_slice():
     df_Sv.loc[1, "raw2Sv_status"] = "always_failed"
     df_MVBS = build_MVBS_ledger(df_Sv, slice_mins=20)
 
-    blocked = propagate_blocked_status(
+    blocked = propagate_status(
         df_Sv,
         df_MVBS,
         upstream_filename_column="raw_filename",
@@ -295,6 +295,71 @@ def test_prediction_combines_two_aligned_mvbs_slices():
     assert planned[0].filenames == ("first.zarr", "second.zarr")
 
 
+def test_prediction_uses_completed_mvbs_and_skips_no_data_slice():
+    mvbs = pd.DataFrame(
+        {
+            "MVBS_filename": ["first.zarr", "empty.zarr"],
+            "slice_start": pd.to_datetime(["2025-06-11T00:00:00Z", "2025-06-11T00:20:00Z"]),
+            "slice_end": pd.to_datetime(["2025-06-11T00:20:00Z", "2025-06-11T00:40:00Z"]),
+            "is_partial": [False, pd.NA],
+            "MVBS_status": ["completed", "no_data"],
+        }
+    )
+
+    prediction = build_prediction_ledger(mvbs, 40)
+    planned = plan_prediction_slices(mvbs, prediction)
+
+    assert len(planned) == 1
+    assert planned[0].filenames == ("first.zarr",)
+    assert planned[0].is_partial
+
+
+def test_prediction_ledger_marks_all_no_data_window_terminal():
+    starts = pd.to_datetime(["2025-06-11T00:00:00Z", "2025-06-11T00:20:00Z"])
+    mvbs = pd.DataFrame(
+        {
+            "MVBS_filename": ["first.zarr", "second.zarr"],
+            "slice_start": starts,
+            "slice_end": starts + pd.Timedelta(minutes=20),
+            "is_partial": [pd.NA, pd.NA],
+            "MVBS_status": ["no_data", "no_data"],
+        }
+    )
+
+    prediction = build_prediction_ledger(mvbs, 40)
+
+    assert prediction.loc[0, "prediction_status"] == "no_data"
+    assert plan_prediction_slices(mvbs, prediction) == []
+
+
+def test_existing_prediction_ledger_transitions_to_no_data():
+    starts = pd.to_datetime(["2025-06-11T00:00:00Z", "2025-06-11T00:20:00Z"])
+    mvbs = pd.DataFrame(
+        {
+            "MVBS_filename": ["first.zarr", "second.zarr"],
+            "slice_start": starts,
+            "slice_end": starts + pd.Timedelta(minutes=20),
+            "is_partial": [pd.NA, pd.NA],
+            "MVBS_status": ["pending", "pending"],
+        }
+    )
+    prediction = build_prediction_ledger(mvbs, 40)
+    mvbs["MVBS_status"] = "no_data"
+
+    updated = propagate_status(
+        mvbs,
+        prediction,
+        upstream_filename_column="MVBS_filename",
+        upstream_status_column="MVBS_status",
+        downstream_filenames_column="MVBS_filenames",
+        downstream_status_column="prediction_status",
+        upstream_label="MVBS slices",
+    )
+
+    assert updated.loc[0, "prediction_status"] == "no_data"
+    assert updated.loc[0, "error"] == "All required MVBS slices have no data"
+
+
 def test_prediction_planner_skips_completed_prediction_windows():
     mvbs = pd.DataFrame(
         {
@@ -315,6 +380,22 @@ def test_prediction_planner_skips_completed_prediction_windows():
     assert planned == []
 
 
+def test_prediction_planner_skips_always_failed_prediction_windows():
+    mvbs = pd.DataFrame(
+        {
+            "MVBS_filename": ["first.zarr", "second.zarr"],
+            "slice_start": pd.to_datetime(["2025-06-11T00:00:00Z", "2025-06-11T00:20:00Z"]),
+            "slice_end": pd.to_datetime(["2025-06-11T00:20:00Z", "2025-06-11T00:40:00Z"]),
+            "is_partial": [False, False],
+            "MVBS_status": ["completed", "completed"],
+        }
+    )
+    prediction = build_prediction_ledger(mvbs, 40)
+    prediction.loc[0, ["prediction_status", "attempt_count"]] = ["always_failed", 3]
+
+    assert plan_prediction_slices(mvbs, prediction) == []
+
+
 def test_terminal_mvbs_failure_blocks_dependent_prediction_window():
     starts = pd.date_range("2025-06-11T00:00:00Z", periods=4, freq="20min")
     mvbs = pd.DataFrame(
@@ -330,7 +411,7 @@ def test_terminal_mvbs_failure_blocks_dependent_prediction_window():
     )
     prediction = build_prediction_ledger(mvbs, 40)
 
-    blocked = propagate_blocked_status(
+    blocked = propagate_status(
         mvbs,
         prediction,
         upstream_filename_column="MVBS_filename",
@@ -394,6 +475,7 @@ def test_prediction_ledger_supports_overlapping_seven_minute_mvbs_slices():
             "MVBS_filename": [f"slice-{index}.zarr" for index in range(6)],
             "slice_start": starts,
             "slice_end": starts + pd.Timedelta(minutes=7),
+            "MVBS_status": ["completed"] * 6,
         }
     )
 

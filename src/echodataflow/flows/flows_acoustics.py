@@ -36,7 +36,7 @@ from echodataflow.operations.operations_postprocessing import (
     build_MVBS_ledger,
     build_Sv_ledger,
     failure_state,
-    propagate_blocked_status,
+    propagate_status,
     plan_mvbs_slices,
     plan_Sv_cleanup,
     read_or_create_ledger,
@@ -570,7 +570,7 @@ def flow_create_MVBS_postprocessing(
     )
 
     # Make terminal raw failures explicit in downstream planning
-    updated_MVBS = propagate_blocked_status(
+    updated_MVBS = propagate_status(
         df_Sv,
         df_MVBS,
         upstream_filename_column="raw_filename",

@@ -59,6 +59,7 @@ PREDICTION_COLUMNS_POSTPROCESSING = [
     "first_ping_time",
     "last_ping_time",
     "prediction_status",
+    "attempt_count",
     "error",
 ]
 
