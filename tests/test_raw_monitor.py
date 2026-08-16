@@ -97,3 +97,44 @@ def test_register_and_emit_raw_update(monkeypatch, tmp_path):
 
     assert called["registered"] == (db_path, raw_file)
     assert called["emitted"] == raw_file
+
+def test_watch_raw_directory_reconciles_existing_raw_files(monkeypatch, tmp_path):
+    raw_a = tmp_path / "a.raw"
+    raw_b = tmp_path / "b.raw"
+    raw_a.touch()
+    raw_b.touch()
+
+    db_path = tmp_path / "processing.db"
+
+    registered = []
+    emitted = []
+
+    monkeypatch.setattr(
+        raw_monitor,
+        "register_raw_file",
+        lambda db, path: registered.append((db, path)),
+    )
+
+    monkeypatch.setattr(
+        raw_monitor,
+        "emit_raw_update_event",
+        emitted.append,
+    )
+
+    monkeypatch.setattr(
+        raw_monitor,
+        "watch_directory",
+        lambda **kwargs: "observer",
+    )
+
+    result = raw_monitor.watch_raw_directory(
+        tmp_path,
+        db_path,
+    )
+
+    assert result == "observer"
+    assert {path for _, path in registered} == {
+        raw_a.resolve(),
+        raw_b.resolve(),
+    }
+    assert emitted == [tmp_path.resolve()]

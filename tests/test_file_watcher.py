@@ -112,3 +112,22 @@ def test_file_created_handler_ignores_nonmatching_file(tmp_path):
     handler.on_created(FakeEvent(other_file))
 
     assert detected == []
+
+def test_file_created_handler_calls_callback_for_moved_matching_file(tmp_path):
+    temporary = tmp_path / "temporary.tmp"
+    raw_file = tmp_path / "example.raw"
+    detected = []
+
+    handler = FileCreatedHandler(
+        callback=detected.append,
+        pattern="*.raw",
+    )
+
+    handler.on_moved(
+        FakeEvent(
+            src_path=temporary,
+            dest_path=raw_file,
+        )
+    )
+
+    assert detected == [raw_file.resolve()]

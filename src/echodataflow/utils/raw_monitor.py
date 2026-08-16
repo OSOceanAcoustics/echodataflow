@@ -36,10 +36,23 @@ def watch_raw_directory(
     db_path: str | Path,
 ):
     """Watch a directory for new RAW files."""
+
+    raw_directory = Path(path).resolve()
+
     initialize_ledger(db_path)
 
+    # Reconcile files that already exist when the watcher starts
+    existing_raw_files = list(raw_directory.glob("*.raw"))
+
+    for raw_path in existing_raw_files:
+        register_raw_file(db_path, raw_path)
+
+    # Wake raw2Sv once after reconciliation.
+    if existing_raw_files:
+        emit_raw_update_event(raw_directory)
+
     return watch_directory(
-        directory=path,
+        directory=raw_directory,
         callback=lambda raw_path: register_and_emit_raw_update(raw_path, db_path),
         pattern="*.raw",
     )
