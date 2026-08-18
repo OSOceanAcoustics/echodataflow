@@ -139,6 +139,9 @@ def _prepare_sv_for_echogram(
         }
     )
 
+    if "Sv_water_column" in ds:
+        plot_ds["Sv_water_column"] = ds["Sv_water_column"]
+
     if "frequency_nominal" in ds:
         plot_ds["frequency_nominal"] = ds["frequency_nominal"]
 

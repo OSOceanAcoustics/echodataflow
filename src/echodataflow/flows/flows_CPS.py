@@ -12,10 +12,7 @@ from prefect.states import Cancelled
 from echodataflow.flows.flows_helper import deployment_already_running
 from prefect_dask import DaskTaskRunner
 
-from echodataflow.flows.flows_transect import (
-    find_overlapping_sv_files,
-    get_changed_transects,
-)
+from echodataflow.utils.processing_ledger import get_completed_sv_files
 from echodataflow.tasks.tasks_acoustics import (
     task_compute_NASC_from_masked_Sv,
 )
@@ -244,8 +241,9 @@ def flow_process_CPS(
     path_transect_csv: str,
     path_snapshot_csv: str,
     path_main: str,
-    file_Sv_csv: str = "Sv_files.csv",
+    processing_db: str = "processing.db",
     target_frequency: float = 70000,
+    min_depth: float = 10.0,
     seafloor_threshold: list = [-40, 2.4, 1.0],
     seafloor_offset: float = 0.5,
     seafloor_r0: float = 10,
@@ -258,45 +256,59 @@ def flow_process_CPS(
     dist_bin: str = "0.5nmi",
     nasc_process_id: int = 1928,
 ):
-    
+
     # Prevent overlapping runs of this deployment
-    already_running = asyncio.run(deployment_already_running())
+    already_running = asyncio.run(
+        deployment_already_running()
+    )
 
     if already_running:
+
         async def cancel_run():
             async with get_client() as client:
                 await client.set_flow_run_state(
                     flow_run_id=runtime.flow_run.id,
                     state=Cancelled(
-                        message="Another instance of this flow is already running"
+                        message=(
+                            "Another instance of this "
+                            "flow is already running"
+                        )
                     ),
                 )
 
         asyncio.run(cancel_run())
         return
-    
+
     path_main = Path(path_main)
+
     path_transect = Path(
         path_transect_csv
     )
+
     path_snapshot = Path(
         path_snapshot_csv
     )
 
-    path_sv = path_main / "Sv"
-    path_sv_registry = (
-        path_main / file_Sv_csv
+    path_sv = (
+        path_main / "Sv"
+    )
+
+    db_path = (
+        path_main / processing_db
     )
 
     path_cps = (
         path_main / "CPS_Masks_Zarr"
     )
+
     path_bottom = (
         path_main / "CPS_Seafloor_CSVs"
     )
+
     path_nasc = (
         path_main / "CPS_NASC_Zarr"
     )
+
     path_nasc_csv = (
         path_main / "CPS_NASC_CSV"
     )
@@ -313,31 +325,62 @@ def flow_process_CPS(
         )
 
     # ---------------------------------------------
-    # Detect new / modified transects
+    # Find completed transects still needing CPS
     # ---------------------------------------------
 
     current = pd.read_csv(
         path_transect,
         dtype={
-            "transectPart": str,
-            "transectNumber": str,
+            "transectPart": "string",
+            "transectNumber": "string",
+            "transectStart": "string",
+            "transectEnd": "string",
         },
     )
 
-    if not path_snapshot.exists():
-        previous = current.iloc[0:0].copy()
-    else:
-        previous = pd.read_csv(
-            path_snapshot,
-            dtype={
-                "transectPart": str,
-                "transectNumber": str,
-            },
+    # Ignore transects that have not finished yet.
+    completed = current.dropna(
+        subset=[
+            "transectPart",
+            "transectStart",
+            "transectEnd",
+        ]
+    ).copy()
+
+    pending_rows = []
+
+    for _, transect in completed.iterrows():
+
+        name = (
+            f"transect_"
+            f"{transect['transectPart']}"
         )
 
-    changed = get_changed_transects(
-        current=current,
-        previous=previous,
+        cps_output = (
+            path_cps
+            / f"{name}_CPS.zarr"
+        )
+
+        nasc_output = (
+            path_nasc
+            / f"{name}_nasc.zarr"
+        )
+
+        # A transect is considered complete only when
+        # both CPS and NASC products exist.
+        if (
+            cps_output.exists()
+            and nasc_output.exists()
+        ):
+            continue
+
+        pending_rows.append(
+            transect
+        )
+
+    changed = pd.DataFrame(
+        pending_rows,
+        columns=current.columns,
     )
 
     if changed.empty:
@@ -345,39 +388,24 @@ def flow_process_CPS(
             path_snapshot,
             index=False,
         )
-        return
-
-    if not path_sv_registry.exists():
         print(
-            f"Sv registry not found: "
-            f"{path_sv_registry}"
+            "No completed transects require CPS processing."
         )
         return
 
-    df_sv = pd.read_csv(
-        path_sv_registry,
-        index_col=0,
-        parse_dates=[
-            "first_ping_time",
-            "last_ping_time",
-        ],
-    )
-
-    for column in [
-        "first_ping_time",
-        "last_ping_time",
-    ]:
-        if df_sv[column].dt.tz is None:
-            df_sv[column] = (
-                df_sv[column]
-                .dt.tz_localize("UTC")
-            )
+    if not db_path.exists():
+        print(
+            f"Processing ledger not found: "
+            f"{db_path}"
+        )
+        return
 
     # ---------------------------------------------
     # Process each changed transect
     # ---------------------------------------------
 
     for _, transect in changed.iterrows():
+
         start = pd.to_datetime(
             transect["transectStart"],
             utc=True,
@@ -393,15 +421,13 @@ def flow_process_CPS(
             f"{transect['transectPart']}"
         )
 
-        overlapping = (
-            find_overlapping_sv_files(
-                df_sv,
-                start,
-                end,
-            )
+        sv_filenames = get_completed_sv_files(
+            db_path,
+            start_time=start,
+            end_time=end,
         )
 
-        if overlapping.empty:
+        if not sv_filenames:
             print(
                 f"No Sv data for {name}"
             )
@@ -413,11 +439,7 @@ def flow_process_CPS(
 
         sv_paths = [
             path_sv / filename
-            for filename in (
-                overlapping[
-                    "Sv_filename"
-                ].astype(str)
-            )
+            for filename in sv_filenames
         ]
 
         sv_paths = [
@@ -440,7 +462,9 @@ def flow_process_CPS(
             data_vars="minimal",
             coords="minimal",
             compat="override",
-        ).sortby("ping_time")
+        ).sortby(
+            "ping_time"
+        )
 
         _, unique_idx = np.unique(
             ds["ping_time"].values,
@@ -448,23 +472,48 @@ def flow_process_CPS(
         )
 
         ds = ds.isel(
-            ping_time=np.sort(
-                unique_idx
-            )
+            ping_time=np.sort(unique_idx)
         )
 
+        if ds.sizes.get("ping_time", 0) == 0:
+            continue
+
+        # -----------------------------------------
+        # Require complete Sv coverage
+        # -----------------------------------------
+
+        expected_start = start.tz_convert(None)
+        expected_end = end.tz_convert(None)
+
+        coverage_start = pd.Timestamp(
+            ds["ping_time"].values[0]
+        )
+
+        coverage_end = pd.Timestamp(
+            ds["ping_time"].values[-1]
+        )
+
+        tolerance = pd.Timedelta(seconds=5)
+
+        if (
+            coverage_start > expected_start + tolerance
+            or coverage_end < expected_end - tolerance
+        ):
+            print(
+                f"{name}: incomplete Sv coverage. "
+                f"Available: {coverage_start} -> {coverage_end}; "
+                f"required: {expected_start} -> {expected_end}. "
+                "Leaving transect pending."
+            )
+            continue
+
+        # We know the complete transect is now covered.
         ds = ds.sel(
             ping_time=slice(
-                start.tz_convert(None),
-                end.tz_convert(None),
+                expected_start,
+                expected_end,
             )
         )
-
-        if ds.sizes.get(
-            "ping_time",
-            0,
-        ) == 0:
-            continue
 
         print(
             f"{name}: "
@@ -489,9 +538,14 @@ def flow_process_CPS(
             )
         )
 
-        chunked = ds.chunk(chunks)
+        chunked = ds.chunk(
+            chunks
+        )
 
+        # -----------------------------------------
         # Common geometry
+        # -----------------------------------------
+
         aligned = (
             ep.commongrid
             .resample_to_geometry(
@@ -520,11 +574,16 @@ def flow_process_CPS(
             ["Sv", "echo_range"]
         ]
 
-        ds = ep.consolidate.add_depth(
-            ds
+        ds = (
+            ep.consolidate.add_depth(
+                ds
+            )
         )
 
+        # -----------------------------------------
         # Background noise
+        # -----------------------------------------
+
         try:
             ds = (
                 ep.clean
@@ -535,8 +594,16 @@ def flow_process_CPS(
                     SNR_threshold="5.0dB",
                 )
             )
-        except Exception:
-            ds["Sv_corrected"] = ds["Sv"]
+
+        except Exception as exc:
+            print(
+                f"{name}: background-noise "
+                f"removal failed: {exc}"
+            )
+
+            ds["Sv_corrected"] = (
+                ds["Sv"]
+            )
 
         sv_var = (
             "Sv_corrected"
@@ -545,7 +612,7 @@ def flow_process_CPS(
         )
 
         # -----------------------------------------
-        # Blackwell seafloor
+        # Detect seafloor with Blackwell
         # -----------------------------------------
 
         bottom_path = None
@@ -566,8 +633,12 @@ def flow_process_CPS(
                         "offset": (
                             seafloor_offset
                         ),
-                        "r0": seafloor_r0,
-                        "r1": seafloor_r1,
+                        "r0": (
+                            seafloor_r0
+                        ),
+                        "r1": (
+                            seafloor_r1
+                        ),
                         "wtheta": (
                             seafloor_wtheta
                         ),
@@ -580,16 +651,24 @@ def flow_process_CPS(
 
             bottom_df = pd.DataFrame(
                 {
-                    "time": bottom[
-                        "ping_time"
-                    ].values,
-                    "depth": bottom.values,
+                    "time": (
+                        bottom[
+                            "ping_time"
+                        ].values
+                    ),
+                    "depth": (
+                        bottom.values
+                    ),
                 }
             )
 
-            bottom_df = bottom_df[
-                bottom_df["depth"] > -0.2
-            ]
+            bottom_df = (
+                bottom_df[
+                    bottom_df[
+                        "depth"
+                    ] > -0.2
+                ]
+            )
 
             bottom_path = (
                 path_bottom
@@ -608,12 +687,84 @@ def flow_process_CPS(
             )
 
         # -----------------------------------------
+        # Build valid water-column mask
+        #
+        # 1. Exclude surface <= min_depth
+        # 2. Exclude seafloor and everything below
+        #
+        # This happens BEFORE CPS classification.
+        # -----------------------------------------
+
+        target_depth = (
+            ds["depth"].sel(
+                channel=target_channel
+            )
+        )
+
+        surface_mask = (
+            target_depth > min_depth
+        )
+
+        # If seafloor detection/masking fails,
+        # keep the entire water column apart from
+        # the surface exclusion.
+        above_seafloor_mask = (
+            xr.ones_like(
+                surface_mask,
+                dtype=bool,
+            )
+        )
+
+        if bottom_path is not None:
+            try:
+                above_seafloor_mask = (
+                    _mask_above_seafloor(
+                        ds,
+                        bottom_path,
+                        target_channel,
+                    )
+                )
+
+            except Exception as exc:
+                print(
+                    f"{name}: echoregions "
+                    f"seafloor mask failed: {exc}"
+                )
+
+        valid_water_column = (
+            surface_mask
+            & above_seafloor_mask
+        )
+        
+        # Save intermediate masks/products for diagnostics
+        ds["surface_mask"] = surface_mask
+        ds["above_seafloor_mask"] = above_seafloor_mask
+        ds["valid_water_column"] = valid_water_column
+
+        ds["Sv_water_column"] = (
+            ds["Sv"].where(valid_water_column)
+        )
+
+        # Broadcast the 2-D water-column mask
+        # (ping_time, range_sample) over channels.
+        #
+        # CPS calculations below therefore never
+        # see the upper 10 m or the seafloor.
+        sv_for_cps = (
+            ds[sv_var].where(
+                valid_water_column
+            )
+        )
+
+        # -----------------------------------------
         # CPS classifier
         # -----------------------------------------
 
         try:
+
+            # Smooth ONLY the valid water column
             ds["Sv_smoothed"] = (
-                ds[sv_var]
+                sv_for_cps
                 .rolling(
                     ping_time=3,
                     range_sample=11,
@@ -621,9 +772,11 @@ def flow_process_CPS(
                 .mean()
             )
 
+            # Variance using the already-masked
+            # water-column Sv
             ds["variance"] = (
                 10 ** (
-                    ds[sv_var] / 10
+                    sv_for_cps / 10
                 )
                 - 10 ** (
                     ds["Sv_smoothed"]
@@ -664,24 +817,28 @@ def flow_process_CPS(
                     "channel"
                 ] >= 4
             ):
+
                 ch38 = (
                     _pick_channel_by_frequency(
                         ds,
                         38000,
                     )
                 )
+
                 ch70 = (
                     _pick_channel_by_frequency(
                         ds,
                         70000,
                     )
                 )
+
                 ch120 = (
                     _pick_channel_by_frequency(
                         ds,
                         120000,
                     )
                 )
+
                 ch200 = (
                     _pick_channel_by_frequency(
                         ds,
@@ -689,18 +846,37 @@ def flow_process_CPS(
                     )
                 )
 
-                sd200 = ds[
-                    "variance_smoothed"
-                ].sel(channel=ch200)
+                # -----------------------------
+                # Variance criteria
+                # -----------------------------
 
-                sd120 = ds[
-                    "variance_smoothed"
-                ].sel(channel=ch120)
+                sd200 = (
+                    ds[
+                        "variance_smoothed"
+                    ].sel(
+                        channel=ch200
+                    )
+                )
+
+                sd120 = (
+                    ds[
+                        "variance_smoothed"
+                    ].sel(
+                        channel=ch120
+                    )
+                )
 
                 mask_sd = (
                     (sd200 > -65)
                     & (sd120 > -65)
                 )
+
+                # -----------------------------
+                # Frequency-response criteria
+                #
+                # This is now calculated AFTER
+                # surface + bottom removal.
+                # -----------------------------
 
                 ds["Sv_dilated"] = (
                     _dilate_7x7(
@@ -710,7 +886,9 @@ def flow_process_CPS(
 
                 diff = (
                     ds["Sv_dilated"]
-                    - ds["Sv_dilated"].sel(
+                    - ds[
+                        "Sv_dilated"
+                    ].sel(
                         channel=ch38
                     )
                 )
@@ -757,43 +935,39 @@ def flow_process_CPS(
                 final_mask = (
                     mask_frequency
                     & mask_sd
+                    & valid_water_column
                 )
 
             else:
+
+                # Fallback also uses ONLY the
+                # valid water column.
                 final_mask = (
-                    ds[sv_var]
+                    sv_for_cps
                     > fallback_sv_threshold
                 )
 
         except Exception as exc:
+
             print(
                 f"{name}: CPS classifier "
                 f"failed: {exc}"
             )
 
+            # Same rule for fallback:
+            # surface and bottom remain excluded.
             final_mask = (
-                ds[sv_var]
+                sv_for_cps
                 > fallback_sv_threshold
             )
 
         # -----------------------------------------
-        # Remove seafloor
+        # Apply final CPS mask
+        #
+        # Values come from original Sv.
+        # Classification was performed on
+        # pre-masked / cleaned water-column Sv.
         # -----------------------------------------
-
-        if bottom_path is not None:
-            try:
-                final_mask &= (
-                    _mask_above_seafloor(
-                        ds,
-                        bottom_path,
-                        target_channel,
-                    )
-                )
-            except Exception as exc:
-                print(
-                    f"{name}: seafloor mask "
-                    f"failed: {exc}"
-                )
 
         ds["Sv_masked"] = (
             ds["Sv"].where(
@@ -811,7 +985,9 @@ def flow_process_CPS(
         )
 
         for variable in ds.variables:
-            ds[variable].encoding.pop(
+            ds[
+                variable
+            ].encoding.pop(
                 "chunks",
                 None,
             )
@@ -826,12 +1002,23 @@ def flow_process_CPS(
 
         # -----------------------------------------
         # NASC
+        #
+        # Sv_masked already contains ONLY:
+        #
+        #   depth > min_depth
+        #   above seafloor
+        #   CPS-positive samples
+        #
+        # Therefore no additional surface or
+        # bottom masking is necessary here.
         # -----------------------------------------
 
-        ds_nasc = task_compute_NASC_from_masked_Sv(
-            ds_Sv_masked=ds,
-            range_bin=range_bin,
-            dist_bin=dist_bin,
+        ds_nasc = (
+            task_compute_NASC_from_masked_Sv(
+                ds_Sv_masked=ds,
+                range_bin=range_bin,
+                dist_bin=dist_bin,
+            )
         )
 
         nasc_path = (
