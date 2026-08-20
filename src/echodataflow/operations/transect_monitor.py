@@ -36,4 +36,3 @@ def watch_transect_file(path: str | Path):
         target_file=path,
         callback=emit_transect_update_event,
     )
-    

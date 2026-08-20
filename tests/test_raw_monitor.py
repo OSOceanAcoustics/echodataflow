@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from echodataflow.utils import raw_monitor
+from echodataflow.operations import raw_monitor
 
 
 def test_emit_raw_update_event(monkeypatch, tmp_path):

@@ -1,5 +1,6 @@
 from pathlib import Path
-from echodataflow.utils import transect_monitor
+
+from echodataflow.operations import transect_monitor
 
 
 def test_emit_transect_update_event(monkeypatch, tmp_path):
@@ -22,4 +23,3 @@ def test_emit_transect_update_event(monkeypatch, tmp_path):
     assert emitted["event"] == "echodataflow.transect.updated"
     assert emitted["resource"]["prefect.resource.id"] == "transect-start-end-time"
     assert emitted["resource"]["path"] == str(target)
-    
