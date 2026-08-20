@@ -55,6 +55,7 @@ from echodataflow.utils.processing_ledger import (
     mark_raw_completed,
     mark_raw_failed,
     mark_raw_processing,
+    resolve_database,
 )
 
 # Turn on verbose logging for echopype
@@ -95,7 +96,7 @@ def flow_raw2Sv(
 
     # Assemble paths
     path_Sv_zarr = Path(path_main) / "Sv"
-    db_path = Path(path_main) / processing_db
+    db_path = resolve_database(path_main, processing_db)
 
     initialize_ledger(db_path)
 
@@ -291,7 +292,7 @@ async def flow_create_MVBS(
     )
 
     # Assemble paths
-    db_path = Path(path_main) / processing_db
+    db_path = resolve_database(path_main, processing_db)
     file_MVBS_csv = Path(path_main) / file_MVBS_csv
     path_Sv_zarr = Path(path_main) / "Sv"
     path_MVBS_zarr = Path(path_main) / "MVBS"

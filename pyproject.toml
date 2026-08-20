@@ -48,7 +48,9 @@ dependencies = [
     "PyYAML",
     "s3fs",
     "shapely",
-   "watchdog",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "watchdog",
     "xarray",
 ]
 dynamic = ["version"]
