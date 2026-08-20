@@ -3,7 +3,10 @@ from pathlib import Path
 import pandas as pd
 from prefect import flow
 
-from echodataflow.utils.processing_ledger import get_completed_sv_files
+from echodataflow.utils.processing_ledger import (
+    get_completed_sv_files,
+    resolve_database,
+)
 
 
 def get_changed_transects(
@@ -43,7 +46,7 @@ def flow_transect_update(
 
     path_transect = Path(path_transect_csv)
     path_snapshot = Path(path_snapshot_csv)
-    db_path = Path(path_main) / processing_db
+    db_path = resolve_database(path_main, processing_db)
 
     # Read the current transect information, preserving transect identifiers
     # as strings so values with leading zeros (e.g., "002") are not converted

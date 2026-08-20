@@ -1,145 +1,208 @@
 from __future__ import annotations
 
-import sqlite3
+from functools import lru_cache
 from pathlib import Path
 
+from sqlalchemy import (
+    BigInteger,
+    Column,
+    Index,
+    MetaData,
+    Table,
+    Text,
+    create_engine,
+    insert,
+    select,
+    update,
+)
+from sqlalchemy.engine import Engine
+from sqlalchemy.sql import func
+
+
+metadata = MetaData()
+
+raw_sv = Table(
+    "raw_sv",
+    metadata,
+    Column("raw_path", Text, primary_key=True),
+    Column("raw_filename", Text, nullable=False),
+    Column("file_size", BigInteger),
+    Column("file_mtime_ns", BigInteger),
+    Column("status", Text, nullable=False, server_default="pending"),
+    Column("sv_filename", Text),
+    Column("first_ping_time", Text),
+    Column("last_ping_time", Text),
+    Column("error", Text, nullable=False, server_default=""),
+    Column(
+        "created_at",
+        Text,
+        nullable=False,
+        server_default=func.current_timestamp(),
+    ),
+    Column(
+        "updated_at",
+        Text,
+        nullable=False,
+        server_default=func.current_timestamp(),
+    ),
+)
+
+Index("idx_raw_sv_status", raw_sv.c.status)
+Index("idx_raw_sv_first_ping_time", raw_sv.c.first_ping_time)
+
+def _timestamp_string(value) -> str:
+    """Return timestamps in a consistent ISO-8601 representation."""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
+
+def _database_url(db_path: str | Path) -> str:
+    """Convert a local database path to a SQLAlchemy URL."""
+
+    value = str(db_path)
+
+    # Already a SQLAlchemy database URL, e.g. PostgreSQL.
+    if "://" in value:
+        return value
+
+    path = Path(value).resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    return f"sqlite:///{path.as_posix()}"
+
+
+@lru_cache
+def _get_engine(database: str) -> Engine:
+    """Create and cache a SQLAlchemy engine."""
+
+    url = _database_url(database)
+
+    kwargs = {}
+
+    if url.startswith("sqlite"):
+        kwargs["connect_args"] = {"timeout": 30}
+
+    return create_engine(url, **kwargs)
+
+
+def _engine(db_path: str | Path) -> Engine:
+    return _get_engine(str(db_path))
+
+def resolve_database(
+    path_main: str | Path,
+    processing_db: str,
+) -> str | Path:
+    """Resolve a local database filename or preserve a database URL."""
+    if "://" in processing_db:
+        return processing_db
+
+    return Path(path_main) / processing_db
 
 def initialize_ledger(db_path: str | Path) -> None:
     """Create the processing ledger database and required tables."""
-    db_path = Path(db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with sqlite3.connect(db_path, timeout=30) as conn:
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA busy_timeout=30000")
+    engine = _engine(db_path)
 
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS raw_sv (
-                raw_path TEXT PRIMARY KEY,
-                raw_filename TEXT NOT NULL,
-                file_size INTEGER,
-                file_mtime_ns INTEGER,
-                status TEXT NOT NULL DEFAULT 'pending',
-                sv_filename TEXT,
-                first_ping_time TEXT,
-                last_ping_time TEXT,
-                error TEXT NOT NULL DEFAULT '',
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
+    # Keep the existing SQLite concurrency settings.
+    if engine.dialect.name == "sqlite":
+        with engine.connect() as conn:
+            conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+            conn.exec_driver_sql("PRAGMA busy_timeout=30000")
 
-        conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_raw_sv_status
-            ON raw_sv(status)
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_raw_sv_first_ping_time
-            ON raw_sv(first_ping_time)
-            """
-        )
+    metadata.create_all(engine)
 
 
-def register_raw_file(db_path: str | Path, raw_path: str | Path) -> None:
+def register_raw_file(
+    db_path: str | Path,
+    raw_path: str | Path,
+) -> None:
     """Register a RAW file, re-queueing it only when its contents changed."""
+
     raw_path = Path(raw_path)
     stat = raw_path.stat()
 
-    with sqlite3.connect(db_path, timeout=30) as conn:
-        conn.execute("PRAGMA busy_timeout=30000")
+    engine = _engine(db_path)
 
+    with engine.begin() as conn:
         existing = conn.execute(
-            """
-            SELECT file_size, file_mtime_ns
-            FROM raw_sv
-            WHERE raw_path = ?
-            """,
-            (str(raw_path),),
-        ).fetchone()
+            select(
+                raw_sv.c.file_size,
+                raw_sv.c.file_mtime_ns,
+            ).where(raw_sv.c.raw_path == str(raw_path))
+        ).first()
 
         if existing is None:
             conn.execute(
-                """
-                INSERT INTO raw_sv (
-                    raw_path,
-                    raw_filename,
-                    file_size,
-                    file_mtime_ns,
-                    status
+                insert(raw_sv).values(
+                    raw_path=str(raw_path),
+                    raw_filename=raw_path.name,
+                    file_size=stat.st_size,
+                    file_mtime_ns=stat.st_mtime_ns,
+                    status="pending",
                 )
-                VALUES (?, ?, ?, ?, 'pending')
-                """,
-                (
-                    str(raw_path),
-                    raw_path.name,
-                    stat.st_size,
-                    stat.st_mtime_ns,
-                ),
             )
             return
 
-        if existing != (stat.st_size, stat.st_mtime_ns):
+        if (
+            existing.file_size != stat.st_size
+            or existing.file_mtime_ns != stat.st_mtime_ns
+        ):
             conn.execute(
-                """
-                UPDATE raw_sv
-                SET file_size = ?,
-                    file_mtime_ns = ?,
-                    status = 'pending',
-                    sv_filename = NULL,
-                    first_ping_time = NULL,
-                    last_ping_time = NULL,
-                    error = '',
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE raw_path = ?
-                """,
-                (
-                    stat.st_size,
-                    stat.st_mtime_ns,
-                    str(raw_path),
-                ),
+                update(raw_sv)
+                .where(raw_sv.c.raw_path == str(raw_path))
+                .values(
+                    file_size=stat.st_size,
+                    file_mtime_ns=stat.st_mtime_ns,
+                    status="pending",
+                    sv_filename=None,
+                    first_ping_time=None,
+                    last_ping_time=None,
+                    error="",
+                    updated_at=func.current_timestamp(),
+                )
             )
+
 
 def get_raw_files_to_process(
     db_path: str | Path,
     limit: int = -1,
 ) -> list[Path]:
     """Return RAW files that are pending or failed."""
-    query = """
-        SELECT raw_path
-        FROM raw_sv
-        WHERE status IN ('pending', 'failed')
-        ORDER BY created_at, raw_path
-    """
 
-    params: tuple = ()
+    stmt = (
+        select(raw_sv.c.raw_path)
+        .where(raw_sv.c.status.in_(("pending", "failed")))
+        .order_by(raw_sv.c.created_at, raw_sv.c.raw_path)
+    )
 
     if limit != -1:
-        query += " LIMIT ?"
-        params = (limit,)
+        stmt = stmt.limit(limit)
 
-    with sqlite3.connect(db_path) as conn:
-        rows = conn.execute(query, params).fetchall()
+    engine = _engine(db_path)
 
-    return [Path(row[0]) for row in rows]
+    with engine.connect() as conn:
+        rows = conn.execute(stmt).all()
 
-def mark_raw_processing(db_path: str | Path, raw_path: str | Path) -> None:
+    return [Path(row.raw_path) for row in rows]
+
+
+def mark_raw_processing(
+    db_path: str | Path,
+    raw_path: str | Path,
+) -> None:
     """Mark a RAW file as currently being processed."""
-    with sqlite3.connect(db_path) as conn:
+
+    engine = _engine(db_path)
+
+    with engine.begin() as conn:
         conn.execute(
-            """
-            UPDATE raw_sv
-            SET status = 'processing',
-                error = '',
-                updated_at = CURRENT_TIMESTAMP
-            WHERE raw_path = ?
-            """,
-            (str(Path(raw_path)),),
+            update(raw_sv)
+            .where(raw_sv.c.raw_path == str(Path(raw_path)))
+            .values(
+                status="processing",
+                error="",
+                updated_at=func.current_timestamp(),
+            )
         )
 
 
@@ -151,24 +214,21 @@ def mark_raw_completed(
     last_ping_time,
 ) -> None:
     """Mark a RAW file as successfully converted to Sv."""
-    with sqlite3.connect(db_path) as conn:
+
+    engine = _engine(db_path)
+
+    with engine.begin() as conn:
         conn.execute(
-            """
-            UPDATE raw_sv
-            SET status = 'completed',
-                sv_filename = ?,
-                first_ping_time = ?,
-                last_ping_time = ?,
-                error = '',
-                updated_at = CURRENT_TIMESTAMP
-            WHERE raw_path = ?
-            """,
-            (
-                sv_filename,
-                str(first_ping_time),
-                str(last_ping_time),
-                str(Path(raw_path)),
-            ),
+            update(raw_sv)
+            .where(raw_sv.c.raw_path == str(Path(raw_path)))
+            .values(
+                status="completed",
+                sv_filename=sv_filename,
+                first_ping_time=_timestamp_string(first_ping_time),
+                last_ping_time=_timestamp_string(last_ping_time),
+                error="",
+                updated_at=func.current_timestamp(),
+            )
         )
 
 
@@ -178,17 +238,20 @@ def mark_raw_failed(
     error: str,
 ) -> None:
     """Mark a RAW file as failed."""
-    with sqlite3.connect(db_path) as conn:
+
+    engine = _engine(db_path)
+
+    with engine.begin() as conn:
         conn.execute(
-            """
-            UPDATE raw_sv
-            SET status = 'failed',
-                error = ?,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE raw_path = ?
-            """,
-            (error, str(Path(raw_path))),
+            update(raw_sv)
+            .where(raw_sv.c.raw_path == str(Path(raw_path)))
+            .values(
+                status="failed",
+                error=error,
+                updated_at=func.current_timestamp(),
+            )
         )
+
 
 def get_completed_sv_files(
     db_path: str | Path,
@@ -196,31 +259,27 @@ def get_completed_sv_files(
     end_time=None,
 ) -> list[str]:
     """Return completed Sv files, optionally overlapping a time range."""
-    query = """
-        SELECT sv_filename
-        FROM raw_sv
-        WHERE status = 'completed'
-          AND sv_filename IS NOT NULL
-    """
-    params = []
+
+    stmt = select(raw_sv.c.sv_filename).where(
+        raw_sv.c.status == "completed",
+        raw_sv.c.sv_filename.is_not(None),
+    )
 
     if start_time is not None:
-        query += """
-          AND datetime(last_ping_time) >= datetime(?)
-        """
-        params.append(str(start_time))
+        stmt = stmt.where(
+            raw_sv.c.last_ping_time >= _timestamp_string(start_time)
+        )
 
     if end_time is not None:
-        query += """
-          AND datetime(first_ping_time) <= datetime(?)
-        """
-        params.append(str(end_time))
+        stmt = stmt.where(
+            raw_sv.c.first_ping_time <= _timestamp_string(end_time)
+        )
 
-    query += """
-        ORDER BY datetime(first_ping_time)
-    """
+    stmt = stmt.order_by(raw_sv.c.first_ping_time)
 
-    with sqlite3.connect(db_path) as conn:
-        rows = conn.execute(query, params).fetchall()
+    engine = _engine(db_path)
 
-    return [row[0] for row in rows]
+    with engine.connect() as conn:
+        rows = conn.execute(stmt).all()
+
+    return [row.sv_filename for row in rows]

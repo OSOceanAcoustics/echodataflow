@@ -1,6 +1,7 @@
 import sqlite3
 
 from echodataflow.utils.processing_ledger import (
+    _database_url,
     get_completed_sv_files,
     get_raw_files_to_process,
     initialize_ledger,
@@ -8,8 +9,34 @@ from echodataflow.utils.processing_ledger import (
     mark_raw_failed,
     mark_raw_processing,
     register_raw_file,
+    resolve_database,
 )
 
+
+def test_database_url_from_path(tmp_path):
+    db_path = tmp_path / "processing.db"
+
+    url = _database_url(db_path)
+
+    assert url.startswith("sqlite:///")
+    assert url.endswith("processing.db")
+
+
+def test_database_url_preserves_database_url():
+    url = "postgresql+psycopg://user:password@localhost/test"
+
+    assert _database_url(url) == url
+
+def test_resolve_database_local_path(tmp_path):
+    result = resolve_database(tmp_path, "processing.db")
+
+    assert result == tmp_path / "processing.db"
+
+
+def test_resolve_database_preserves_database_url():
+    url = "postgresql+psycopg://user:password@localhost/test"
+
+    assert resolve_database("/some/path", url) == url
 
 def test_initialize_ledger(tmp_path):
     db_path = tmp_path / "processing.db"
@@ -231,3 +258,14 @@ def test_register_raw_file_requeues_changed_file(tmp_path):
         ).fetchone()
 
     assert row == ("pending", None, None, None)
+
+def test_register_raw_file_large_mtime(tmp_path):
+    db_path = tmp_path / "processing.db"
+    raw_path = tmp_path / "test.raw"
+    raw_path.touch()
+
+    initialize_ledger(db_path)
+    register_raw_file(db_path, raw_path)
+
+    # A nanosecond mtime is much larger than a 32-bit integer.
+    assert raw_path.stat().st_mtime_ns > 2**31
