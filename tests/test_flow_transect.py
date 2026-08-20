@@ -1,9 +1,13 @@
 import pandas as pd
 
 from echodataflow.flows.flows_transect import (
-    find_overlapping_sv_files,
     flow_transect_update,
     get_changed_transects,
+)
+from echodataflow.utils.processing_ledger import (
+    initialize_ledger,
+    mark_raw_completed,
+    register_raw_file,
 )
 
 
@@ -75,25 +79,44 @@ def test_flow_transect_update_finds_overlapping_sv(tmp_path, capsys):
     previous.to_csv(snapshot_csv, index=False)
     current.to_csv(transect_csv, index=False)
 
-    pd.DataFrame(
-        {
-            "Sv_filename": [
-                "before_Sv.zarr",
-                "overlap_Sv.zarr",
-                "after_Sv.zarr",
-            ],
-            "first_ping_time": [
-                "2024-07-07T00:00:00Z",
-                "2024-07-07T00:15:00Z",
-                "2024-07-07T00:40:00Z",
-            ],
-            "last_ping_time": [
-                "2024-07-07T00:05:00Z",
-                "2024-07-07T00:25:00Z",
-                "2024-07-07T00:50:00Z",
-            ],
-        }
-    ).to_csv(path_main / "Sv_files.csv")
+    db_path = path_main / "processing.db"
+    initialize_ledger(db_path)
+
+    raw_before = tmp_path / "before.raw"
+    raw_overlap = tmp_path / "overlap.raw"
+    raw_after = tmp_path / "after.raw"
+
+    raw_before.touch()
+    raw_overlap.touch()
+    raw_after.touch()
+
+    register_raw_file(db_path, raw_before)
+    register_raw_file(db_path, raw_overlap)
+    register_raw_file(db_path, raw_after)
+
+    mark_raw_completed(
+        db_path,
+        raw_before,
+        "before_Sv.zarr",
+        "2024-07-07T00:00:00Z",
+        "2024-07-07T00:05:00Z",
+    )
+
+    mark_raw_completed(
+        db_path,
+        raw_overlap,
+        "overlap_Sv.zarr",
+        "2024-07-07T00:15:00Z",
+        "2024-07-07T00:25:00Z",
+    )
+
+    mark_raw_completed(
+        db_path,
+        raw_after,
+        "after_Sv.zarr",
+        "2024-07-07T00:40:00Z",
+        "2024-07-07T00:50:00Z",
+    )
 
     flow_transect_update.fn(
         path_transect_csv=str(transect_csv),
@@ -107,6 +130,8 @@ def test_flow_transect_update_finds_overlapping_sv(tmp_path, capsys):
     assert "Transect 002" in output
     assert "Found 1 overlapping Sv file(s)" in output
     assert "overlap_Sv.zarr" in output
+    assert "before_Sv.zarr" not in output
+    assert "after_Sv.zarr" not in output
 
 
 def test_get_changed_transects():
@@ -140,41 +165,6 @@ def test_get_changed_transects():
     assert changed.iloc[0]["transectPart"] == "002"
 
 
-def test_find_overlapping_sv_files():
-    df_sv = pd.DataFrame(
-        {
-            "Sv_filename": [
-                "before_Sv.zarr",
-                "overlap_Sv.zarr",
-                "after_Sv.zarr",
-            ],
-            "first_ping_time": pd.to_datetime(
-                [
-                    "2024-07-07T00:00:00Z",
-                    "2024-07-07T00:15:00Z",
-                    "2024-07-07T00:40:00Z",
-                ],
-                utc=True,
-            ),
-            "last_ping_time": pd.to_datetime(
-                [
-                    "2024-07-07T00:05:00Z",
-                    "2024-07-07T00:25:00Z",
-                    "2024-07-07T00:50:00Z",
-                ],
-                utc=True,
-            ),
-        }
-    )
-
-    overlapping = find_overlapping_sv_files(
-        df_sv,
-        pd.Timestamp("2024-07-07T00:20:00Z"),
-        pd.Timestamp("2024-07-07T00:30:00Z"),
-    )
-
-    assert overlapping["Sv_filename"].tolist() == ["overlap_Sv.zarr"]
-    
 def test_flow_transect_update_ignores_open_transect(tmp_path, capsys):
     transect_csv = tmp_path / "transects.csv"
     snapshot_csv = tmp_path / "snapshot.csv"
