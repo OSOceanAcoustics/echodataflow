@@ -2,7 +2,8 @@ from pathlib import Path
 
 import datetime
 import os
-import sqlite3
+from sqlalchemy import create_engine, inspect
+from echodataflow.utils.processing_ledger import resolve_database
 
 import holoviews as hv
 import numpy as np
@@ -34,7 +35,15 @@ PATH_CACHE = ROOT / "viz_cache_CPS"
 PATH_CPS = ROOT / "CPS_Masks_Zarr"
 PATH_NASC = ROOT / "CPS_NASC_Zarr"
 PATH_BOTTOM = ROOT / "CPS_Seafloor_CSVs"
-PATH_DB = ROOT / "processing.db"
+PROCESSING_DB = os.environ.get(
+    "ECHODATAFLOW_CPS_PROCESSING_DB",
+    "processing.db",
+)
+
+PATH_DB = resolve_database(
+    ROOT,
+    PROCESSING_DB,
+)
 PATH_TRANSECTS = ROOT / "plotSurvey_Survey_Data_Visualizer.csv"
 
 TARGET_FREQUENCY = float(
@@ -185,33 +194,34 @@ def plot_seafloor(
 # ---------------------------------------------------------------------
 
 def load_database_tables():
-    """Load every table currently present in processing.db."""
+    """Load every table currently present in the processing database."""
 
-    if not PATH_DB.exists():
-        return {}
+    db_value = str(PATH_DB)
 
-    with sqlite3.connect(
-        PATH_DB
-    ) as conn:
-        table_names = pd.read_sql_query(
-            """
-            SELECT name
-            FROM sqlite_master
-            WHERE type = 'table'
-            ORDER BY name
-            """,
-            conn,
-        )["name"].tolist()
+    if "://" in db_value:
+        database_url = db_value
+    else:
+        db_path = Path(db_value)
 
-        tables = {}
+        if not db_path.exists():
+            return {}
 
-        for table_name in table_names:
-            tables[
-                table_name
-            ] = pd.read_sql_query(
-                f'SELECT * FROM "{table_name}"',
-                conn,
-            )
+        database_url = (
+            f"sqlite:///{db_path.resolve().as_posix()}"
+        )
+
+    engine = create_engine(database_url)
+
+    inspector = inspect(engine)
+    table_names = inspector.get_table_names()
+
+    tables = {}
+
+    for table_name in table_names:
+        tables[table_name] = pd.read_sql_table(
+            table_name,
+            con=engine,
+        )
 
     return tables
 
@@ -747,7 +757,7 @@ def build_status_panel():
     if not db_tables:
         db_panels.append(
             pn.pane.Alert(
-                "processing.db does not exist "
+                "Processing database is unavailable "
                 "or contains no tables.",
                 alert_type="warning",
             )

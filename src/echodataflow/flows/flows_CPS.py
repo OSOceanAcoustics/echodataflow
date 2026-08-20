@@ -12,7 +12,7 @@ from prefect.states import Cancelled
 from echodataflow.flows.flows_helper import deployment_already_running
 from prefect_dask import DaskTaskRunner
 
-from echodataflow.utils.processing_ledger import get_completed_sv_files
+from echodataflow.utils.processing_ledger import get_completed_sv_files, resolve_database
 from echodataflow.tasks.tasks_acoustics import (
     task_compute_NASC_from_masked_Sv,
 )
@@ -293,9 +293,7 @@ def flow_process_CPS(
         path_main / "Sv"
     )
 
-    db_path = (
-        path_main / processing_db
-    )
+    db_path = resolve_database(path_main, processing_db)
 
     path_cps = (
         path_main / "CPS_Masks_Zarr"
@@ -393,7 +391,7 @@ def flow_process_CPS(
         )
         return
 
-    if not db_path.exists():
+    if isinstance(db_path, Path) and not db_path.exists():
         print(
             f"Processing ledger not found: "
             f"{db_path}"
