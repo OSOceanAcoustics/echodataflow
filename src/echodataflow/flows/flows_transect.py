@@ -9,21 +9,24 @@ from echodataflow.utils.processing_ledger import (
 )
 
 
+TRANSECT_COLUMNS = [
+    "transectPart",
+    "transectNumber",
+    "transectStart",
+    "transectEnd",
+]
+
+
 def get_changed_transects(
     current: pd.DataFrame,
     previous: pd.DataFrame,
 ) -> pd.DataFrame:
     """Return transect segments that are new or have been updated."""
 
-    key_columns = [
-        "transectPart",
-        "transectNumber",
-        "transectStart",
-        "transectEnd",
-    ]
+    key_columns = TRANSECT_COLUMNS
 
     return (
-        current.merge(
+        current.drop_duplicates(subset=key_columns).merge(
             previous[key_columns],
             on=key_columns,
             how="left",
@@ -31,7 +34,6 @@ def get_changed_transects(
         )
         .query("_merge == 'left_only'")
         .drop(columns="_merge")
-        .drop_duplicates(subset=key_columns)
     )
 
 
@@ -51,30 +53,14 @@ def flow_transect_update(
     # Read the current transect information, preserving transect identifiers
     # as strings so values with leading zeros (e.g., "002") are not converted
     # to integers by pandas
-    current = pd.read_csv(
-        path_transect,
-        dtype={
-            "transectPart": "string",
-            "transectNumber": "string",
-            "transectStart": "string",
-            "transectEnd": "string",
-        },
-    )
+    current = pd.read_csv(path_transect, dtype="string")
 
     if not path_snapshot.exists():
         print("No previous transect snapshot found. Initializing snapshot.")
         current.to_csv(path_snapshot, index=False)
         return
 
-    previous = pd.read_csv(
-        path_snapshot,
-        dtype={
-            "transectPart": "string",
-            "transectNumber": "string",
-            "transectStart": "string",
-            "transectEnd": "string",
-        },
-    )
+    previous = pd.read_csv(path_snapshot, dtype="string")
 
     changed = get_changed_transects(current, previous)
 
