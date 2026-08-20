@@ -7,51 +7,42 @@ from watchdog.observers import Observer
 
 
 logger = logging.getLogger(__name__)
-class FileUpdateHandler(FileSystemEventHandler):
-    """Run a callback when the target file is updated."""
-
-    def __init__(
-        self,
-        target_file: str | Path,
-        callback: Callable[[Path], None],
-    ):
-        self.target_file = Path(target_file).resolve()
-        self.callback = callback
-
-    def _handle_path(self, path: str | Path) -> None:
-        event_path = Path(path).resolve()
-
-        if event_path == self.target_file:
-            self.callback(event_path)
-
-    def on_modified(self, event: FileSystemEvent) -> None:
-        if not event.is_directory:
-            self._handle_path(event.src_path)
-
-    def on_created(self, event: FileSystemEvent) -> None:
-        if not event.is_directory:
-            self._handle_path(event.src_path)
-
-    def on_moved(self, event: FileSystemEvent) -> None:
-        if not event.is_directory:
-            self._handle_path(event.dest_path)
 
 
-class FileCreatedHandler(FileSystemEventHandler):
-    """Run a callback when a matching file is created or modified."""
+class FileChangeHandler(FileSystemEventHandler):
+    """Run a callback when a changed file satisfies ``matches``.
+
+    Match one specific file, for example a transect CSV::
+
+        target = Path("transects.csv").resolve()
+        FileChangeHandler(
+            callback=process,
+            matches=lambda path: path == target,
+        )
+
+    Match files by name, for example all RAW files in the watched directory::
+
+        FileChangeHandler(
+            callback=process,
+            matches=lambda path: path.match("*.raw"),
+        )
+
+    Callback exceptions are logged so they do not stop the filesystem
+    observer.
+    """
 
     def __init__(
         self,
         callback: Callable[[Path], None],
-        pattern: str,
+        matches: Callable[[Path], bool],
     ):
         self.callback = callback
-        self.pattern = pattern
+        self.matches = matches
 
     def _handle_path(self, path: str | Path) -> None:
         event_path = Path(path).resolve()
 
-        if not event_path.match(self.pattern):
+        if not self.matches(event_path):
             return
 
         try:
@@ -62,15 +53,13 @@ class FileCreatedHandler(FileSystemEventHandler):
                 event_path,
             )
 
-    def _handle(self, event: FileSystemEvent) -> None:
+    def on_modified(self, event: FileSystemEvent) -> None:
         if not event.is_directory:
             self._handle_path(event.src_path)
 
     def on_created(self, event: FileSystemEvent) -> None:
-        self._handle(event)
-
-    def on_modified(self, event: FileSystemEvent) -> None:
-        self._handle(event)
+        if not event.is_directory:
+            self._handle_path(event.src_path)
 
     def on_moved(self, event: FileSystemEvent) -> None:
         if not event.is_directory:
@@ -87,9 +76,9 @@ def watch_file(
 
     observer = Observer()
     observer.schedule(
-        FileUpdateHandler(
-            target_file=target_file,
+        FileChangeHandler(
             callback=callback,
+            matches=lambda path: path == target_file,
         ),
         str(target_file.parent),
         recursive=False,
@@ -110,9 +99,9 @@ def watch_directory(
 
     observer = Observer()
     observer.schedule(
-        FileCreatedHandler(
+        FileChangeHandler(
             callback=callback,
-            pattern=pattern,
+            matches=lambda path: path.match(pattern),
         ),
         str(directory),
         recursive=False,
