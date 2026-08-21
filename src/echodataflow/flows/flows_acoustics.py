@@ -12,6 +12,7 @@ from prefect import flow, get_run_logger, get_client
 from prefect.futures import as_completed
 from prefect.states import Cancelled, Failed
 from prefect import runtime
+from prefect.events import emit_event
 
 from echodataflow.flows.flows_helper import deployment_already_running
 from echodataflow.deployment.task_runners import dask_task_runner_from_environment
@@ -77,6 +78,9 @@ def flow_raw2Sv(
     path_main: str = "",
     processing_db: str = "processing.db",
     new_file_num_limit: int = 50,
+    add_depth: bool = True,
+    add_location: bool = True,
+    add_splitbeam_angle: bool = False,
 ):
     # Check if the deployment is already running
     already_running = asyncio.run(deployment_already_running())
@@ -144,6 +148,9 @@ def flow_raw2Sv(
         sonar_model=sonar_model,
         datagram_type=datagram_type,
         nmea_sentence=nmea_sentence,
+        add_depth=add_depth,
+        add_location=add_location,
+        add_splitbeam_angle=add_splitbeam_angle,
     )
 
     errors = []
@@ -244,6 +251,14 @@ def flow_raw2Sv(
 
         asyncio.run(set_failed_state())
         raise RuntimeError(error_msg)
+
+    emit_event(
+        event="echodataflow.sv.updated",
+        resource={
+            "prefect.resource.id": "sv-monitor",
+            "prefect.resource.name": "sv-monitor",
+        },
+    )
 
 
 @flow(log_prints=True)

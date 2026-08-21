@@ -29,6 +29,9 @@ class RawToSvSettings:
     sonar_model: str = "EK80"
     datagram_type: str | None = None
     nmea_sentence: str | None = None
+    add_depth: bool = True
+    add_location: bool = True
+    add_splitbeam_angle: bool = False
 
 
 @dataclass(frozen=True)
@@ -58,23 +61,39 @@ def convert_raw_to_Sv(
         raw_file=raw_path,
         sonar_model=settings.sonar_model,
     )
+
     ds_sv = ep.calibrate.compute_Sv(
         echodata=echodata,
         waveform_mode=settings.waveform_mode,
         encode_mode=settings.encode_mode,
     )
-    ds_sv = ep.consolidate.add_depth(
-        ds=ds_sv,
-        depth_offset=settings.depth_offset,
-    )
-    echodata["Platform"] = echodata["Platform"].drop_duplicates("time1")
-    ds_sv = ep.consolidate.add_location(
-        ds=ds_sv,
-        echodata=echodata,
-        datagram_type=settings.datagram_type,
-        nmea_sentence=settings.nmea_sentence,
-    )
+
+    if settings.add_splitbeam_angle:
+        ds_sv = ep.consolidate.add_splitbeam_angle(
+            ds_sv,
+            echodata,
+            waveform_mode=settings.waveform_mode,
+            encode_mode=settings.encode_mode,
+            to_disk=False,
+        )
+
+    if settings.add_depth:
+        ds_sv = ep.consolidate.add_depth(
+            ds=ds_sv,
+            depth_offset=settings.depth_offset,
+        )
+
+    if settings.add_location:
+        echodata["Platform"] = echodata["Platform"].drop_duplicates("time1")
+        ds_sv = ep.consolidate.add_location(
+            ds=ds_sv,
+            echodata=echodata,
+            datagram_type=settings.datagram_type,
+            nmea_sentence=settings.nmea_sentence,
+        )
+
     output_path = Path(settings.output_directory) / f"{raw_path.stem}_Sv.zarr"
+
     ds_sv.to_zarr(
         store=output_path,
         mode="w",
@@ -175,4 +194,22 @@ def create_MVBS(
         mvbs_filename=item.mvbs_filename,
         first_ping_time=pd.to_datetime(ds_MVBS["ping_time"][0].values),
         last_ping_time=pd.to_datetime(ds_MVBS["ping_time"][-1].values),
+    )
+
+
+def compute_NASC_from_masked_Sv(
+    ds_Sv_masked: xr.Dataset,
+    range_bin: str = "10m",
+    dist_bin: str = "0.5nmi",
+) -> xr.Dataset:
+    """Compute NASC from a masked Sv dataset."""
+
+    ds_for_nasc = ds_Sv_masked.assign(
+        Sv=ds_Sv_masked["Sv_masked"]
+    )
+
+    return ep.commongrid.compute_NASC(
+        ds_Sv=ds_for_nasc,
+        range_bin=range_bin,
+        dist_bin=dist_bin,
     )

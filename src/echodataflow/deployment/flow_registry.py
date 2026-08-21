@@ -69,8 +69,23 @@ FLOW_REGISTRY: dict[str, FlowRegistration] = {
     "update_cache_MVBS": FlowRegistration(
         entrypoint="echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",
     ),
+    "update_cache_CPS": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_viz_cloud.py:flow_update_cache_CPS",
+        description="Update the visualization cache from the latest CPS plot product.",
+    ),
     "transect_update": FlowRegistration(
         entrypoint="echodataflow/flows/flows_transect.py:flow_transect_update",
         description="Process updates to transect start/end information.",
+    ),
+    "process_CPS": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_CPS.py:flow_process_CPS",
+        description="Process CPS acoustic data for new or updated transect segments.",
+    ),
+    "simulate_transects": FlowRegistration(
+        entrypoint=(
+            "echodataflow/flows/flows_simulation.py:"
+            "flow_simulate_transects"
+        ),
+        description="Simulate realtime transect updates for testing.",
     ),
 }

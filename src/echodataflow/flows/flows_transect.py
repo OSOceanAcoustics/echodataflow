@@ -53,7 +53,15 @@ def flow_transect_update(
     # Read the current transect information, preserving transect identifiers
     # as strings so values with leading zeros (e.g., "002") are not converted
     # to integers by pandas
-    current = pd.read_csv(path_transect, dtype="string")
+    try:
+        current = pd.read_csv(
+            path_transect,
+            dtype="string",
+        )
+    except pd.errors.EmptyDataError:
+        current = pd.DataFrame(
+            columns=TRANSECT_COLUMNS
+        )
 
     if not path_snapshot.exists():
         print("No previous transect snapshot found. Initializing snapshot.")

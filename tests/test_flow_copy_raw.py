@@ -119,3 +119,44 @@ def test_flow_copy_raw_simulates_new_file_arrivals(monkeypatch, tmp_path):
         key.startswith("prev_start_time_")
         for key in FakeVariable.stored
     )
+
+
+def test_flow_copy_raw_updates_watermark_when_no_files_selected(
+    monkeypatch,
+    tmp_path,
+):
+    FakeVariable.stored = {}
+
+    raw_list = tmp_path / "raw_files.csv"
+    pd.DataFrame(
+        {
+            "timestamp": [
+                "2024-07-07T00:40:00Z",
+            ],
+            "s3_path": [
+                "survey/future.raw",
+            ],
+        }
+    ).to_csv(raw_list, index=False)
+
+    monkeypatch.setattr(flows_simulation, "Variable", FakeVariable)
+    monkeypatch.setattr(flows_simulation.datetime, "datetime", FakeDateTime)
+
+    results = flows_simulation.flow_copy_raw.fn(
+        path_raw_list=str(raw_list),
+        path_copy=str(tmp_path / "raw"),
+        s3_bucket="raw-bucket",
+    )
+
+    assert results == []
+
+    watermark_keys = [
+        key
+        for key in FakeVariable.stored
+        if key.startswith("prev_start_time_")
+    ]
+
+    assert len(watermark_keys) == 1
+    assert FakeVariable.stored[watermark_keys[0]] == (
+        "2024-07-07T00:30:00+00:00"
+    )
