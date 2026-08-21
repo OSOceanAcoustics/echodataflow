@@ -6,8 +6,18 @@ import re
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 
-
 HAUL_NUMBER_PATTERN = re.compile(r"(?P<haul_num>\d{3})_[^_]+\.xlsx$", re.IGNORECASE)
+REQUIRED_TRAWL_FILE_TYPES = ("length", "specimen", "catch", "info")
+
+
+def discover_trawl_files(fs, path_bio_files: str) -> dict[str, list[str]]:
+    """Discover the four file types required for a complete trawl haul."""
+    return {
+        "length": fs.glob(f"{path_bio_files}/*/*_LFdata.xlsx"),
+        "specimen": fs.glob(f"{path_bio_files}/*/*_specimens.xlsx"),
+        "catch": fs.glob(f"{path_bio_files}/*/*_CatchPerc.xlsx"),
+        "info": fs.glob(f"{path_bio_files}/*/*_NetConfig.xlsx"),
+    }
 
 
 def get_valid_hauls(
@@ -21,6 +31,10 @@ def get_valid_hauls(
     """
     if not bio_filenames:
         return {}
+
+    missing_types = set(REQUIRED_TRAWL_FILE_TYPES).difference(bio_filenames)
+    if missing_types:
+        raise ValueError(f"Missing required trawl file types: {sorted(missing_types)}")
 
     files_by_type: dict[str, dict[int, str]] = {}
     for file_type, filenames in bio_filenames.items():
@@ -43,8 +57,6 @@ def get_valid_hauls(
         *(set(files_by_haul) for files_by_haul in files_by_type.values())
     )
     return {
-        haul_num: {
-            file_type: files_by_type[file_type][haul_num] for file_type in files_by_type
-        }
+        haul_num: {file_type: files_by_type[file_type][haul_num] for file_type in files_by_type}
         for haul_num in sorted(valid_haul_numbers)
     }
