@@ -212,6 +212,8 @@ def flow_raw2Sv(
                 for result in results
             ]
         )
+        for column in ["first_ping_time", "last_ping_time"]:
+            df_new[column] = pd.to_datetime(df_new[column], utc=True)
 
         # Concatenate with existing df_Sv and save
         df_Sv = pd.concat([df_Sv, df_new], ignore_index=True)
@@ -300,7 +302,8 @@ async def flow_create_MVBS(
 
     # Load Sv and MVBS info dataframes
     if not file_Sv_csv.exists():
-        raise ValueError("Sv info csv does not exist, check raw2Sv flow!")
+        logger.info("Sv info csv does not exist, check raw2Sv flow!")
+        return
     df_Sv = read_manifest(
         file_Sv_csv,
         SV_COLUMNS_REALTIME,
