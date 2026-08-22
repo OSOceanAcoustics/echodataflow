@@ -281,12 +281,7 @@ def flow_simulate_transects(
     if path_transect.exists():
         df = pd.read_csv(
             path_transect,
-            dtype={
-                "transectPart": "string",
-                "transectNumber": "string",
-                "transectStart": "string",
-                "transectEnd": "string",
-            },
+            dtype="string",
         )
     else:
         df = pd.DataFrame(
@@ -295,7 +290,8 @@ def flow_simulate_transects(
                 "transectNumber",
                 "transectStart",
                 "transectEnd",
-            ]
+            ],
+            dtype="string",
         )
 
     # ---------------------------------------------
@@ -310,7 +306,8 @@ def flow_simulate_transects(
                     "transectStart": transect_start.isoformat(),
                     "transectEnd": pd.NA,
                 }
-            ]
+            ],
+            dtype="string",
         )
 
         df = pd.concat(
