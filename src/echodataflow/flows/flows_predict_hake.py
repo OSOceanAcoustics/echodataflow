@@ -119,7 +119,8 @@ async def flow_predict_hake(
 
     # Load Sv and MVBS info dataframes
     if not file_MVBS_csv.exists():
-        raise ValueError("MVBS info csv does not exist, check create_MVBS flow!")
+        logger.info("MVBS info csv does not exist, check create_MVBS flow!")
+        return
     df_MVBS = read_manifest(
         file_MVBS_csv,
         MVBS_COLUMNS_REALTIME,

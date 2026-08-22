@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from echodataflow.flows import flows_simulation
 
@@ -16,10 +17,10 @@ class FakeVariable:
         cls.stored[key] = value
 
 
-def test_flow_simulate_transects_writes_complete_rows_and_advances(
-    monkeypatch,
-    tmp_path,
-):
+@pytest.mark.filterwarnings(
+    "error:The behavior of DataFrame concatenation with empty or all-NA entries:FutureWarning"
+)
+def test_flow_simulate_transects_opens_closes_and_advances(monkeypatch, tmp_path):
     FakeVariable.stored = {}
     monkeypatch.setattr(flows_simulation, "Variable", FakeVariable)
 
