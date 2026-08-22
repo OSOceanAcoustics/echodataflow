@@ -56,8 +56,7 @@ def flow_copy_raw(
 
     # Set flow execution time to current time - time_offset_seconds
     flow_time_curr = (
-        datetime.datetime.now()
-        - datetime.timedelta(seconds=time_offset_seconds)
+        datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds)
     ).astimezone(datetime.timezone.utc)
     print(f"Simulated flow run start time: {flow_time_curr}")
 
@@ -141,9 +140,7 @@ def flow_copy_trawl(
     # Determine next trawl number from Prefect variable state
     trawl_num_prev = Variable.get(_var_key(prefix="prev_trawl_num"), default=None)
     trawl_num_curr = (
-        start_trawl_num
-        if trawl_num_prev is None
-        else int(trawl_num_prev) + trawl_num_step
+        start_trawl_num if trawl_num_prev is None else int(trawl_num_prev) + trawl_num_step
     )
     trawl_num_str = f"{trawl_num_curr:03d}"
     print(f"Previous trawl number: {trawl_num_prev}")
@@ -218,6 +215,7 @@ def flow_copy_trawl(
     print(f"Flow complete. Downloaded {len(results)} files for trawl {trawl_num_str}.")
     return results
 
+
 @flow(log_prints=True)
 def flow_simulate_transects(
     path_transect_csv: str,
@@ -229,20 +227,12 @@ def flow_simulate_transects(
     """Simulate realtime opening and closing of transects."""
 
     path_transect = Path(path_transect_csv)
-    path_transect.parent.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    path_transect.parent.mkdir(parents=True, exist_ok=True)
 
-    survey_start_time = pd.to_datetime(
-        survey_start,
-        utc=True,
-    )
+    survey_start_time = pd.to_datetime(survey_start, utc=True)
 
-    state = Variable.get(
-        _var_key(prefix="transect_state"),
-        default=None,
-    )
+    transect_state_key = _var_key(prefix="transect_state")
+    state = Variable.get(transect_state_key, default=None)
 
     # ---------------------------------------------
     # First run: open first transect
@@ -260,29 +250,13 @@ def flow_simulate_transects(
 
     transect_num = f"{transect_num_curr:03d}"
 
-    transect_start = (
-        survey_start_time
-        + pd.Timedelta(
-            minutes=(
-                transect_num_curr
-                - start_transect_num
-            )
-            * transect_duration_minutes
-        )
-    )
+    transect_offset = (transect_num_curr - start_transect_num) * transect_duration_minutes
+    transect_start = survey_start_time + pd.Timedelta(minutes=transect_offset)
 
-    transect_end = (
-        transect_start
-        + pd.Timedelta(
-            minutes=transect_duration_minutes
-        )
-    )
+    transect_end = transect_start + pd.Timedelta(minutes=transect_duration_minutes)
 
     if path_transect.exists():
-        df = pd.read_csv(
-            path_transect,
-            dtype="string",
-        )
+        df = pd.read_csv(path_transect, dtype="string")
     else:
         df = pd.DataFrame(
             columns=[
@@ -310,60 +284,29 @@ def flow_simulate_transects(
             dtype="string",
         )
 
-        df = pd.concat(
-            [df, row],
-            ignore_index=True,
-        )
+        df = pd.concat([df, row], ignore_index=True)
 
-        df.to_csv(
-            path_transect,
-            index=False,
-        )
+        df.to_csv(path_transect, index=False)
 
-        Variable.set(
-            _var_key(prefix="transect_state"),
-            f"{transect_num_curr}:close",
-            overwrite=True,
-        )
+        Variable.set(transect_state_key, f"{transect_num_curr}:close", overwrite=True)
 
-        print(
-            f"Opened simulated transect {transect_num}: "
-            f"{transect_start}"
-        )
+        print(f"Opened simulated transect {transect_num}: {transect_start}")
 
         return
 
     # ---------------------------------------------
     # CLOSE transect
     # ---------------------------------------------
-    idx = (
-        df["transectPart"]
-        == transect_num
-    )
+    idx = df["transectPart"] == transect_num
 
     if not idx.any():
-        raise ValueError(
-            f"Cannot close transect {transect_num}: "
-            "transect not found in CSV."
-        )
+        message = f"Cannot close transect {transect_num}: transect not found in CSV."
+        raise ValueError(message)
 
-    df.loc[
-        idx,
-        "transectEnd",
-    ] = transect_end.isoformat()
+    df.loc[idx, "transectEnd"] = transect_end.isoformat()
 
-    df.to_csv(
-        path_transect,
-        index=False,
-    )
+    df.to_csv(path_transect, index=False)
 
-    print(
-        f"Closed simulated transect {transect_num}: "
-        f"{transect_end}"
-    )
+    print(f"Closed simulated transect {transect_num}: {transect_end}")
 
-    Variable.set(
-        _var_key(prefix="transect_state"),
-        f"{transect_num_curr + 1}:open",
-        overwrite=True,
-    )
+    Variable.set(transect_state_key, f"{transect_num_curr + 1}:open", overwrite=True)
