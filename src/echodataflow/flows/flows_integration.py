@@ -52,6 +52,11 @@ def flow_ingest_NASC(
     file_stratum_mean = Path(path_vm_local) / file_stratum_mean
     file_NASC_all_grid = Path(path_vm_local) / file_NASC_all_grid
 
+    # Wait for biological estimates from the upstream haul-ingestion flow
+    if not file_stratum_mean.exists():
+        logger.info(f"Upstream stratum estimates are not ready: {file_stratum_mean}")
+        return
+
     # Read accumulated data before planning new work
     df_NASC_existing = read_accumulated_NASC(file_NASC_all)
     NASC_processed = (
@@ -163,8 +168,17 @@ def flow_update_grid(
     file_stratum_mean: str = "stratum_mean.csv",
 ):
     """Update grid-cell estimates from integrated NASC and haul biology."""
+    logger = get_run_logger()
     file_NASC_all_grid = Path(path_vm_local) / file_NASC_all_grid
     file_stratum_mean = Path(path_vm_local) / file_stratum_mean
+
+    # Wait until both upstream integration products are available
+    missing_inputs = [path for path in [file_NASC_all_grid, file_stratum_mean] if not path.exists()]
+    if missing_inputs:
+        logger.info(
+            "Upstream grid inputs are not ready: " + ", ".join(str(path) for path in missing_inputs)
+        )
+        return
 
     # Refresh estimates on existing observations without changing their grid assignment
     gdf_NASC_all_grid = gpd.read_file(file_NASC_all_grid)
