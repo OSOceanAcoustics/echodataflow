@@ -12,6 +12,7 @@ from uuid import uuid4
 import numpy as np
 import pandas as pd
 
+from echodataflow.operations.operations_stratification import assign_stratum
 from echodataflow.utils.const import INFO_DATAFRAME_MAPPING, TS_L_PARAMS
 
 BIOLOGY_OUTPUT_KEYS = ("haul_info", "specimens", "lengths", "length_counts")
@@ -96,19 +97,6 @@ def get_length_weight_regression(df_specimen: pd.DataFrame) -> pd.DataFrame:
     df_regres = pd.concat([df_regres, df_all]).reset_index()
     df_regres["sex"] = df_regres["sex"].str.lower()
     return df_regres
-
-
-def add_stratum(df: pd.DataFrame, df_stratum: pd.DataFrame) -> pd.DataFrame:
-    """Return a copy with strata assigned from each observation's latitude."""
-    result = df.copy()
-
-    # Extend the configured northern limits to cover every possible latitude
-    lat_bins = [-90.0] + df_stratum["latitude_northern_limit"].tolist() + [90.0]
-    lat_labels = df_stratum["stratum"].tolist() + [max(df_stratum["stratum"]) + 1]
-    result["stratum"] = pd.cut(
-        result["latitude"], bins=lat_bins, labels=lat_labels, include_lowest=True
-    )
-    return result
 
 
 def get_sigma_bs_mean_stratum(df_length_count: pd.DataFrame) -> pd.DataFrame:
@@ -272,7 +260,7 @@ def assign_strata(data: BiologyData, stratum_definitions: pd.DataFrame) -> Biolo
     """Return biological data with strata assigned to every dataframe."""
     return BiologyData(
         **{
-            field.name: add_stratum(getattr(data, field.name), stratum_definitions)
+            field.name: assign_stratum(getattr(data, field.name), stratum_definitions)
             for field in fields(BiologyData)
         }
     )
