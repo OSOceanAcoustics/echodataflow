@@ -57,9 +57,9 @@ def get_count_from_length_specimen(
         how="outer",
         suffixes=("_specimen", "_length"),
     ).fillna(0)
-    combined["frequency"] = (
-        combined["frequency_specimen"] + combined["frequency_length"]
-    ).astype(int)
+    combined["frequency"] = (combined["frequency_specimen"] + combined["frequency_length"]).astype(
+        int
+    )
     return combined[["sex", "length", "frequency", "haul"]]
 
 
@@ -67,7 +67,7 @@ def get_length_weight_regression(df_specimen: pd.DataFrame) -> pd.DataFrame:
     """Get length-weight coefficients by sex and for all fish combined."""
     # Fit male and female relationships separately within each stratum
     df_regres = (
-        df_specimen.groupby(["sex", "stratum"])
+        df_specimen.groupby(["sex", "stratum"], observed=True)
         .apply(
             lambda df: pd.Series(
                 np.polyfit(np.log10(df["length"]), np.log10(df["organism_weight"]), 1),
@@ -80,7 +80,7 @@ def get_length_weight_regression(df_specimen: pd.DataFrame) -> pd.DataFrame:
 
     # Fit a second relationship using all fish within each stratum
     df_all = (
-        df_specimen.groupby("stratum")
+        df_specimen.groupby("stratum", observed=True)
         .apply(
             lambda df: pd.Series(
                 np.polyfit(np.log10(df["length"]), np.log10(df["organism_weight"]), 1),

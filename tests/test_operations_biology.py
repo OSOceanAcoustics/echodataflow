@@ -9,6 +9,7 @@ from echodataflow.operations.operations_biology import (
     combine_biology_data,
     get_count_from_length_specimen,
     get_hauls_to_process,
+    get_length_weight_regression,
     read_biology_data,
     write_biology_outputs,
 )
@@ -64,6 +65,23 @@ def test_combine_biology_data_combines_each_dataframe():
     assert combined.specimens["haul"].tolist() == [1, 2]
     assert combined.lengths["haul"].tolist() == [1, 2]
     assert combined.length_counts["haul"].tolist() == [1, 2]
+
+
+def test_length_weight_regression_ignores_unobserved_strata():
+    specimens = pd.DataFrame(
+        {
+            "sex": ["Female", "Female", "Male", "Male"],
+            "stratum": pd.Categorical([1, 1, 2, 2], categories=[1, 2, 3]),
+            "length": [10, 20, 12, 24],
+            "organism_weight": [5, 20, 7, 28],
+        }
+    )
+
+    regression = get_length_weight_regression(specimens)
+
+    assert set(regression["stratum"]) == {1, 2}
+    assert set(regression["sex"]) == {"female", "male", "all"}
+    assert len(regression) == 4
 
 
 def test_write_biology_outputs_publishes_all_outputs(tmp_path):
