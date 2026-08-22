@@ -34,26 +34,23 @@ def test_flow_simulate_transects_opens_closes_and_advances(monkeypatch, tmp_path
         "max_transects": 2,
     }
 
-    # First run: open transect 001.
+    # First run: write complete transect 001.
     flows_simulation.flow_simulate_transects.fn(**kwargs)
 
     df = pd.read_csv(transect_csv, dtype="string")
+
     assert df["transectPart"].tolist() == ["001"]
-    assert pd.isna(df.loc[0, "transectEnd"])
-
-    # Second run: close transect 001.
-    flows_simulation.flow_simulate_transects.fn(**kwargs)
-
-    df = pd.read_csv(transect_csv, dtype="string")
+    assert df.loc[0, "transectStart"] == "2024-07-07T00:00:00+00:00"
     assert df.loc[0, "transectEnd"] == "2024-07-07T00:10:00+00:00"
 
-    # Third run: open transect 002.
+    # Second run: append complete transect 002.
     flows_simulation.flow_simulate_transects.fn(**kwargs)
 
     df = pd.read_csv(transect_csv, dtype="string")
+
     assert df["transectPart"].tolist() == ["001", "002"]
     assert df.loc[1, "transectStart"] == "2024-07-07T00:10:00+00:00"
-    assert pd.isna(df.loc[1, "transectEnd"])
+    assert df.loc[1, "transectEnd"] == "2024-07-07T00:20:00+00:00"
 
 
 def test_flow_simulate_transects_stops_after_maximum(monkeypatch, tmp_path, capsys):

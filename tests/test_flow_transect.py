@@ -207,3 +207,71 @@ def test_flow_transect_update_ignores_open_transect(tmp_path, capsys):
     output = capsys.readouterr().out
 
     assert "No new or updated transect segments." in output
+
+def test_get_changed_transects_detects_open_to_closed_update():
+    previous = pd.DataFrame(
+        {
+            "transectPart": ["001"],
+            "transectNumber": ["001"],
+            "transectStart": ["2024-07-07T00:00:00Z"],
+            "transectEnd": [pd.NA],
+        }
+    )
+
+    current = pd.DataFrame(
+        {
+            "transectPart": ["001"],
+            "transectNumber": ["001"],
+            "transectStart": ["2024-07-07T00:00:00Z"],
+            "transectEnd": ["2024-07-07T00:10:00Z"],
+        }
+    )
+
+    changed = get_changed_transects(current, previous)
+
+    assert len(changed) == 1
+    assert changed.iloc[0]["transectPart"] == "001"
+    assert changed.iloc[0]["transectEnd"] == "2024-07-07T00:10:00Z"
+
+def test_flow_transect_update_handles_header_only_csv(
+    tmp_path,
+    capsys,
+):
+    transect_csv = tmp_path / "transects.csv"
+    snapshot_csv = tmp_path / "snapshot.csv"
+    path_main = tmp_path / "output"
+    path_main.mkdir()
+
+    transect_csv.write_text(
+        "transectPart,transectNumber,transectStart,transectEnd\n"
+    )
+
+    flow_transect_update.fn(
+        path_transect_csv=str(transect_csv),
+        path_snapshot_csv=str(snapshot_csv),
+        path_main=str(path_main),
+    )
+
+    output = capsys.readouterr().out
+
+    assert snapshot_csv.exists()
+    assert "No previous transect snapshot found. Initializing snapshot." in output
+
+
+def test_flow_transect_update_handles_zero_byte_csv(
+    tmp_path,
+):
+    transect_csv = tmp_path / "transects.csv"
+    snapshot_csv = tmp_path / "snapshot.csv"
+    path_main = tmp_path / "output"
+    path_main.mkdir()
+
+    transect_csv.touch()
+
+    flow_transect_update.fn(
+        path_transect_csv=str(transect_csv),
+        path_snapshot_csv=str(snapshot_csv),
+        path_main=str(path_main),
+    )
+
+    assert snapshot_csv.exists()
