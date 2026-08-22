@@ -341,7 +341,11 @@ def test_validate_deploy_config_accepts_every_allowed_key(install_prefect_stubs)
         "processes",
         "threads_per_worker",
     }
-    assert core.ALLOWED_TRIGGER_KEYS == {"expect", "resource_name"}
+    assert core.ALLOWED_TRIGGER_KEYS == {
+        "expect",
+        "resource_name",
+        "resource_scope",
+    }
     assert core.ALLOWED_SOURCE_KEYS == {"mode", "git"}
     assert core.ALLOWED_GIT_SOURCE_KEYS == {"url", "branch"}
 
@@ -561,6 +565,59 @@ def test_build_deploy_specs_rejects_trigger_missing_resource_name(install_prefec
             param_cfg=param_cfg,
             deploy_cfg=deploy_cfg,
             resolved_flows=resolved_flows,
+        )
+
+
+def test_validate_triggers_defaults_resource_scope_to_related(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    triggers = engine.validate_triggers(
+        [{"expect": "test.event", "resource_name": "test-resource"}],
+        flow_key="test_flow",
+    )
+
+    assert triggers == [
+        {
+            "expect": "test.event",
+            "resource_name": "test-resource",
+            "resource_scope": "related",
+        }
+    ]
+
+
+def test_validate_triggers_accepts_primary_resource_scope(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    triggers = engine.validate_triggers(
+        [
+            {
+                "expect": "test.event",
+                "resource_name": "test-resource",
+                "resource_scope": "primary",
+            }
+        ],
+        flow_key="test_flow",
+    )
+
+    assert triggers[0]["resource_scope"] == "primary"
+
+
+def test_validate_triggers_rejects_invalid_resource_scope(install_prefect_stubs):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    with pytest.raises(ValueError, match="resource_scope must be 'primary' or 'related'"):
+        engine.validate_triggers(
+            [
+                {
+                    "expect": "test.event",
+                    "resource_name": "test-resource",
+                    "resource_scope": "invalid",
+                }
+            ],
+            flow_key="test_flow",
         )
 
 

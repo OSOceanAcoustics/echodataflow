@@ -40,6 +40,7 @@ def flow_copy_raw(
     path_copy: str = "",
     s3_bucket: str = "noaa-wcsd-pds",
     exclude_before: str | None = None,
+    exclude_after: str | None = None,
     endpoint_url: str = "https://sdsc.osn.xsede.org",
 ) -> list[S3CopyResult]:
     """Copy raw files whose timestamps simulate new realtime arrivals."""
@@ -69,15 +70,28 @@ def flow_copy_raw(
     # Find the last files that would have been generated
     # between the previous and current flow execution times
     idx_wanted = df_raw["timestamp"] < flow_time_curr
+
     if exclude_before is not None:
         exclude_before_datetime = pd.to_datetime(exclude_before, utc=True)
-        idx_wanted &= df_raw["timestamp"] > exclude_before_datetime
+        idx_wanted &= df_raw["timestamp"] >= exclude_before_datetime
+
+    if exclude_after is not None:
+        exclude_after_datetime = pd.to_datetime(exclude_after, utc=True)
+        idx_wanted &= df_raw["timestamp"] < exclude_after_datetime
+
     if flow_time_prev is not None:
         idx_wanted &= df_raw["timestamp"] > flow_time_prev
     df_raw = df_raw[idx_wanted]
 
     if df_raw.empty:
         print("No new files generated since the last flow execution. Skipping file copy.")
+
+        Variable.set(
+            _var_key(prefix="prev_start_time"),
+            flow_time_curr.isoformat(),
+            overwrite=True,
+        )
+
         return []
 
     # Setting up task to download
@@ -217,3 +231,121 @@ def flow_copy_trawl(
     )
     print(f"Flow complete. Downloaded {len(results)} files for trawl {trawl_num_str}.")
     return results
+
+@flow(log_prints=True)
+def flow_simulate_transects(
+    path_transect_csv: str,
+    survey_start: str,
+    transect_duration_minutes: int = 60,
+    start_transect_num: int = 1,
+    max_transects: int = 20,
+) -> None:
+    """Simulate realtime arrival of completed transect rows."""
+
+    path_transect = Path(path_transect_csv)
+    path_transect.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    survey_start_time = pd.to_datetime(
+        survey_start,
+        utc=True,
+    )
+
+    state = Variable.get(
+        _var_key(prefix="transect_state"),
+        default=None,
+    )
+
+    transect_num_curr = (
+        start_transect_num
+        if state is None
+        else int(state)
+    )
+
+    if transect_num_curr > max_transects:
+        print("All simulated transects have been generated.")
+        return
+
+    transect_num = f"{transect_num_curr:03d}"
+
+    transect_start = (
+        survey_start_time
+        + pd.Timedelta(
+            minutes=(
+                transect_num_curr
+                - start_transect_num
+            )
+            * transect_duration_minutes
+        )
+    )
+
+    transect_end = (
+        transect_start
+        + pd.Timedelta(
+            minutes=transect_duration_minutes
+        )
+    )
+
+    if path_transect.exists():
+        try:
+            df = pd.read_csv(
+                path_transect,
+                dtype={
+                    "transectPart": "string",
+                    "transectNumber": "string",
+                    "transectStart": "string",
+                    "transectEnd": "string",
+                },
+            )
+        except pd.errors.EmptyDataError:
+            df = pd.DataFrame(
+                columns=[
+                    "transectPart",
+                    "transectNumber",
+                    "transectStart",
+                    "transectEnd",
+                ]
+            )
+    else:
+        df = pd.DataFrame(
+            columns=[
+                "transectPart",
+                "transectNumber",
+                "transectStart",
+                "transectEnd",
+            ]
+        )
+
+    row = pd.DataFrame(
+        [
+            {
+                "transectPart": transect_num,
+                "transectNumber": transect_num,
+                "transectStart": transect_start.isoformat(),
+                "transectEnd": transect_end.isoformat(),
+            }
+        ]
+    )
+
+    df = pd.concat(
+        [df, row],
+        ignore_index=True,
+    )
+
+    df.to_csv(
+        path_transect,
+        index=False,
+    )
+
+    print(
+        f"Wrote simulated transect {transect_num}: "
+        f"{transect_start} to {transect_end}"
+    )
+
+    Variable.set(
+        _var_key(prefix="transect_state"),
+        str(transect_num_curr + 1),
+        overwrite=True,
+    )

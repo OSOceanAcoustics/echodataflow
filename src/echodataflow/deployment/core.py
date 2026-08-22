@@ -29,6 +29,10 @@ ALLOWED_DASK_CLUSTER_KEYS = {
     "processes",
     "threads_per_worker",
 }
-ALLOWED_TRIGGER_KEYS = {"expect", "resource_name"}
+ALLOWED_TRIGGER_KEYS = {
+    "expect",
+    "resource_name",
+    "resource_scope",
+}
 ALLOWED_SOURCE_KEYS = {"mode", "git"}
 ALLOWED_GIT_SOURCE_KEYS = {"url", "branch"}
