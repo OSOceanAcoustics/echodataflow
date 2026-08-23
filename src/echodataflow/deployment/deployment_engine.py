@@ -20,6 +20,7 @@ from echodataflow.deployment.core import (
     ALLOWED_CONCURRENCY_GROUP_KEYS,
     ALLOWED_DASK_CLUSTER_KEYS,
     ALLOWED_DEPLOY_KEYS,
+    ALLOWED_DEPLOYMENT_CONCURRENCY_KEYS,
     ALLOWED_FLOW_DEPLOY_KEYS,
     ALLOWED_GIT_SOURCE_KEYS,
     ALLOWED_SOURCE_KEYS,
@@ -40,6 +41,7 @@ class DeploymentSpec:
     entrypoint: str  # source-relative entrypoint for the actual deployed flow
     parameters: dict[str, Any]  # parameters passed directly to the deployed flow
     concurrency_group: str | None = None
+    deployment_concurrency: dict[str, Any] | None = None
     task_runner: dict[str, Any] | None = None
     cron: str | None = None  # precomputed cron schedule, when interval mode is used
     work_pool_name: str | None = (
@@ -293,6 +295,37 @@ def validate_task_runner_config(value: Any, *, path: str) -> None:
         raise ValueError(f"{cluster_path}.processes must be a boolean")
 
 
+def validate_deployment_concurrency_config(value: Any, *, path: str) -> None:
+    """Validate deployment-scoped flow-run concurrency settings."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{path} must be a mapping")
+    _reject_unknown_keys(
+        value,
+        allowed=ALLOWED_DEPLOYMENT_CONCURRENCY_KEYS,
+        path=path,
+    )
+    if "limit" not in value:
+        raise ValueError(f"{path}.limit is required")
+    _validate_positive_integer(value["limit"], path=f"{path}.limit")
+
+    collision_strategy = value.get("collision_strategy", "ENQUEUE")
+    if collision_strategy not in {"ENQUEUE", "CANCEL_NEW"}:
+        raise ValueError(
+            f"{path}.collision_strategy must be 'ENQUEUE' or 'CANCEL_NEW'"
+        )
+
+    grace_period_seconds = value.get("grace_period_seconds")
+    if grace_period_seconds is not None:
+        _validate_positive_integer(
+            grace_period_seconds,
+            path=f"{path}.grace_period_seconds",
+        )
+        if not 60 <= grace_period_seconds <= 86400:
+            raise ValueError(
+                f"{path}.grace_period_seconds must be between 60 and 86400"
+            )
+
+
 def validate_deploy_config(deploy_cfg: Any) -> None:
     """Reject unknown fields throughout a deployment specification."""
     if not isinstance(deploy_cfg, dict):
@@ -347,6 +380,13 @@ def validate_deploy_config(deploy_cfg: Any) -> None:
                     f"{flow_path}.concurrency_group references undefined group "
                     f"{concurrency_group!r}"
                 )
+
+        deployment_concurrency = deploy_meta.get("deployment_concurrency")
+        if deployment_concurrency is not None:
+            validate_deployment_concurrency_config(
+                deployment_concurrency,
+                path=f"{flow_path}.deployment_concurrency",
+            )
 
         task_runner = deploy_meta.get("task_runner")
         if task_runner is not None:
@@ -574,6 +614,7 @@ def build_deploy_specs(
                 entrypoint=flow_info["entrypoint"],
                 parameters=deployment_parameters,
                 concurrency_group=deploy_meta.get("concurrency_group"),
+                deployment_concurrency=deploy_meta.get("deployment_concurrency"),
                 task_runner=deploy_meta.get("task_runner"),
                 cron=cron,
                 work_pool_name=deploy_meta.get("work_pool_name"),
@@ -615,6 +656,13 @@ def create_deployments(
 
         if spec.concurrency_group is not None:
             deployment_kwargs["work_queue_name"] = spec.concurrency_group
+
+        if spec.deployment_concurrency is not None:
+            from prefect.client.schemas.objects import ConcurrencyLimitConfig
+
+            deployment_kwargs["concurrency_limit"] = ConcurrencyLimitConfig(
+                **spec.deployment_concurrency
+            )
 
         # The worker reloads the flow entrypoint, so runner settings must be
         # present in its runtime environment instead of only on this Flow object

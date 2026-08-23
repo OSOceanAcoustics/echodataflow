@@ -162,6 +162,10 @@ def test_build_deploy_specs_preserves_runner_and_concurrency_group(install_prefe
             "flows": {
                 "raw2Sv_postprocessing": {
                     "concurrency_group": "postprocessing",
+                    "deployment_concurrency": {
+                        "limit": 1,
+                        "collision_strategy": "CANCEL_NEW",
+                    },
                     "task_runner": runner_config,
                 }
             },
@@ -175,6 +179,10 @@ def test_build_deploy_specs_preserves_runner_and_concurrency_group(install_prefe
     )
 
     assert specs[0].concurrency_group == "postprocessing"
+    assert specs[0].deployment_concurrency == {
+        "limit": 1,
+        "collision_strategy": "CANCEL_NEW",
+    }
     assert specs[0].task_runner == runner_config
 
 
@@ -216,6 +224,78 @@ def test_create_deployments_applies_runner_and_shared_queue(
     assert runtime_config == ('{"type": "dask", "cluster_kwargs": {"n_workers": 4}}')
     assert len(grouped) == 1
     assert standalone == []
+
+
+def test_deployment_concurrency_is_independent_of_concurrency_group(
+    install_prefect_stubs,
+):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+    calls = {}
+
+    class SourcedFlow:
+        def to_deployment(self, **kwargs):
+            calls["deployment"] = kwargs
+            return kwargs
+
+    class RegisteredFlow:
+        def from_source(self, **kwargs):
+            return SourcedFlow()
+
+    deployment_concurrency = {
+        "limit": 1,
+        "collision_strategy": "CANCEL_NEW",
+        "grace_period_seconds": 120,
+    }
+    spec = engine.DeploymentSpec(
+        flow_key="ingest_NASC",
+        deployment_name="ingest-NASC",
+        flow_obj=RegisteredFlow(),
+        entrypoint="echodataflow/flows/flows_integration.py:flow_ingest_NASC",
+        parameters={},
+        deployment_concurrency=deployment_concurrency,
+    )
+
+    engine.create_deployments(
+        specs=[spec],
+        source="local-source",
+        default_work_pool_name="local",
+    )
+
+    assert "work_queue_name" not in calls["deployment"]
+    limit_config = calls["deployment"]["concurrency_limit"]
+    assert limit_config.limit == 1
+    assert limit_config.collision_strategy == "CANCEL_NEW"
+    assert limit_config.grace_period_seconds == 120
+
+
+@pytest.mark.parametrize(
+    ("deployment_concurrency", "expected_message"),
+    [
+        ({}, "limit is required"),
+        ({"limit": 0}, "limit must be a positive integer"),
+        (
+            {"limit": 1, "collision_strategy": "DROP_OLD"},
+            "collision_strategy must be 'ENQUEUE' or 'CANCEL_NEW'",
+        ),
+        (
+            {"limit": 1, "grace_period_seconds": 30},
+            "grace_period_seconds must be between 60 and 86400",
+        ),
+    ],
+)
+def test_validate_deploy_config_rejects_invalid_deployment_concurrency(
+    install_prefect_stubs,
+    deployment_concurrency,
+    expected_message,
+):
+    install_prefect_stubs()
+    engine = importlib.import_module("echodataflow.deployment.deployment_engine")
+
+    with pytest.raises(ValueError, match=expected_message):
+        engine.validate_deploy_config(
+            {"flows": {"ingest_NASC": {"deployment_concurrency": deployment_concurrency}}}
+        )
 
 
 @pytest.mark.parametrize(
@@ -273,6 +353,11 @@ def test_validate_deploy_config_accepts_every_allowed_key(install_prefect_stubs)
         "flows": {
             "scheduled": {
                 "concurrency_group": "postprocessing",
+                "deployment_concurrency": {
+                    "limit": 1,
+                    "collision_strategy": "CANCEL_NEW",
+                    "grace_period_seconds": 120,
+                },
                 "deployment_name": "scheduled-deployment",
                 "flow": "actual_flow_name",
                 "interval": 10,
@@ -310,6 +395,7 @@ def test_validate_deploy_config_accepts_every_allowed_key(install_prefect_stubs)
     }
     assert core.ALLOWED_FLOW_DEPLOY_KEYS == {
         "concurrency_group",
+        "deployment_concurrency",
         "deployment_name",
         "flow",
         "interval",
@@ -320,6 +406,11 @@ def test_validate_deploy_config_accepts_every_allowed_key(install_prefect_stubs)
         "work_pool_name",
     }
     assert core.ALLOWED_CONCURRENCY_GROUP_KEYS == {"limit"}
+    assert core.ALLOWED_DEPLOYMENT_CONCURRENCY_KEYS == {
+        "limit",
+        "collision_strategy",
+        "grace_period_seconds",
+    }
     assert core.ALLOWED_TASK_RUNNER_KEYS == {"type", "cluster_kwargs"}
     assert core.ALLOWED_DASK_CLUSTER_KEYS == {
         "memory_limit",
