@@ -8,10 +8,6 @@ pytestmark = pytest.mark.skip(
 from echodataflow.flows import flows_acoustics
 
 
-async def _false_async():
-    return False
-
-
 def test_flow_raw2sv_uses_processing_ledger(monkeypatch, tmp_path):
     raw_file = tmp_path / "example.raw"
 
@@ -19,12 +15,6 @@ def test_flow_raw2sv_uses_processing_ledger(monkeypatch, tmp_path):
         "processing": [],
         "completed": [],
     }
-
-    monkeypatch.setattr(
-        flows_acoustics,
-        "deployment_already_running",
-        lambda: _false_async(),
-    )
 
     monkeypatch.setattr(
         flows_acoustics,
@@ -97,12 +87,6 @@ def test_flow_raw2sv_marks_failed(monkeypatch, tmp_path):
     calls = {
         "failed": [],
     }
-
-    monkeypatch.setattr(
-        flows_acoustics,
-        "deployment_already_running",
-        lambda: _false_async(),
-    )
 
     monkeypatch.setattr(
         flows_acoustics,
