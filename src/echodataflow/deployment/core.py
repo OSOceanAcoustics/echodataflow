@@ -10,6 +10,7 @@ ALLOWED_DEPLOY_KEYS = {
 }
 ALLOWED_FLOW_DEPLOY_KEYS = {
     "concurrency_group",
+    "deployment_concurrency",
     "deployment_name",
     "flow",
     "interval",
@@ -20,6 +21,11 @@ ALLOWED_FLOW_DEPLOY_KEYS = {
     "work_pool_name",
 }
 ALLOWED_CONCURRENCY_GROUP_KEYS = {"limit"}
+ALLOWED_DEPLOYMENT_CONCURRENCY_KEYS = {
+    "limit",
+    "collision_strategy",
+    "grace_period_seconds",
+}
 ALLOWED_TASK_RUNNER_KEYS = {"type", "cluster_kwargs"}
 ALLOWED_DASK_CLUSTER_KEYS = {
     "memory_limit",
