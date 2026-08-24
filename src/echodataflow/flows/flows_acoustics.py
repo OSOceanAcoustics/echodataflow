@@ -12,7 +12,6 @@ from prefect import flow, get_run_logger, get_client
 from prefect.futures import as_completed
 from prefect.states import Failed
 from prefect import runtime
-from prefect.events import emit_event
 
 from echodataflow.deployment.task_runners import dask_task_runner_from_environment
 from echodataflow.utils.manifests import (
@@ -227,15 +226,6 @@ def flow_raw2Sv(
 
         asyncio.run(set_failed_state())
         raise Exception(error_msg)
-
-    emit_event(
-        event="echodataflow.sv.updated",
-        resource={
-            "prefect.resource.id": "sv-monitor",
-            "prefect.resource.name": "sv-monitor",
-        },
-    )
-
 
 @flow(log_prints=True)
 async def flow_create_MVBS(
