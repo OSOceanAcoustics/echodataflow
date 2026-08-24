@@ -705,7 +705,7 @@ def flow_process_CPS(
             }
 
             bottom = ep.mask.detect_seafloor(
-                ds=ds_Sv,
+                ds=ds,
                 method="blackwell",
                 params=seafloor_params,
             )
