@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import echopype as ep
+from echopype.qc import coerce_increasing_time, exist_reversed_time
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -45,8 +46,8 @@ class RawToSvResult:
 
 
 def _clean_reversed_ping_time(x):
-    if ep.qc.exist_reversed_time(x, "ping_time"):
-        ep.qc.coerce_increasing_time(x)
+    if exist_reversed_time(x, "ping_time"):
+        coerce_increasing_time(x)
     return x
 
 

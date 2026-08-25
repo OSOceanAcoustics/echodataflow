@@ -59,7 +59,7 @@ def flow_update_cache_MVBS(
             index_col=0,
         )
 
-    # Accept legacy naive values and offset-qualified values in the same file.
+    # Accept legacy naive values and offset-qualified values in the same file
     if not df_MVBS.empty:
         for column in ["first_ping_time", "last_ping_time"]:
             df_MVBS[column] = pd.to_datetime(
