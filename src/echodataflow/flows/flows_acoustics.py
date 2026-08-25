@@ -106,7 +106,7 @@ def flow_raw2Sv(
                 filename.name
                 for filename in path_raw.glob(filename_pattern)
                 if extract_datetime_from_filename(filename.name)
-                >= datetime.datetime.fromisoformat(exclude_before)
+                >= pd.to_datetime(exclude_before, utc=True)
             ]
         )
 
@@ -331,8 +331,8 @@ async def flow_create_MVBS(
         # Get Sv files in the specified time range
         Sv_filenames = sorted(
             df_Sv[
-                (pd.to_datetime(df_Sv["last_ping_time"]) >= start_time[snum])
-                & (pd.to_datetime(df_Sv["first_ping_time"]) <= end_time[snum])
+                (pd.to_datetime(df_Sv["last_ping_time"], utc=True) >= start_time[snum])
+                & (pd.to_datetime(df_Sv["first_ping_time"], utc=True) <= end_time[snum])
             ]["Sv_filename"].tolist()
         )
         logger.info(
@@ -381,8 +381,8 @@ async def flow_create_MVBS(
             idx_to_add = len(df_MVBS)
         df_MVBS.loc[idx_to_add] = [
             result.mvbs_filename,
-            result.first_ping_time,
-            result.last_ping_time,
+            pd.to_datetime(result.first_ping_time, utc=True),
+            pd.to_datetime(result.last_ping_time, utc=True),
         ]
 
     # Save updated MVBS info dataframe
@@ -499,8 +499,8 @@ def flow_raw2Sv_postprocessing(
                 result.filename_raw,
                 result.filename_Sv,
                 "completed",
-                result.first_ping_time,
-                result.last_ping_time,
+                pd.to_datetime(result.first_ping_time, utc=True),
+                pd.to_datetime(result.last_ping_time, utc=True),
                 "",
             ]
             write_manifest(df_Sv, file_Sv_csv)
@@ -600,8 +600,8 @@ def flow_create_MVBS_postprocessing(
                 ],
             ] = [
                 result.mvbs_filename,
-                result.first_ping_time,
-                result.last_ping_time,
+                pd.to_datetime(result.first_ping_time, utc=True),
+                pd.to_datetime(result.last_ping_time, utc=True),
                 item.is_partial,
                 "completed",
                 "",
