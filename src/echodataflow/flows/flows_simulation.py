@@ -47,13 +47,11 @@ def flow_copy_raw(
     print("Copy raw files to simulate data generation")
     print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
 
-    df_raw = pd.read_csv(
-        path_raw_list,
-        date_format="ISO8601",
-        parse_dates=["timestamp"],
+    df_raw = pd.read_csv(path_raw_list)
+    # Accept legacy naive values and offset-qualified values in the same file
+    df_raw["timestamp"] = pd.to_datetime(
+        df_raw["timestamp"], format="mixed", utc=True
     )
-    if df_raw["timestamp"].dt.tz is None:
-        df_raw["timestamp"] = df_raw["timestamp"].dt.tz_localize("UTC")
 
     # Set flow execution time to current time - time_offset_seconds
     flow_time_curr = (

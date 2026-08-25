@@ -103,8 +103,8 @@ def convert_raw_to_Sv(
     return RawToSvResult(
         filename_raw=raw_path.name,
         filename_Sv=output_path.name,
-        first_ping_time=pd.to_datetime(ds_sv["ping_time"][0].values),
-        last_ping_time=pd.to_datetime(ds_sv["ping_time"][-1].values),
+        first_ping_time=pd.to_datetime(ds_sv["ping_time"][0].values, utc=True),
+        last_ping_time=pd.to_datetime(ds_sv["ping_time"][-1].values, utc=True),
     )
 
 
@@ -192,8 +192,10 @@ def create_MVBS(
 
     return CreateMVBSResult(
         mvbs_filename=item.mvbs_filename,
-        first_ping_time=pd.to_datetime(ds_MVBS["ping_time"][0].values),
-        last_ping_time=pd.to_datetime(ds_MVBS["ping_time"][-1].values),
+        # xarray stores these coordinates as timezone-naive numpy datetimes,
+        # but manifests consistently use UTC-aware datetime columns
+        first_ping_time=pd.to_datetime(ds_MVBS["ping_time"][0].values, utc=True),
+        last_ping_time=pd.to_datetime(ds_MVBS["ping_time"][-1].values, utc=True),
     )
 
 
