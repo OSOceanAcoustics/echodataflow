@@ -136,7 +136,7 @@ def create_grid_cells(boundary_gdf_utm: gpd.GeoDataFrame, x_step: float, y_step:
             # Step forward
             x_coord.append(x_ct)
             y_coord.append(y_ct)
-            x1 = x0 - x_step
+            x1 = x0 + x_step
             y1 = y0 + y_step
             # Append to list
             grid_cells.append(sg.box(x0, y0, x1, y1))

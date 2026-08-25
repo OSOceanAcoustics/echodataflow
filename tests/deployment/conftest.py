@@ -24,6 +24,11 @@ class FakeRunnerDeployment:
     pass
 
 
+class FakeConcurrencyLimitConfig:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
 class FakePrefectFlowGeneric:
     @classmethod
     def __class_getitem__(cls, _item):
@@ -73,7 +78,6 @@ def install_prefect_stubs(monkeypatch):
         schemas_mod = types.ModuleType("prefect.client.schemas")
         objects_mod = types.ModuleType("prefect.client.schemas.objects")
         objects_mod.ConcurrencyLimitConfig = FakeConcurrencyLimitConfig
-        objects_mod.ConcurrencyLimitStrategy = FakeConcurrencyLimitStrategy
 
         monkeypatch.setitem(sys.modules, "prefect", prefect_mod)
         monkeypatch.setitem(sys.modules, "prefect.deployments", deployments_mod)
@@ -89,6 +93,7 @@ def install_prefect_stubs(monkeypatch):
             "FakeVariable": FakeVariable,
             "FakeTrigger": FakeTrigger,
             "FakeRunnerDeployment": FakeRunnerDeployment,
+            "FakeConcurrencyLimitConfig": FakeConcurrencyLimitConfig,
             "FakePrefectFlowGeneric": FakePrefectFlowGeneric,
         }
 

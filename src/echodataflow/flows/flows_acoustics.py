@@ -13,12 +13,12 @@ from prefect import flow, get_run_logger, get_client
 from prefect.futures import as_completed
 from prefect.states import Failed
 from prefect import runtime
-from prefect.events import emit_event
 
 from echodataflow.deployment.task_runners import task_runner_from_environment
 from echodataflow.utils.manifests import (
     MVBS_COLUMNS_POSTPROCESSING,
     MVBS_COLUMNS_REALTIME,
+    SV_COLUMNS_REALTIME,
     SV_COLUMNS_POSTPROCESSING,
     filter_time_range,
     read_manifest,
@@ -28,6 +28,7 @@ from echodataflow.operations.operations_acoustics import (
     CreateMVBSResult,
     CreateMVBSSettings,
     CreateMVBSWorkItem,
+    RawToSvResult,
     RawToSvSettings,
     RawToSvWorkItem,
 )
@@ -50,16 +51,6 @@ from echodataflow.utils.utils import (
     extract_datetime_from_filename,
 )
 
-from echodataflow.utils.processing_ledger import (
-    get_completed_sv_files,
-    get_raw_files_to_process,
-    initialize_ledger,
-    mark_raw_completed,
-    mark_raw_failed,
-    mark_raw_processing,
-    resolve_database,
-)
-
 # Turn on verbose logging for echopype
 # otherwise all logging will be muted
 ep.utils.log.verbose()
@@ -76,8 +67,10 @@ def flow_raw2Sv(
     sonar_model: str = "EK80",
     datagram_type: str | None = None,
     nmea_sentence: str | None = None,
+    filename_pattern: str = "*.raw",
     path_main: str = "",
-    processing_db: str = "processing.db",
+    path_raw: str = "",
+    file_Sv_csv: str = "Sv_files.csv",
     new_file_num_limit: int = 50,
     add_depth: bool = True,
     add_location: bool = True,
@@ -86,48 +79,75 @@ def flow_raw2Sv(
 
     # Assemble paths
     path_Sv_zarr = Path(path_main) / "Sv"
-    db_path = resolve_database(path_main, processing_db)
-
-    initialize_ledger(db_path)
+    file_Sv_csv = Path(path_main) / file_Sv_csv
+    path_raw = Path(path_raw)
 
     # Set up folder to store converted Sv zarr
-    path_Sv_zarr.mkdir(parents=True, exist_ok=True)
+    if not path_Sv_zarr.exists():
+        path_Sv_zarr.mkdir(parents=True, exist_ok=True)
+    path_Sv_zarr = str(path_Sv_zarr)  # convert backto string to pass into task
 
-    # Get RAW files requiring processing directly from the database
-    raw_files = get_raw_files_to_process(
-        db_path,
-        limit=new_file_num_limit,
+    # Load info dataframe containing raw to Sv correspondence
+    sv_manifest_exists = file_Sv_csv.exists()
+    df_Sv = read_manifest(
+        file_Sv_csv,
+        SV_COLUMNS_REALTIME,
+        ["first_ping_time", "last_ping_time"],
     )
+    if not sv_manifest_exists:
+        write_manifest(df_Sv, file_Sv_csv)
+    if not df_Sv.empty:
+        df_Sv.sort_values(by="first_ping_time", inplace=True, ignore_index=True)
 
-    # Exclude files before requested datetime
-    if exclude_before is not None:
-        exclude_before_dt = datetime.datetime.fromisoformat(exclude_before)
-        raw_files = [
-            raw_path
-            for raw_path in raw_files
-            if extract_datetime_from_filename(raw_path.name) >= exclude_before_dt
-        ]
+    # Exclude raw files before exclude_before datetime
+    if exclude_before is None:
+        raw_files_in_folder = set([filename.name for filename in path_raw.glob(filename_pattern)])
+    else:
+        raw_files_in_folder = set(
+            [
+                filename.name
+                for filename in path_raw.glob(filename_pattern)
+                if extract_datetime_from_filename(filename.name)
+                >= datetime.datetime.fromisoformat(exclude_before)
+            ]
+        )
 
-    # Skip explicitly excluded RAW files
-    if exclude_raw_file:
-        excluded = set(exclude_raw_file)
-        raw_files = [
-            raw_path
-            for raw_path in raw_files
-            if raw_path.name not in excluded
-        ]
+    if df_Sv.empty:
+        raw_files_in_df = set()
+    else:
+        raw_files_in_df = set(df_Sv["raw_filename"].tolist())
+    last_raw_filename = df_Sv.iloc[-1]["raw_filename"] if not df_Sv.empty else None
+    if last_raw_filename:
+        df_Sv = df_Sv[:-1]  # drop the most recent file processed
 
-    print(f"Found {len(raw_files)} RAW files to process")
-    print(
-        "Files to process:\n"
-        + "".join(f"- {raw_path.name}\n" for raw_path in raw_files)
-    )
+    # Find new files to process
+    new_files = raw_files_in_folder.difference(raw_files_in_df)
+    print(f"Found {len(new_files)} new files to process")
 
-    if not raw_files:
-        return
+    # Reprocess last file in case it was incomplete
+    if last_raw_filename:
+        print(f"Reprocess {last_raw_filename}")
+        new_files.add(last_raw_filename)
+
+    # Skip files in exclude_raw_file list
+    if len(exclude_raw_file) > 0:
+        print(f"Exclude {exclude_raw_file} from processing")
+        new_files.difference_update(set(exclude_raw_file))
+
+    # Sort new files
+    new_files = sorted(list(new_files))
+
+    # Limit number of new files to process
+    if new_file_num_limit != -1 and len(new_files) > new_file_num_limit:
+        print(
+            f"More than {new_file_num_limit} new files to process. "
+            f"Limiting to first {new_file_num_limit} files."
+        )
+        new_files = new_files[:new_file_num_limit]
+    print(f"Files to process: \n" + "".join([f"- {nf}\n" for nf in new_files]))
 
     settings = RawToSvSettings(
-        output_directory=str(path_Sv_zarr),
+        output_directory=path_Sv_zarr,
         encode_mode=encode_mode,
         waveform_mode=waveform_mode,
         depth_offset=depth_offset,
@@ -138,114 +158,76 @@ def flow_raw2Sv(
         add_location=add_location,
         add_splitbeam_angle=add_splitbeam_angle,
     )
-
     errors = []
+    results: list[RawToSvResult] = []
 
     if parallel:
+        # Convert raw files to Sv in parallel
         print("Processing raw files in parallel")
-
-        futures = {}
-
-        for raw_path in raw_files:
-            mark_raw_processing(db_path, raw_path)
-
-            future = task_raw2Sv.with_options(
-                task_run_name=raw_path.name,
-                name=raw_path.name,
-                retries=3,
-            ).submit(
-                RawToSvWorkItem(raw_path=str(raw_path)),
+        future_all = []
+        for nf in new_files:
+            new_processed_raw = task_raw2Sv.with_options(task_run_name=nf, name=nf, retries=3)
+            future = new_processed_raw.submit(
+                RawToSvWorkItem(raw_path=str(path_raw / nf)),
                 settings,
             )
+            future_all.append(future)
 
-            futures[future] = raw_path
-
-        for future in as_completed(futures):
-            raw_path = futures[future]
-
-            try:
-                result = future.result()
-
-                mark_raw_completed(
-                    db_path,
-                    raw_path,
-                    result.filename_Sv,
-                    result.first_ping_time,
-                    result.last_ping_time,
-                )
-
-            except Exception as exc:
-                mark_raw_failed(
-                    db_path,
-                    raw_path,
-                    str(exc),
-                )
-                errors.append(exc)
-                print(f"Error converting {raw_path.name}: {exc}")
+        for ff in future_all:
+            task_result = ff.result()
+            results.append(task_result)
 
     else:
+        # Convert raw files to Sv sequentially
         print("Processing raw files sequentially")
-
-        for raw_path in raw_files:
+        for nf in new_files:
             try:
-                print(f"Converting {raw_path.name}")
-
-                mark_raw_processing(
-                    db_path,
-                    raw_path,
-                )
-
-                result = task_raw2Sv.with_options(
-                    task_run_name=raw_path.name,
-                    name=raw_path.name,
-                    retries=3,
-                )(
-                    RawToSvWorkItem(raw_path=str(raw_path)),
+                print(f"Converting {nf}")
+                task_result = task_raw2Sv.with_options(task_run_name=nf, name=nf, retries=3)(
+                    RawToSvWorkItem(raw_path=str(path_raw / nf)),
                     settings,
                 )
+                results.append(task_result)
+            except Exception as e:
+                errors.append(e)
+                print(f"Error converting {nf}: {e}")
 
-                mark_raw_completed(
-                    db_path,
-                    raw_path,
-                    result.filename_Sv,
-                    result.first_ping_time,
-                    result.last_ping_time,
-                )
+    # Add new entries to df_Sv
+    if len(results) > 0:
+        df_new = pd.DataFrame(
+            [
+                {
+                    "raw_filename": result.filename_raw,
+                    "Sv_filename": result.filename_Sv,
+                    "first_ping_time": result.first_ping_time,
+                    "last_ping_time": result.last_ping_time,
+                }
+                for result in results
+            ]
+        )
+        for column in ["first_ping_time", "last_ping_time"]:
+            df_new[column] = pd.to_datetime(df_new[column], utc=True)
 
-            except Exception as exc:
-                mark_raw_failed(
-                    db_path,
-                    raw_path,
-                    str(exc),
-                )
-                errors.append(exc)
-                print(f"Error converting {raw_path.name}: {exc}")
+        # Concatenate with existing df_Sv and save
+        df_Sv = pd.concat([df_Sv, df_new], ignore_index=True)
+        df_Sv.sort_values(by=["first_ping_time"], inplace=True, ignore_index=True)
+        write_manifest(df_Sv, file_Sv_csv)
+        print(f"Added {len(new_files)} new entries to tracking CSV")
 
-    # Set flow to Failed state if any conversions failed
-    if errors:
+    # Set flow to Failed state if any errors occurred
+    if len(errors) > 0:
         error_msg = (
-            f"{len(errors)} errors during raw to Sv conversion "
-            f"out of {len(raw_files)} files"
+            f"{len(errors)} errors during raw to Sv conversion out of {len(new_files)} files"
         )
 
         async def set_failed_state():
             async with get_client() as client:
                 await client.set_flow_run_state(
-                    flow_run_id=runtime.flow_run.id,
-                    state=Failed(message=error_msg),
+                    flow_run_id=runtime.flow_run.id, state=Failed(message=error_msg)
                 )
 
         asyncio.run(set_failed_state())
-        raise RuntimeError(error_msg)
-
-    emit_event(
-        event="echodataflow.sv.updated",
-        resource={
-            "prefect.resource.id": "sv-monitor",
-            "prefect.resource.name": "sv-monitor",
-        },
-    )
-
+        raise Exception(error_msg)
 
 @flow(log_prints=True)
 async def flow_create_MVBS(
@@ -255,7 +237,7 @@ async def flow_create_MVBS(
     range_bin: str = "1m",
     ping_time_bin: str = "5s",
     path_main: str = "",
-    processing_db: str = "processing.db",
+    file_Sv_csv: str = "Sv_files.csv",
     file_MVBS_csv: str = "MVBS_files.csv",
 ):
     """
@@ -293,7 +275,7 @@ async def flow_create_MVBS(
     )
 
     # Assemble paths
-    db_path = resolve_database(path_main, processing_db)
+    file_Sv_csv = Path(path_main) / file_Sv_csv
     file_MVBS_csv = Path(path_main) / file_MVBS_csv
     path_Sv_zarr = Path(path_main) / "Sv"
     path_MVBS_zarr = Path(path_main) / "MVBS"
@@ -311,6 +293,20 @@ async def flow_create_MVBS(
     path_MVBS_zarr = str(path_MVBS_zarr)  # convert back to string to pass into task
 
     # Load Sv and MVBS info dataframes
+    if not file_Sv_csv.exists():
+        logger.info("Sv info csv does not exist, check raw2Sv flow!")
+        return
+    df_Sv = read_manifest(
+        file_Sv_csv,
+        SV_COLUMNS_REALTIME,
+        ["first_ping_time", "last_ping_time"],
+    )
+    if df_Sv.empty:
+        logger.info(
+            "Sv info csv is empty, raw2Sv flow may have just started! "
+            "No MVBS can be created, exiting flow."
+        )
+        return
 
     mvbs_manifest_exists = file_MVBS_csv.exists()
     df_MVBS = read_manifest(
@@ -335,10 +331,11 @@ async def flow_create_MVBS(
         logger.info(f"Slice {snum+1}: {start_time[snum]} to {end_time[snum]}")
 
         # Get Sv files in the specified time range
-        Sv_filenames = get_completed_sv_files(
-            db_path,
-            start_time=start_time[snum],
-            end_time=end_time[snum],
+        Sv_filenames = sorted(
+            df_Sv[
+                (pd.to_datetime(df_Sv["last_ping_time"]) >= start_time[snum])
+                & (pd.to_datetime(df_Sv["first_ping_time"]) <= end_time[snum])
+            ]["Sv_filename"].tolist()
         )
         logger.info(
             f"Found {len(Sv_filenames)} Sv files in the specified time range: \n"

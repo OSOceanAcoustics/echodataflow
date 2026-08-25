@@ -112,6 +112,86 @@ Note: Starting the server and running work pool is unnecessary if local Mac Pref
 6. Start up system services that hosts the 2 sets of visualization
 
 
+## Configuring deployment concurrency
+
+Deploy recipes support two independent concurrency controls:
+
+- `concurrency_group` limits the total number of simultaneous runs shared by
+  multiple deployments in the same work pool. Echodataflow implements each group
+  as a Prefect work queue with a concurrency limit.
+- `deployment_concurrency` limits simultaneous runs of one deployment, regardless
+  of whether that deployment belongs to a concurrency group.
+
+### Shared concurrency across deployments
+
+Define groups at the top level of the deploy recipe, then assign flows to them by
+name:
+
+```yaml
+concurrency_groups:
+  acoustic_ingestion:
+    limit: 3
+
+flows:
+  ingest_NASC:
+    concurrency_group: acoustic_ingestion
+
+  ingest_MVBS:
+    concurrency_group: acoustic_ingestion
+```
+
+In this example, `ingest_NASC` and `ingest_MVBS` can use at most three running
+slots in total. Runs beyond the shared limit wait in the group's work queue. A
+concurrency group must remain within one work pool.
+
+Flows without `concurrency_group` use the work pool's default queue.
+
+### Per-deployment concurrency
+
+Use `deployment_concurrency` within a flow to limit only that deployment:
+
+```yaml
+flows:
+  ingest_NASC:
+    deployment_concurrency:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+```
+
+Supported fields are:
+
+- `limit` (required): maximum number of concurrent runs for the deployment.
+- `collision_strategy` (optional): `ENQUEUE` or `CANCEL_NEW`; defaults to
+  `ENQUEUE`. `ENQUEUE` makes a new run wait for a slot, while `CANCEL_NEW`
+  cancels it when the limit is full.
+- `grace_period_seconds` (optional): time allowed for run infrastructure to start
+  before its concurrency slot is released. The value must be between 60 and
+  86,400 seconds.
+
+### Combining both controls
+
+The controls can be used together:
+
+```yaml
+concurrency_groups:
+  acoustic_ingestion:
+    limit: 3
+
+flows:
+  ingest_NASC:
+    concurrency_group: acoustic_ingestion
+    deployment_concurrency:
+      limit: 1
+      collision_strategy: CANCEL_NEW
+
+  ingest_MVBS:
+    concurrency_group: acoustic_ingestion
+```
+
+Here, the two deployments share three work-queue slots, while `ingest_NASC` may
+occupy only one of those slots. A run must satisfy both limits before it can run.
+
+
 ## Running Local Prefect and auto mounting services on macOS (launchd)
 
 To run a local Prefect server and worker as background services on macOS, you can
