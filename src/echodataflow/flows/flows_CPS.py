@@ -359,9 +359,10 @@ def flow_process_CPS(
     path_snapshot_csv: str,
     path_main: str,
     processing_db: str = "processing.db",
-    target_frequency: float = 70000,
+    target_frequency: float = 38000,
     min_depth: float = 10.0,
-    seafloor_threshold: list = [-40, 2.4, 1.0],
+    seafloor_threshold: int = -50,
+    quantile_range: float = 0.95,
     seafloor_offset: float = 0.5,
     seafloor_r0: float = 10,
     seafloor_r1: float = 1000,
@@ -687,21 +688,35 @@ def flow_process_CPS(
         bottom_path = None
 
         try:
-            q = 0.95
+            q = quantile_range
 
-            angle_alonghsip_threshold = ds["angle_alongship"].isel(channel=1).rolling(ping_time=7, range_sample=7).mean().quantile([q]).values[0]
-            angle_athwartship_threshold = ds["angle_athwartship"].isel(channel=1).rolling(ping_time=7, range_sample=7).mean().quantile([q]).values[0]
+            angle_alongship_threshold = (
+                ds["angle_alongship"]
+                .isel(channel=target_channel)
+                .rolling(ping_time=seafloor_wtheta, range_sample=seafloor_wphi)
+                .mean()
+                .quantile([q])
+                .values[0]
+            )
+            angle_athwartship_threshold = (
+                ds["angle_athwartship"]
+                .isel(channel=target_channel)
+                .rolling(ping_time=seafloor_wtheta, range_sample=seafloor_wphi)
+                .mean()
+                .quantile([q])
+                .values[0]
+            )
 
-            seafloor_threshold = [-50, angle_alonghsip_threshold, angle_athwartship_threshold]
+            threshold_params = [seafloor_threshold, angle_alongship_threshold, angle_athwartship_threshold]
             seafloor_params = {
                 "channel": target_channel,
                 "var_name": "Sv",
-                "threshold": seafloor_threshold,
+                "threshold": threshold_params,
                 "offset": seafloor_offset,
                 "r0": seafloor_r0,
                 "r1": seafloor_r1,
-                "wtheta": 7,
-                "wphi": 7,
+                "wtheta": seafloor_wtheta,
+                "wphi": seafloor_wphi,
             }
 
             bottom = ep.mask.detect_seafloor(
@@ -851,6 +866,7 @@ def flow_process_CPS(
         ).rename(rev_map)
 
         # Assign back to Sv, automatically restoring the original dimension order (e.g. channel)
+        temp_storage = ds["Sv"].copy()  
         ds["Sv"] = convolved_combined.transpose(*ds["Sv"].dims)
 
         # -----------------------------------------
@@ -868,6 +884,8 @@ def flow_process_CPS(
                 )
             )
 
+            ds["Sv"] = temp_storage 
+
         except Exception as exc:
             print(
                 f"{name}: background-noise "
@@ -883,6 +901,8 @@ def flow_process_CPS(
             if "Sv_corrected" in ds
             else "Sv"
         )
+        sv_for_cps = ds[sv_var].where(valid_water_column)
+
         # -----------------------------------------
         # CPS classifier
         # -----------------------------------------
