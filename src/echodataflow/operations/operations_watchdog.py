@@ -2,6 +2,7 @@ from pathlib import Path
 
 from prefect.events import emit_event
 from prefect.events.worker import EventsWorker
+from watchdog.observers import Observer
 
 from echodataflow.utils.file_watcher import watch_directory, watch_file
 from echodataflow.utils.processing_ledger import (
@@ -46,16 +47,16 @@ def register_and_emit_raw_update(
     path: Path,
     db_path: str | Path,
 ) -> None:
-    """Register a RAW file in the ledger, then emit its Prefect event."""
-    register_raw_file(db_path, path)
-    emit_raw_update_event(path)
+    """Emit a Prefect event only when registration changes the ledger."""
+    if register_raw_file(db_path, path):  # emit only if ledger is udpated
+        emit_raw_update_event(path)
 
 
 def watch_raw_directory(
     path: str | Path,
     db_path: str | Path,
-):
-    """Watch a directory for new RAW files."""
+) -> Observer:
+    """Watch a directory for new RAW files and returning a running observer."""
 
     raw_directory = Path(path).resolve()
 
@@ -67,11 +68,11 @@ def watch_raw_directory(
     for raw_path in existing_raw_files:
         register_raw_file(db_path, raw_path)
 
-    # Wake raw2Sv once after reconciliation.
+    # Wake raw2Sv once after reconciliation
     if existing_raw_files:
         emit_raw_update_event(raw_directory)
 
-    return watch_directory(
+    return watch_directory(  # this returns a running observer
         directory=raw_directory,
         callback=lambda raw_path: register_and_emit_raw_update(
             raw_path,
