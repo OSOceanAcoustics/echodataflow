@@ -6,7 +6,10 @@ import echoregions as er
 import numpy as np
 import pandas as pd
 import xarray as xr
-from prefect import flow
+from scipy.signal import convolve2d
+from prefect import flow, get_client, runtime
+from prefect.states import Cancelled
+from echodataflow.flows.flows_helper import deployment_already_running
 from prefect_dask import DaskTaskRunner
 
 from echodataflow.utils.processing_ledger import get_completed_sv_files, resolve_database
@@ -38,6 +41,29 @@ def _dilate_7x7(
         dims=da.dims,
         coords=da.coords,
     )
+
+def _apply_2d_convolution(da):
+    """Applies a 2D convolution to an xarray DataArray using apply_ufunc."""
+    def conv_wrapper(image, kern):
+        return convolve2d(
+            image, kern, mode="same", boundary="symm"
+        )
+    kernel_data = np.ones((5, 5)) / 25.0
+    kernel = xr.DataArray(kernel_data, dims=["ky", "kx"])
+
+    convolved = xr.apply_ufunc(
+        conv_wrapper,  
+        da,  
+        kernel,  
+        input_core_dims=[
+            ["y", "x"],
+            ["ky", "kx"],
+        ], 
+        output_core_dims=[["y", "x"]],  
+        vectorize=True,  
+    )
+
+    return convolved
 
 
 def _mask_above_seafloor(
@@ -132,6 +158,99 @@ def _mask_above_seafloor(
         fill_value=False,
     )
 
+def _mask_below_seafloor(
+    ds: xr.Dataset,
+    bottom_line_path: Path,
+    channel: str,
+) -> xr.DataArray:
+    lines = er.read_lines_csv(
+        str(bottom_line_path)
+    )
+
+    depth_da = ds["depth"].sel(
+        channel=channel
+    )
+
+    deepest_ping_idx = int(
+        depth_da.max(
+            dim="range_sample",
+            skipna=True,
+        )
+        .argmax(dim="ping_time")
+        .values
+    )
+
+    depth = (
+        depth_da
+        .isel(ping_time=deepest_ping_idx)
+        .dropna(
+            dim="range_sample",
+            how="all",
+        )
+    )
+
+    valid_length = depth.sizes[
+        "range_sample"
+    ]
+
+    ds_trimmed = ds.isel(
+        range_sample=slice(
+            0,
+            valid_length,
+        )
+    )
+
+    sv_target = ds_trimmed["Sv"].sel(
+        channel=[channel]
+    )
+
+    sv_for_regions = xr.DataArray(
+        sv_target.values,
+        dims=[
+            "channel",
+            "ping_time",
+            "depth",
+        ],
+        coords={
+            "channel": [channel],
+            "ping_time": sv_target["ping_time"],
+            "depth": depth.values,
+        },
+        name="Sv",
+    )
+
+    bottom_mask, _ = lines.seafloor_mask(
+        sv_for_regions,
+        operation="above_below",
+        method="slinear",
+        limit_area=None,
+        limit_direction="both",
+    )
+
+    # Removed the ~ operator so True represents below the seafloor
+    below_mask = bottom_mask.astype(bool)
+
+    if "channel" in below_mask.dims:
+        below_mask = below_mask.squeeze(
+            "channel",
+            drop=True,
+        )
+
+    below_mask = below_mask.rename(
+        {"depth": "range_sample"}
+    )
+
+    below_mask = below_mask.assign_coords(
+        range_sample=ds_trimmed[
+            "range_sample"
+        ]
+    )
+
+    # Changed fill_value to True because truncated deep samples are below the seafloor
+    return below_mask.reindex(
+        range_sample=ds["range_sample"],
+        fill_value=True,
+    )
 
 def _export_nasc_to_echoview_csv(
     ds_nasc: xr.Dataset,
@@ -518,71 +637,25 @@ def flow_process_CPS(
         # -----------------------------------------
         # Common geometry
         # -----------------------------------------
-
-        aligned = (
-            ep.commongrid
-            .resample_to_geometry(
-                chunked,
-                target_variable="Sv",
-                target_channel=target_channel,
-            )
+        aligned_ds_Sv = ep.commongrid.resample_to_geometry(
+            ds,
+            target_variable="Sv",
+            target_channel=target_channel,
         )
+        aligned_ds_Sv["sound_absorption"] = ds["sound_absorption"]
+        aligned_ds_Sv = ep.consolidate.add_depth(aligned_ds_Sv)
 
-        if "sound_absorption" in ds:
-            aligned[
-                "sound_absorption"
-            ] = ds[
-                "sound_absorption"
-            ]
+        ds[["Sv", "echo_range"]] = aligned_ds_Sv[["Sv", "echo_range"]]
 
-        aligned = (
-            ep.consolidate.add_depth(
-                aligned
-            )
-        )
-
-        ds[
-            ["Sv", "echo_range"]
-        ] = aligned[
-            ["Sv", "echo_range"]
-        ]
-
-        ds = (
-            ep.consolidate.add_depth(
-                ds
-            )
-        )
-
-        # -----------------------------------------
-        # Background noise
-        # -----------------------------------------
-
-        try:
-            ds = (
-                ep.clean
-                .remove_background_noise(
+        for angle_var in ["angle_athwartship", "angle_alongship"]:
+            if angle_var in ds:
+                ds[angle_var] = ep.commongrid.resample_to_geometry(
                     ds,
-                    ping_num=20,
-                    range_sample_num=5,
-                    SNR_threshold="5.0dB",
-                )
-            )
+                    target_variable=angle_var,
+                    target_channel=target_channel,
+                )[angle_var]
 
-        except Exception as exc:
-            print(
-                f"{name}: background-noise "
-                f"removal failed: {exc}"
-            )
 
-            ds["Sv_corrected"] = (
-                ds["Sv"]
-            )
-
-        sv_var = (
-            "Sv_corrected"
-            if "Sv_corrected" in ds
-            else "Sv"
-        )
 
         # -----------------------------------------
         # Detect seafloor with Blackwell
@@ -591,35 +664,27 @@ def flow_process_CPS(
         bottom_path = None
 
         try:
-            bottom = (
-                ep.mask.detect_seafloor(
-                    ds=ds,
-                    method="blackwell",
-                    params={
-                        "channel": (
-                            target_channel
-                        ),
-                        "var_name": "Sv",
-                        "threshold": (
-                            seafloor_threshold
-                        ),
-                        "offset": (
-                            seafloor_offset
-                        ),
-                        "r0": (
-                            seafloor_r0
-                        ),
-                        "r1": (
-                            seafloor_r1
-                        ),
-                        "wtheta": (
-                            seafloor_wtheta
-                        ),
-                        "wphi": (
-                            seafloor_wphi
-                        ),
-                    },
-                )
+            q = 0.95
+
+            angle_alonghsip_threshold = ds["angle_alongship"].isel(channel=1).rolling(ping_time=7, range_sample=7).mean().quantile([q]).values[0]
+            angle_athwartship_threshold = ds["angle_athwartship"].isel(channel=1).rolling(ping_time=7, range_sample=7).mean().quantile([q]).values[0]
+
+            seafloor_threshold = [-50, angle_alonghsip_threshold, angle_athwartship_threshold]
+            seafloor_params = {
+                "channel": target_channel,
+                "var_name": "Sv",
+                "threshold": seafloor_threshold,
+                "offset": seafloor_offset,
+                "r0": seafloor_r0,
+                "r1": seafloor_r1,
+                "wtheta": 7,
+                "wphi": 7,
+            }
+
+            bottom = ep.mask.detect_seafloor(
+                ds=ds,
+                method="blackwell",
+                params=seafloor_params,
             )
 
             bottom_df = pd.DataFrame(
@@ -668,6 +733,13 @@ def flow_process_CPS(
         # This happens BEFORE CPS classification.
         # -----------------------------------------
 
+
+        sv_var = (
+            "Sv_corrected"
+            if "Sv_corrected" in ds
+            else "Sv"
+        )
+
         target_depth = (
             ds["depth"].sel(
                 channel=target_channel
@@ -687,11 +759,24 @@ def flow_process_CPS(
                 dtype=bool,
             )
         )
+        below_seafloor_mask = (
+                    xr.ones_like(
+                        surface_mask,
+                        dtype=bool,
+                    )
+                )
 
         if bottom_path is not None:
             try:
                 above_seafloor_mask = (
                     _mask_above_seafloor(
+                        ds,
+                        bottom_path,
+                        target_channel,
+                    )
+                )
+                below_seafloor_mask = (
+                    _mask_below_seafloor(
                         ds,
                         bottom_path,
                         target_channel,
@@ -712,23 +797,69 @@ def flow_process_CPS(
         # Save intermediate masks/products for diagnostics
         ds["surface_mask"] = surface_mask
         ds["above_seafloor_mask"] = above_seafloor_mask
+        ds["below_seafloor_mask"] = below_seafloor_mask
         ds["valid_water_column"] = valid_water_column
 
-        ds["Sv_water_column"] = (
-            ds["Sv"].where(valid_water_column)
-        )
+        ds["Sv_water_column"] = ds["Sv"].where(valid_water_column)
+        sv_for_cps = ds[sv_var].where(valid_water_column)
 
-        # Broadcast the 2-D water-column mask
-        # (ping_time, range_sample) over channels.
-        #
-        # CPS calculations below therefore never
-        # see the upper 10 m or the seafloor.
-        sv_for_cps = (
-            ds[sv_var].where(
-                valid_water_column
+        # -----------------------------------------
+        # Mask and convolve above/below seafloor
+        # -----------------------------------------
+        
+        # Dimension mappings for convolved2d
+        dim_map = {"ping_time": "x", "range_sample": "y"}
+        rev_map = {"x": "ping_time", "y": "range_sample"}
+
+        # Rename variables once to match the expected x/y dims
+        sv_xy = ds["Sv"].rename(dim_map)
+        mask_above_xy = above_seafloor_mask.rename(dim_map)
+        mask_below_xy = below_seafloor_mask.rename(dim_map)
+
+        # Mask and compute both regions
+        above_xy = sv_xy.where(mask_above_xy).compute()
+        below_xy = sv_xy.where(mask_below_xy).compute()
+
+        # Convolve, combine, and revert dimension names
+        convolved_combined = xr.where(
+            mask_above_xy, 
+            _apply_2d_convolution(above_xy), 
+            _apply_2d_convolution(below_xy)
+        ).rename(rev_map)
+
+        # Assign back to Sv, automatically restoring the original dimension order (e.g. channel)
+        ds["Sv"] = convolved_combined.transpose(*ds["Sv"].dims)
+
+        # -----------------------------------------
+        # Background noise
+        # -----------------------------------------
+
+        try:
+            ds = (
+                ep.clean
+                .remove_background_noise(
+                    ds,
+                    ping_num=20,
+                    range_sample_num=5,
+                    SNR_threshold="5.0dB",
+                )
             )
-        )
 
+        except Exception as exc:
+            print(
+                f"{name}: background-noise "
+                f"removal failed: {exc}"
+            )
+
+            ds["Sv_corrected"] = (
+                ds["Sv"]
+            )
+
+        sv_var = (
+            "Sv_corrected"
+            if "Sv_corrected" in ds
+            else "Sv"
+        )
         # -----------------------------------------
         # CPS classifier
         # -----------------------------------------
