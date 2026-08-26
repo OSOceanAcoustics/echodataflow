@@ -72,6 +72,7 @@ def test_register_and_emit_raw_update(monkeypatch, tmp_path):
 
     def fake_register_raw_file(db, path):
         called["registered"] = (db, path)
+        return True
 
     def fake_emit_raw_update_event(path):
         called["emitted"] = path
@@ -95,6 +96,71 @@ def test_register_and_emit_raw_update(monkeypatch, tmp_path):
 
     assert called["registered"] == (db_path, raw_file)
     assert called["emitted"] == raw_file
+
+
+def test_register_and_emit_raw_update_emits_after_registration(
+    monkeypatch,
+    tmp_path,
+):
+    raw_file = tmp_path / "example.raw"
+    db_path = tmp_path / "processing.db"
+
+    called = {}
+
+    def fake_register_raw_file(db, path):
+        called["registered"] = (db, path)
+        return True
+
+    def fake_emit_raw_update_event(path):
+        called["emitted"] = path
+
+    monkeypatch.setattr(
+        operations_watchdog,
+        "register_raw_file",
+        fake_register_raw_file,
+    )
+
+    monkeypatch.setattr(
+        operations_watchdog,
+        "emit_raw_update_event",
+        fake_emit_raw_update_event,
+    )
+
+    operations_watchdog.register_and_emit_raw_update(
+        raw_file,
+        db_path,
+    )
+
+    assert called["registered"] == (db_path, raw_file)
+    assert called["emitted"] == raw_file
+
+
+def test_register_and_emit_raw_update_skips_unchanged_file(
+    monkeypatch,
+    tmp_path,
+):
+    raw_file = tmp_path / "example.raw"
+    db_path = tmp_path / "processing.db"
+
+    monkeypatch.setattr(
+        operations_watchdog,
+        "register_raw_file",
+        lambda db, path: False,
+    )
+
+    emitted = []
+    monkeypatch.setattr(
+        operations_watchdog,
+        "emit_raw_update_event",
+        emitted.append,
+    )
+
+    operations_watchdog.register_and_emit_raw_update(
+        raw_file,
+        db_path,
+    )
+
+    assert emitted == []
 
 
 def test_watch_raw_directory_reconciles_existing_raw_files(monkeypatch, tmp_path):
