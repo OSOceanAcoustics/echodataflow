@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from prefect.events import emit_event
+from prefect.events.worker import EventsWorker
 
 from echodataflow.utils.file_watcher import watch_directory, watch_file
 from echodataflow.utils.processing_ledger import (
@@ -17,9 +18,15 @@ TRANSECT_RESOURCE_ID = "transect-start-end-time"
 TRANSECT_RELATED_RESOURCE_ID = "transect-monitor"
 
 
+def _flush_events() -> None:
+    """Wait until queued Prefect events have been sent."""
+    EventsWorker.instance().wait_until_empty()
+
+
 def emit_raw_update_event(path: Path) -> None:
     """Emit a Prefect event when a RAW file arrives."""
-    emit_event(
+
+    event = emit_event(
         event=RAW_UPDATE_EVENT,
         resource={
             "prefect.resource.id": RAW_RESOURCE_ID,
@@ -28,11 +35,20 @@ def emit_raw_update_event(path: Path) -> None:
         },
     )
 
+    print(f"RAW event emitted for {path}: {event}")
 
-def register_and_emit_raw_update(path: Path, db_path: str | Path) -> None:
-    """Register a RAW file in the ledger, then emit its Prefect event."""
-    register_raw_file(db_path, path)
-    emit_raw_update_event(path)
+    if event is not None:
+        _flush_events()
+        print("RAW event queue flushed")
+
+
+def register_and_emit_raw_update(
+    path: Path,
+    db_path: str | Path,
+) -> None:
+    """Register a RAW file and emit an event only when processing is needed."""
+    if register_raw_file(db_path, path):
+        emit_raw_update_event(path)
 
 
 def watch_raw_directory(
@@ -57,7 +73,10 @@ def watch_raw_directory(
 
     return watch_directory(
         directory=raw_directory,
-        callback=lambda raw_path: register_and_emit_raw_update(raw_path, db_path),
+        callback=lambda raw_path: register_and_emit_raw_update(
+            raw_path,
+            db_path,
+        ),
         pattern="*.raw",
     )
 
@@ -65,7 +84,7 @@ def watch_raw_directory(
 def emit_transect_update_event(path: Path) -> None:
     """Emit a Prefect event when the transect CSV is updated."""
 
-    emit_event(
+    event = emit_event(
         event=TRANSECT_UPDATE_EVENT,
         resource={
             "prefect.resource.id": TRANSECT_RESOURCE_ID,
@@ -79,6 +98,9 @@ def emit_transect_update_event(path: Path) -> None:
             }
         ],
     )
+
+    if event is not None:
+        _flush_events()
 
 
 def watch_transect_file(path: str | Path):

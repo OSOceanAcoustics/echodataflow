@@ -18,6 +18,10 @@ FLOW_REGISTRY: dict[str, FlowRegistration] = {
         entrypoint="echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
         description="Incrementally convert newly available raw sonar files to Sv.",
     ),
+    "raw2Sv_CPS": FlowRegistration(
+        entrypoint="echodataflow/flows/flows_acoustics.py:flow_raw2Sv_CPS",
+        description="Convert newly registered RAW files to Sv using the CPS processing database.",
+    ),
     "create_MVBS": FlowRegistration(
         entrypoint="echodataflow/flows/flows_acoustics.py:flow_create_MVBS",
     ),
@@ -62,9 +66,6 @@ FLOW_REGISTRY: dict[str, FlowRegistration] = {
     ),
     "copy_trawl": FlowRegistration(
         entrypoint="echodataflow/flows/flows_simulation.py:flow_copy_trawl",
-    ),
-    "simulate_transects": FlowRegistration(
-        entrypoint="echodataflow/flows/flows_simulation.py:flow_simulate_transects",
     ),
     "update_cache_MVBS": FlowRegistration(
         entrypoint="echodataflow/flows/flows_viz_cloud.py:flow_update_cache_MVBS",

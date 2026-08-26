@@ -256,9 +256,17 @@ def flow_update_cache_CPS(
     # Find latest completed CPS transect
     # -----------------------------------------------------
 
+    def _transect_number(path: Path) -> int:
+        return int(
+            path.name
+            .replace("transect_", "")
+            .replace("_CPS.zarr", "")
+        )
+
+
     cps_files = sorted(
         path_CPS.glob("transect_*_CPS.zarr"),
-        key=lambda path: path.stat().st_mtime,
+        key=_transect_number,
     )
 
     if not cps_files:
