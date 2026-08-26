@@ -46,9 +46,9 @@ def register_and_emit_raw_update(
     path: Path,
     db_path: str | Path,
 ) -> None:
-    """Register a RAW file and emit an event only when processing is needed."""
-    if register_raw_file(db_path, path):
-        emit_raw_update_event(path)
+    """Register a RAW file in the ledger, then emit its Prefect event."""
+    register_raw_file(db_path, path)
+    emit_raw_update_event(path)
 
 
 def watch_raw_directory(

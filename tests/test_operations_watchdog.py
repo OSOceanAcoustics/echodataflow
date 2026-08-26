@@ -98,7 +98,7 @@ def test_register_and_emit_raw_update(monkeypatch, tmp_path):
     assert called["emitted"] == raw_file
 
 
-def test_register_and_emit_raw_update_skips_unchanged_duplicate(
+def test_register_and_emit_raw_update_emits_after_registration(
     monkeypatch,
     tmp_path,
 ):
@@ -109,7 +109,6 @@ def test_register_and_emit_raw_update_skips_unchanged_duplicate(
 
     def fake_register_raw_file(db, path):
         called["registered"] = (db, path)
-        return False
 
     def fake_emit_raw_update_event(path):
         called["emitted"] = path
@@ -132,7 +131,7 @@ def test_register_and_emit_raw_update_skips_unchanged_duplicate(
     )
 
     assert called["registered"] == (db_path, raw_file)
-    assert "emitted" not in called
+    assert called["emitted"] == raw_file
 
 
 def test_watch_raw_directory_reconciles_existing_raw_files(monkeypatch, tmp_path):
