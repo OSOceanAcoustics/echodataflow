@@ -124,23 +124,23 @@ def test_build_deploy_specs_passes_target_flow_parameters_directly(install_prefe
     engine = importlib.import_module("echodataflow.deployment.deployment_engine")
 
     specs = engine.build_deploy_specs(
-        param_cfg={"flows": {"emit_event_ABC": {"msg": "hello"}}},
+        param_cfg={"flows": {"raw2Sv": {"path_main": "/data"}}},
         deploy_cfg={
             "flows": {
-                "emit_event_ABC": {
+                "raw2Sv": {
                     "interval": 1,
                 }
             }
         },
         resolved_flows={
-            "emit_event_ABC": {
+            "raw2Sv": {
                 "flow_obj": object(),
-                "entrypoint": "echodataflow/flows/flows_test.py:flow_emit_event_ABC",
+                "entrypoint": "echodataflow/flows/flows_acoustics.py:flow_raw2Sv",
             }
         },
     )
 
-    assert specs[0].parameters == {"msg": "hello"}
+    assert specs[0].parameters == {"path_main": "/data"}
 
 
 def test_build_deploy_specs_preserves_runner_and_concurrency_group(install_prefect_stubs):

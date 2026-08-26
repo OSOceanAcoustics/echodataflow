@@ -1,10 +1,6 @@
 import pytest
 from types import SimpleNamespace
 
-pytestmark = pytest.mark.skip(
-    reason="Temporarily disabled while flows_acoustics.py is reverted to 3c1b9d3"
-)
-
 from echodataflow.flows import flows_acoustics
 
 
@@ -65,7 +61,7 @@ def test_flow_raw2sv_uses_processing_ledger(monkeypatch, tmp_path):
         FakeTask(),
     )
 
-    flows_acoustics.flow_raw2Sv.fn(
+    flows_acoustics.flow_raw2Sv_CPS.fn(
         path_main=str(tmp_path),
         new_file_num_limit=1,
     )
@@ -148,7 +144,7 @@ def test_flow_raw2sv_marks_failed(monkeypatch, tmp_path):
     )
 
     with pytest.raises(RuntimeError, match="1 errors during raw to Sv conversion"):
-        flows_acoustics.flow_raw2Sv.fn(
+        flows_acoustics.flow_raw2Sv_CPS.fn(
             path_main=str(tmp_path),
             new_file_num_limit=1,
         )

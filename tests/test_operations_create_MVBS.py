@@ -117,8 +117,8 @@ def test_create_MVBS_processes_one_time_slice(monkeypatch, tmp_path):
     }
     assert result == operations_acoustics.CreateMVBSResult(
         mvbs_filename="MVBS_20260101T000000.zarr",
-        first_ping_time=pd.Timestamp("2026-01-01T00:00:05"),
-        last_ping_time=pd.Timestamp("2026-01-01T00:09:55"),
+        first_ping_time=pd.Timestamp("2026-01-01T00:00:05Z"),
+        last_ping_time=pd.Timestamp("2026-01-01T00:09:55Z"),
     )
 
 

@@ -15,6 +15,8 @@ from sqlalchemy import (
     select,
     update,
 )
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.sql import func
 
@@ -115,8 +117,12 @@ def initialize_ledger(db_path: str | Path) -> None:
 def register_raw_file(
     db_path: str | Path,
     raw_path: str | Path,
-) -> None:
-    """Register a RAW file, re-queueing it only when its contents changed."""
+) -> bool:
+    """Register a RAW file, re-queueing it only when its contents changed.
+
+    Returns True when the ledger changed and downstream processing should
+    be notified, otherwise False.
+    """
 
     raw_path = Path(raw_path)
     stat = raw_path.stat()
@@ -132,16 +138,46 @@ def register_raw_file(
         ).first()
 
         if existing is None:
-            conn.execute(
-                insert(raw_sv).values(
-                    raw_path=str(raw_path),
-                    raw_filename=raw_path.name,
-                    file_size=stat.st_size,
-                    file_mtime_ns=stat.st_mtime_ns,
-                    status="pending",
+            values = {
+                "raw_path": str(raw_path),
+                "raw_filename": raw_path.name,
+                "file_size": stat.st_size,
+                "file_mtime_ns": stat.st_mtime_ns,
+                "status": "pending",
+            }
+
+            if engine.dialect.name == "postgresql":
+                stmt = (
+                    postgresql_insert(raw_sv)
+                    .values(**values)
+                    .on_conflict_do_nothing(
+                        index_elements=[raw_sv.c.raw_path]
+                    )
                 )
-            )
-            return
+            elif engine.dialect.name == "sqlite":
+                stmt = (
+                    sqlite_insert(raw_sv)
+                    .values(**values)
+                    .on_conflict_do_nothing(
+                        index_elements=[raw_sv.c.raw_path]
+                    )
+                )
+            else:
+                stmt = insert(raw_sv).values(**values)
+
+            result = conn.execute(stmt)
+
+            if result.rowcount == 1:
+                return True
+
+            # Another callback registered the same RAW between our
+            # SELECT and INSERT. Re-read it instead of failing.
+            existing = conn.execute(
+                select(
+                    raw_sv.c.file_size,
+                    raw_sv.c.file_mtime_ns,
+                ).where(raw_sv.c.raw_path == str(raw_path))
+            ).one()
 
         if (
             existing.file_size != stat.st_size
@@ -161,7 +197,9 @@ def register_raw_file(
                     updated_at=func.current_timestamp(),
                 )
             )
+            return True
 
+        return False
 
 def get_raw_files_to_process(
     db_path: str | Path,

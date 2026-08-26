@@ -9,7 +9,7 @@ import s3fs
 
 from prefect import flow, get_run_logger
 
-from echodataflow.utils.utils import round_up_mins, get_slice_start_end_times
+from echodataflow.utils.utils import get_slice_start_end_times
 
 
 @flow()
@@ -56,22 +56,21 @@ def flow_update_cache_MVBS(
     with fs.open(str(Path(path_MVBS).parent / file_MVBS_csv), "r") as f:
         df_MVBS = pd.read_csv(
             f,
-            parse_dates=["first_ping_time", "last_ping_time"],
             index_col=0,
         )
 
-    # Convert last_ping_time and first_ping_time to UTC
+    # Accept legacy naive values and offset-qualified values in the same file
     if not df_MVBS.empty:
-        if df_MVBS["last_ping_time"].dt.tz is None:
-            df_MVBS["last_ping_time"] = df_MVBS["last_ping_time"].dt.tz_localize("UTC")
-        if df_MVBS["first_ping_time"].dt.tz is None:
-            df_MVBS["first_ping_time"] = df_MVBS["first_ping_time"].dt.tz_localize("UTC")
+        for column in ["first_ping_time", "last_ping_time"]:
+            df_MVBS[column] = pd.to_datetime(
+                df_MVBS[column], format="mixed", utc=True
+            )
 
     # Get MVBS files in the specified time range (only 1 slice)
     MVBS_filenames = sorted(
         df_MVBS[
-            (pd.to_datetime(df_MVBS["last_ping_time"]) >= start_time[0]) &
-            (pd.to_datetime(df_MVBS["first_ping_time"]) <= end_time[0])
+            (df_MVBS["last_ping_time"] >= start_time[0]) &
+            (df_MVBS["first_ping_time"] <= end_time[0])
         ]["MVBS_filename"].tolist()
     )
     logger.info(
@@ -257,9 +256,17 @@ def flow_update_cache_CPS(
     # Find latest completed CPS transect
     # -----------------------------------------------------
 
+    def _transect_number(path: Path) -> int:
+        return int(
+            path.name
+            .replace("transect_", "")
+            .replace("_CPS.zarr", "")
+        )
+
+
     cps_files = sorted(
         path_CPS.glob("transect_*_CPS.zarr"),
-        key=lambda path: path.stat().st_mtime,
+        key=_transect_number,
     )
 
     if not cps_files:

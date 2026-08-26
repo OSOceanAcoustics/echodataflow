@@ -1,4 +1,3 @@
-import asyncio
 from pathlib import Path
 
 import dask_image.ndfilters
@@ -373,28 +372,6 @@ def flow_process_CPS(
     dist_bin: str = "0.5nmi",
     nasc_process_id: int = 1928,
 ):
-
-    # Prevent overlapping runs of this deployment
-    already_running = asyncio.run(
-        deployment_already_running()
-    )
-
-    if already_running:
-
-        async def cancel_run():
-            async with get_client() as client:
-                await client.set_flow_run_state(
-                    flow_run_id=runtime.flow_run.id,
-                    state=Cancelled(
-                        message=(
-                            "Another instance of this "
-                            "flow is already running"
-                        )
-                    ),
-                )
-
-        asyncio.run(cancel_run())
-        return
 
     path_main = Path(path_main)
 
