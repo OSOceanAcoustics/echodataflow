@@ -631,7 +631,7 @@ def flow_process_CPS(
             )
         )
 
-        chunked = ds.chunk(
+        ds = ds.chunk(
             chunks
         )
 
@@ -669,7 +669,7 @@ def flow_process_CPS(
 
             angle_alongship_threshold = (
                 ds["angle_alongship"]
-                .isel(channel=target_channel)
+                .sel(channel=target_channel)
                 .rolling(ping_time=seafloor_wtheta, range_sample=seafloor_wphi)
                 .mean()
                 .quantile([q])
@@ -677,7 +677,7 @@ def flow_process_CPS(
             )
             angle_athwartship_threshold = (
                 ds["angle_athwartship"]
-                .isel(channel=target_channel)
+                .sel(channel=target_channel)
                 .rolling(ping_time=seafloor_wtheta, range_sample=seafloor_wphi)
                 .mean()
                 .quantile([q])
