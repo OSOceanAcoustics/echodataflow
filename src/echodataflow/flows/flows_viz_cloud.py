@@ -257,17 +257,9 @@ def flow_update_cache_CPS(
     # -----------------------------------------------------
 
     def _transect_number(path: Path) -> int:
-        return int(
-            path.name
-            .replace("transect_", "")
-            .replace("_CPS.zarr", "")
-        )
+        return int(path.name.replace("transect_", "").replace("_CPS.zarr", ""))
 
-
-    cps_files = sorted(
-        path_CPS.glob("transect_*_CPS.zarr"),
-        key=_transect_number,
-    )
+    cps_files = sorted(path_CPS.glob("transect_*_CPS.zarr"), key=_transect_number)
 
     if not cps_files:
         print(

@@ -252,6 +252,7 @@ def flow_process_CPS(
     range_bin: str = "10m",
     dist_bin: str = "0.5nmi",
     nasc_process_id: int = 1928,
+    exclude_before: str | None = None,
 ):
 
     path_main = Path(path_main)
@@ -298,7 +299,7 @@ def flow_process_CPS(
         )
 
     # ---------------------------------------------
-    # Find completed transects still needing CPS
+    # Select eligible completed transects
     # ---------------------------------------------
 
     current = pd.read_csv(
@@ -311,8 +312,38 @@ def flow_process_CPS(
         },
     )
 
+    eligible = current.copy()
+
+    eligible["transectStart"] = pd.to_datetime(
+        eligible["transectStart"],
+        utc=True,
+        errors="coerce",
+    )
+
+    eligible["transectEnd"] = pd.to_datetime(
+        eligible["transectEnd"],
+        utc=True,
+        errors="coerce",
+    )
+
+    # Ignore historical transects that started
+    # before this deployment's processing window.
+    if exclude_before is not None:
+        cutoff = pd.Timestamp(
+            exclude_before
+        )
+
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.tz_localize("UTC")
+        else:
+            cutoff = cutoff.tz_convert("UTC")
+
+        eligible = eligible.loc[
+            eligible["transectStart"] >= cutoff
+        ].copy()
+
     # Ignore transects that have not finished yet.
-    completed = current.dropna(
+    completed = eligible.dropna(
         subset=[
             "transectPart",
             "transectStart",
