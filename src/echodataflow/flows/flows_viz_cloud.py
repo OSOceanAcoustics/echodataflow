@@ -9,7 +9,7 @@ import s3fs
 
 from prefect import flow, get_run_logger
 
-from echodataflow.utils.utils import round_up_mins, get_slice_start_end_times
+from echodataflow.utils.utils import get_slice_start_end_times
 
 
 @flow()
@@ -256,10 +256,10 @@ def flow_update_cache_CPS(
     # Find latest completed CPS transect
     # -----------------------------------------------------
 
-    cps_files = sorted(
-        path_CPS.glob("transect_*_CPS.zarr"),
-        key=lambda path: path.stat().st_mtime,
-    )
+    def _transect_number(path: Path) -> int:
+        return int(path.name.replace("transect_", "").replace("_CPS.zarr", ""))
+
+    cps_files = sorted(path_CPS.glob("transect_*_CPS.zarr"), key=_transect_number)
 
     if not cps_files:
         print(

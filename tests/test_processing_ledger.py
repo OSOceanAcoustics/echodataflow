@@ -11,6 +11,7 @@ from echodataflow.utils.processing_ledger import (
     register_raw_file,
     resolve_database,
 )
+from concurrent.futures import ThreadPoolExecutor
 
 
 def test_database_url_from_path(tmp_path):
@@ -73,8 +74,9 @@ def test_register_raw_file(tmp_path):
     raw_path.touch()
 
     initialize_ledger(db_path)
-    register_raw_file(db_path, raw_path)
-    register_raw_file(db_path, raw_path)
+
+    assert register_raw_file(db_path, raw_path) is True
+    assert register_raw_file(db_path, raw_path) is False
 
     with sqlite3.connect(db_path) as conn:
         rows = conn.execute(
@@ -234,7 +236,8 @@ def test_register_raw_file_requeues_changed_file(tmp_path):
     raw_path.write_bytes(b"first")
 
     initialize_ledger(db_path)
-    register_raw_file(db_path, raw_path)
+
+    assert register_raw_file(db_path, raw_path) is True
 
     mark_raw_completed(
         db_path,
@@ -245,7 +248,8 @@ def test_register_raw_file_requeues_changed_file(tmp_path):
     )
 
     raw_path.write_bytes(b"first plus more data")
-    register_raw_file(db_path, raw_path)
+
+    assert register_raw_file(db_path, raw_path) is True
 
     with sqlite3.connect(db_path) as conn:
         row = conn.execute(
@@ -269,3 +273,32 @@ def test_register_raw_file_large_mtime(tmp_path):
 
     # A nanosecond mtime is much larger than a 32-bit integer.
     assert raw_path.stat().st_mtime_ns > 2**31
+
+def test_register_raw_file_concurrently_is_idempotent(tmp_path):
+    db_path = tmp_path / "processing.db"
+    raw_path = tmp_path / "test.raw"
+
+    raw_path.write_bytes(b"raw-data")
+    initialize_ledger(db_path)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(register_raw_file, db_path, raw_path)
+            for _ in range(2)
+        ]
+
+        results = [future.result() for future in futures]
+
+    assert sorted(results) == [False, True]
+
+    with sqlite3.connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT raw_path, raw_filename, status
+            FROM raw_sv
+            """
+        ).fetchall()
+
+    assert rows == [
+        (str(raw_path), "test.raw", "pending"),
+    ]

@@ -246,11 +246,12 @@ def flow_simulate_transects(
     transect_state_key = _var_key(prefix="transect_state")
     state = Variable.get(transect_state_key, default=None)
 
-    transect_num_curr = (
-        start_transect_num
-        if state is None
-        else int(state)
-    )
+    if state is None:
+        transect_num_curr = start_transect_num
+        action = "open"
+    else:
+        transect_num_str, action = str(state).split(":", maxsplit=1)
+        transect_num_curr = int(transect_num_str)
 
     if transect_num_curr > max_transects:
         print("All simulated transects have been generated.")
