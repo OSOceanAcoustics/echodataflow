@@ -265,7 +265,7 @@ def flow_raw2Sv_CPS(
 
     raw_files = get_raw_files_to_process(
         db_path,
-        limit=new_file_num_limit,
+        limit=-1,
     )
 
     if exclude_before is not None:
@@ -288,6 +288,9 @@ def flow_raw2Sv_CPS(
             for raw_path in raw_files
             if raw_path.name not in excluded
         ]
+
+    if new_file_num_limit != -1:
+        raw_files = raw_files[:new_file_num_limit]
 
     print(f"Found {len(raw_files)} RAW files to process")
     print(
