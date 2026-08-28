@@ -44,7 +44,14 @@ PATH_DB = resolve_database(
     ROOT,
     PROCESSING_DB,
 )
-PATH_TRANSECTS = ROOT / "plotSurvey_Survey_Data_Visualizer.csv"
+TRANSECT_CSV_ENV = "ECHODATAFLOW_CPS_TRANSECT_CSV"
+
+PATH_TRANSECTS = Path(
+    os.environ.get(
+        TRANSECT_CSV_ENV,
+        ROOT / "plotSurvey_Survey_Data_Visualizer.csv",
+    )
+).expanduser().resolve()
 
 TARGET_FREQUENCY = float(
     os.environ.get("ECHODATAFLOW_CPS_TARGET_FREQUENCY", "70000")
@@ -505,7 +512,7 @@ def build_latest_transect_panel(
                 path_transects,
                 dtype={
                     "transectPart": "string",
-                    "transectNumber": "string",
+                    "transectNum": "string",
                     "transectStart": "string",
                     "transectEnd": "string",
                 },
@@ -514,7 +521,7 @@ def build_latest_transect_panel(
 
         row = transect_df[
             transect_df[
-                "transectNumber"
+                "transectNum"
             ]
             .str.zfill(
                 3
