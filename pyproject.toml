@@ -60,6 +60,7 @@ mission = [
     "echoshader",
     "echoregions",
     "opencv",
+    "dask-image",
 ]
 notebook = [
     "ipykernel",
