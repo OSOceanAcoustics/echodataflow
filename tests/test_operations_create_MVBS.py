@@ -173,12 +173,12 @@ def test_clean_reversed_ping_time_coerces_only_reversed_datasets(monkeypatch):
     coerced = []
 
     monkeypatch.setattr(
-        operations_acoustics.ep.qc,
+        operations_acoustics,
         "exist_reversed_time",
         lambda dataset, coordinate: dataset is reversed_dataset and coordinate == "ping_time",
     )
     monkeypatch.setattr(
-        operations_acoustics.ep.qc,
+        operations_acoustics,
         "coerce_increasing_time",
         lambda dataset: coerced.append(dataset),
     )
