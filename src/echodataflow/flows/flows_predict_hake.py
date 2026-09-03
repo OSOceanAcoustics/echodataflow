@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime
 from pathlib import Path
 
-import echopype as ep
 import pandas as pd
 from prefect import flow, get_client, get_run_logger, runtime
 from prefect.states import Failed
@@ -35,10 +34,6 @@ from echodataflow.operations.operations_predict_hake import (
 )
 from echodataflow.tasks.tasks_predict_hake import task_compute_NASC, task_predict_hake
 from echodataflow.utils.utils import get_slice_start_end_times, round_up_mins
-
-# Turn on verbose logging for echopype
-# otherwise all logging will be muted
-ep.utils.log.verbose()
 
 
 @flow(log_prints=True)
