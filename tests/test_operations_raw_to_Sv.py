@@ -51,8 +51,8 @@ def test_convert_raw_to_Sv_returns_structured_result(monkeypatch, tmp_path):
     assert result == operations_acoustics.RawToSvResult(
         filename_raw="example.raw",
         filename_Sv="example_Sv.zarr",
-        first_ping_time=pd.Timestamp("2026-01-01T00:00:00"),
-        last_ping_time=pd.Timestamp("2026-01-01T00:01:00"),
+        first_ping_time=pd.Timestamp("2026-01-01T00:00:00Z"),
+        last_ping_time=pd.Timestamp("2026-01-01T00:01:00Z"),
     )
     assert dataset.saved == {
         "store": Path(tmp_path) / "example_Sv.zarr",

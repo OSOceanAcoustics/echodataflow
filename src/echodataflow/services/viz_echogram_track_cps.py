@@ -44,7 +44,14 @@ PATH_DB = resolve_database(
     ROOT,
     PROCESSING_DB,
 )
-PATH_TRANSECTS = ROOT / "plotSurvey_Survey_Data_Visualizer.csv"
+TRANSECT_CSV_ENV = "ECHODATAFLOW_CPS_TRANSECT_CSV"
+
+PATH_TRANSECTS = Path(
+    os.environ.get(
+        TRANSECT_CSV_ENV,
+        ROOT / "plotSurvey_Survey_Data_Visualizer.csv",
+    )
+).expanduser().resolve()
 
 TARGET_FREQUENCY = float(
     os.environ.get("ECHODATAFLOW_CPS_TARGET_FREQUENCY", "70000")
@@ -299,7 +306,7 @@ def plot_nasc(
     ds_nasc: xr.Dataset,
     title: str,
 ):
-    """Plot NASC as vertical bars along distance."""
+    """Plot depth-integrated NASC along transect time."""
 
     if "NASC" not in ds_nasc:
         return pn.pane.Markdown(
@@ -310,11 +317,9 @@ def plot_nasc(
 
     # Select the channel closest to the configured target frequency.
     if "channel" in nasc.dims:
-        target_channel = (
-            pick_channel_by_frequency(
-                ds_nasc,
-                TARGET_FREQUENCY,
-            )
+        target_channel = pick_channel_by_frequency(
+            ds_nasc,
+            TARGET_FREQUENCY,
         )
 
         nasc = nasc.sel(
@@ -326,50 +331,62 @@ def plot_nasc(
             frequency_nominal=0
         )
 
-    # Remove singleton dimensions
     nasc = nasc.squeeze(
         drop=True
     )
 
     print(
-        "NASC dims:",
+        "NASC dims before integration:",
         nasc.dims,
     )
     print(
-        "NASC shape:",
+        "NASC shape before integration:",
         nasc.shape,
     )
-    print(
-        "NASC coords:",
-        list(
-            nasc.coords
-        ),
-    )
 
-    # NASC should ultimately be one value per horizontal interval.
-    # If another dimension remains, integrate/sum over it for plotting.
-    while nasc.ndim > 1:
-        dim_to_reduce = (
-            nasc.dims[0]
-        )
-
+    # NASC is depth-resolved in the stored product:
+    # distance x depth.
+    #
+    # For the dashboard, integrate explicitly over depth so that
+    # one NASC value remains for each horizontal interval.
+    if "depth" in nasc.dims:
         nasc = nasc.sum(
-            dim=dim_to_reduce,
+            dim="depth",
             skipna=True,
         )
 
-    dim = nasc.dims[0]
+    nasc = nasc.squeeze(
+        drop=True
+    )
 
-    if "distance" in nasc.coords:
-        x = nasc[
-            "distance"
-        ].values
+    print(
+        "NASC dims after integration:",
+        nasc.dims,
+    )
+    print(
+        "NASC shape after integration:",
+        nasc.shape,
+    )
+
+    # Use the representative ping time associated with each
+    # horizontal NASC interval so the plot aligns with the echogram.
+    if "ping_time" in ds_nasc:
+        x = pd.to_datetime(
+            ds_nasc["ping_time"].values
+        )
+        xlabel = "Time"
+        kdim = "ping_time"
+
+    elif "distance" in nasc.coords:
+        x = nasc["distance"].values
         xlabel = "Distance (nmi)"
+        kdim = "distance"
+
     else:
-        x = nasc[
-            dim
-        ].values
+        dim = nasc.dims[0]
+        x = nasc[dim].values
         xlabel = dim
+        kdim = dim
 
     curve = hv.Curve(
         (
@@ -377,7 +394,7 @@ def plot_nasc(
             nasc.values,
         ),
         kdims=[
-            xlabel,
+            kdim,
         ],
         vdims=[
             "NASC",
@@ -399,7 +416,6 @@ def plot_nasc(
         xlabel=xlabel,
         ylabel="NASC",
     )
-
 
 # ---------------------------------------------------------------------
 # Latest transect plotting
@@ -496,7 +512,7 @@ def build_latest_transect_panel(
                 path_transects,
                 dtype={
                     "transectPart": "string",
-                    "transectNumber": "string",
+                    "transectNum": "string",
                     "transectStart": "string",
                     "transectEnd": "string",
                 },
@@ -505,7 +521,7 @@ def build_latest_transect_panel(
 
         row = transect_df[
             transect_df[
-                "transectNumber"
+                "transectNum"
             ]
             .str.zfill(
                 3

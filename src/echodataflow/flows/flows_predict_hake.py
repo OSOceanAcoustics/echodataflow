@@ -163,8 +163,8 @@ async def flow_predict_hake(
         # Get MVBS files in the specified time range
         MVBS_filenames = sorted(
             df_MVBS[
-                (pd.to_datetime(df_MVBS["last_ping_time"]) >= start_time[snum])
-                & (pd.to_datetime(df_MVBS["first_ping_time"]) < end_time[snum])
+                (pd.to_datetime(df_MVBS["last_ping_time"], utc=True) >= start_time[snum])
+                & (pd.to_datetime(df_MVBS["first_ping_time"], utc=True) < end_time[snum])
             ]["MVBS_filename"].tolist()
         )
         logger.info(
@@ -229,8 +229,8 @@ async def flow_predict_hake(
                 prediction_result.softmax_filename,
                 prediction_result.prediction_filename,
                 prediction_result.evr_filename,
-                prediction_result.first_ping_time,
-                prediction_result.last_ping_time,
+                pd.to_datetime(prediction_result.first_ping_time, utc=True),
+                pd.to_datetime(prediction_result.last_ping_time, utc=True),
             ]
         except Exception as e:
             errors.append(e)
@@ -374,8 +374,8 @@ def flow_predict_hake_postprocessing(
                 result.softmax_filename,
                 result.prediction_filename,
                 result.evr_filename,
-                result.first_ping_time,
-                result.last_ping_time,
+                pd.to_datetime(result.first_ping_time, utc=True),
+                pd.to_datetime(result.last_ping_time, utc=True),
                 "completed",
                 "",
             ]

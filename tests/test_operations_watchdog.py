@@ -1,29 +1,6 @@
 from echodataflow.operations import operations_watchdog
 
 
-def test_emit_raw_update_event(monkeypatch, tmp_path):
-    raw_file = tmp_path / "example.raw"
-    raw_file.touch()
-
-    emitted = {}
-
-    def fake_emit_event(**kwargs):
-        emitted.update(kwargs)
-
-    monkeypatch.setattr(
-        operations_watchdog,
-        "emit_event",
-        fake_emit_event,
-    )
-
-    operations_watchdog.emit_raw_update_event(raw_file)
-
-    assert emitted["event"] == "echodataflow.raw.updated"
-    assert emitted["resource"]["prefect.resource.id"] == "raw-monitor"
-    assert emitted["resource"]["prefect.resource.name"] == "raw-monitor"
-    assert emitted["resource"]["path"] == str(raw_file)
-
-
 def test_watch_raw_directory(monkeypatch, tmp_path):
     called = {}
     db_path = tmp_path / "processing.db"
@@ -59,12 +36,12 @@ def test_watch_raw_directory(monkeypatch, tmp_path):
     )
 
     assert result == "observer"
-    assert called["directory"] == tmp_path
+    assert called["directory"] == tmp_path.resolve()
     assert called["db_path"] == db_path
     assert called["pattern"] == "*.raw"
 
 
-def test_register_and_emit_raw_update(monkeypatch, tmp_path):
+def test_register_raw_update(monkeypatch, tmp_path):
     raw_file = tmp_path / "example.raw"
     db_path = tmp_path / "processing.db"
 
@@ -73,51 +50,38 @@ def test_register_and_emit_raw_update(monkeypatch, tmp_path):
     def fake_register_raw_file(db, path):
         called["registered"] = (db, path)
 
-    def fake_emit_raw_update_event(path):
-        called["emitted"] = path
-
     monkeypatch.setattr(
         operations_watchdog,
         "register_raw_file",
         fake_register_raw_file,
     )
 
-    monkeypatch.setattr(
-        operations_watchdog,
-        "emit_raw_update_event",
-        fake_emit_raw_update_event,
-    )
-
-    operations_watchdog.register_and_emit_raw_update(
+    operations_watchdog.register_raw_update(
         raw_file,
         db_path,
     )
 
     assert called["registered"] == (db_path, raw_file)
-    assert called["emitted"] == raw_file
 
 
-def test_watch_raw_directory_reconciles_existing_raw_files(monkeypatch, tmp_path):
+def test_watch_raw_directory_reconciles_existing_raw_files(
+    monkeypatch,
+    tmp_path,
+):
     raw_a = tmp_path / "a.raw"
     raw_b = tmp_path / "b.raw"
+
     raw_a.touch()
     raw_b.touch()
 
     db_path = tmp_path / "processing.db"
 
     registered = []
-    emitted = []
 
     monkeypatch.setattr(
         operations_watchdog,
         "register_raw_file",
         lambda db, path: registered.append((db, path)),
-    )
-
-    monkeypatch.setattr(
-        operations_watchdog,
-        "emit_raw_update_event",
-        emitted.append,
     )
 
     monkeypatch.setattr(
@@ -132,11 +96,11 @@ def test_watch_raw_directory_reconciles_existing_raw_files(monkeypatch, tmp_path
     )
 
     assert result == "observer"
+
     assert {path for _, path in registered} == {
         raw_a.resolve(),
         raw_b.resolve(),
     }
-    assert emitted == [tmp_path.resolve()]
 
 
 def test_emit_transect_update_event(monkeypatch, tmp_path):
@@ -157,5 +121,8 @@ def test_emit_transect_update_event(monkeypatch, tmp_path):
     operations_watchdog.emit_transect_update_event(target)
 
     assert emitted["event"] == "echodataflow.transect.updated"
-    assert emitted["resource"]["prefect.resource.id"] == "transect-start-end-time"
+    assert (
+        emitted["resource"]["prefect.resource.id"]
+        == "transect-start-end-time"
+    )
     assert emitted["resource"]["path"] == str(target)

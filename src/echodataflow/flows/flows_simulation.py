@@ -47,13 +47,11 @@ def flow_copy_raw(
     print("Copy raw files to simulate data generation")
     print(f"Executed at {datetime.datetime.now(datetime.UTC)}")
 
-    df_raw = pd.read_csv(
-        path_raw_list,
-        date_format="ISO8601",
-        parse_dates=["timestamp"],
+    df_raw = pd.read_csv(path_raw_list)
+    # Accept legacy naive values and offset-qualified values in the same file
+    df_raw["timestamp"] = pd.to_datetime(
+        df_raw["timestamp"], format="mixed", utc=True
     )
-    if df_raw["timestamp"].dt.tz is None:
-        df_raw["timestamp"] = df_raw["timestamp"].dt.tz_localize("UTC")
 
     # Set flow execution time to current time - time_offset_seconds
     flow_time_curr = (
@@ -248,11 +246,12 @@ def flow_simulate_transects(
     transect_state_key = _var_key(prefix="transect_state")
     state = Variable.get(transect_state_key, default=None)
 
-    transect_num_curr = (
-        start_transect_num
-        if state is None
-        else int(state)
-    )
+    if state is None:
+        transect_num_curr = start_transect_num
+        action = "open"
+    else:
+        transect_num_str, action = str(state).split(":", maxsplit=1)
+        transect_num_curr = int(transect_num_str)
 
     if transect_num_curr > max_transects:
         print("All simulated transects have been generated.")

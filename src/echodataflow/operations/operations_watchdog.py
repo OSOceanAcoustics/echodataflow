@@ -1,6 +1,8 @@
 from pathlib import Path
 
 from prefect.events import emit_event
+from prefect.events.worker import EventsWorker
+from watchdog.observers import Observer
 
 from echodataflow.utils.file_watcher import watch_directory, watch_file
 from echodataflow.utils.processing_ledger import (
@@ -9,55 +11,44 @@ from echodataflow.utils.processing_ledger import (
 )
 
 
-RAW_UPDATE_EVENT = "echodataflow.raw.updated"
-RAW_RESOURCE_ID = "raw-monitor"
-
 TRANSECT_UPDATE_EVENT = "echodataflow.transect.updated"
 TRANSECT_RESOURCE_ID = "transect-start-end-time"
 TRANSECT_RELATED_RESOURCE_ID = "transect-monitor"
 
 
-def emit_raw_update_event(path: Path) -> None:
-    """Emit a Prefect event when a RAW file arrives."""
-    emit_event(
-        event=RAW_UPDATE_EVENT,
-        resource={
-            "prefect.resource.id": RAW_RESOURCE_ID,
-            "prefect.resource.name": RAW_RESOURCE_ID,
-            "path": str(path),
-        },
-    )
+def _flush_events() -> None:
+    """Wait until queued Prefect events have been sent."""
+    EventsWorker.instance().wait_until_empty()
 
 
-def register_and_emit_raw_update(path: Path, db_path: str | Path) -> None:
-    """Register a RAW file in the ledger, then emit its Prefect event."""
+def register_raw_update(
+    path: Path,
+    db_path: str | Path,
+) -> None:
+    """Register a RAW file change in the processing ledger."""
     register_raw_file(db_path, path)
-    emit_raw_update_event(path)
 
 
 def watch_raw_directory(
     path: str | Path,
     db_path: str | Path,
-):
-    """Watch a directory for new RAW files."""
+) -> Observer:
+    """Watch a directory for RAW files and keep the processing ledger updated."""
 
     raw_directory = Path(path).resolve()
 
     initialize_ledger(db_path)
 
-    # Reconcile files that already exist when the watcher starts
-    existing_raw_files = list(raw_directory.glob("*.raw"))
-
-    for raw_path in existing_raw_files:
+    # Reconcile files that already exist when the watcher starts.
+    for raw_path in raw_directory.glob("*.raw"):
         register_raw_file(db_path, raw_path)
-
-    # Wake raw2Sv once after reconciliation.
-    if existing_raw_files:
-        emit_raw_update_event(raw_directory)
 
     return watch_directory(
         directory=raw_directory,
-        callback=lambda raw_path: register_and_emit_raw_update(raw_path, db_path),
+        callback=lambda raw_path: register_raw_update(
+            raw_path,
+            db_path,
+        ),
         pattern="*.raw",
     )
 
@@ -65,7 +56,7 @@ def watch_raw_directory(
 def emit_transect_update_event(path: Path) -> None:
     """Emit a Prefect event when the transect CSV is updated."""
 
-    emit_event(
+    event = emit_event(
         event=TRANSECT_UPDATE_EVENT,
         resource={
             "prefect.resource.id": TRANSECT_RESOURCE_ID,
@@ -79,6 +70,9 @@ def emit_transect_update_event(path: Path) -> None:
             }
         ],
     )
+
+    if event is not None:
+        _flush_events()
 
 
 def watch_transect_file(path: str | Path):
