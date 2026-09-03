@@ -56,21 +56,25 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 mission = [
-    "echopype",
+    "echopype @ git+https://github.com/OSOceanAcoustics/echopype.git",
     "echoshader @ git+https://github.com/OSOceanAcoustics/echoshader.git",
     "echoregions @ git+https://github.com/echostack-org/echoregions.git",
     "opencv-python",
     "dask-image",
+    "torch",
 ]
+
 notebook = [
     "ipykernel",
 ]
+
 test = [
     "pytest",
     "pytest-cov",
     "pytest-xdist",
     "pytest-mock",
 ]
+
 lint = [
     "black",
     "check-manifest",
@@ -85,6 +89,7 @@ lint = [
     "pre-commit",
     "pylint",
 ]
+
 docs = [
     "jupyter-book",
     "matplotlib",
