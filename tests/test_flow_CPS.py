@@ -3,10 +3,6 @@ import pandas as pd
 from echodataflow.flows import flows_CPS
 
 
-async def _false_async():
-    return False
-
-
 def test_process_cps_retries_completed_transect_missing_outputs(
     monkeypatch,
     tmp_path,
@@ -34,12 +30,6 @@ def test_process_cps_retries_completed_transect_missing_outputs(
 
     # flow_process_CPS requires the processing ledger to exist.
     (path_main / "processing.db").touch()
-
-    monkeypatch.setattr(
-        flows_CPS,
-        "deployment_already_running",
-        lambda: _false_async(),
-    )
 
     calls = []
 
