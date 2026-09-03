@@ -58,7 +58,7 @@ dynamic = ["version"]
 mission = [
     "echopype",
     "echoshader @ git+https://github.com/OSOceanAcoustics/echoshader.git",
-    "echoregions",
+    "echoregions @ git+https://github.com/echostack-org/echoregions.git",
     "opencv-python",
     "dask-image",
 ]
