@@ -701,9 +701,6 @@ def flow_raw2Sv_postprocessing(
                 "pending",
                 pd.NaT,
                 "",
-                "pending",
-                pd.NaT,
-                "",
             ]
             write_manifest(df_Sv, file_Sv_csv)
             logger.info("Completed %s", key)
