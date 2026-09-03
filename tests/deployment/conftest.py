@@ -1,5 +1,6 @@
 import sys
 import types
+from enum import Enum
 
 import pytest
 
@@ -34,6 +35,16 @@ class FakePrefectFlowGeneric:
         return cls
 
 
+class FakeConcurrencyLimitStrategy(str, Enum):
+    ENQUEUE = "ENQUEUE"
+    CANCEL_NEW = "CANCEL_NEW"
+
+
+class FakeConcurrencyLimitConfig:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
+
+
 @pytest.fixture
 def install_prefect_stubs(monkeypatch):
     def _install(*, sink=None):
@@ -41,6 +52,7 @@ def install_prefect_stubs(monkeypatch):
         if sink is None:
             prefect_mod.deploy = lambda *args, **kwargs: None
         else:
+
             def fake_deploy(*deployments, **kwargs):
                 sink["deploy_call"] = {
                     "deployments": list(deployments),
