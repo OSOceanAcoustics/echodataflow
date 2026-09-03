@@ -7,8 +7,6 @@ import shutil
 
 import pandas as pd
 
-import echopype as ep
-
 from prefect import flow, get_run_logger, get_client
 from prefect.futures import as_completed
 from prefect.states import Failed
@@ -59,10 +57,6 @@ from echodataflow.utils.utils import (
     get_slice_start_end_times,
     extract_datetime_from_filename,
 )
-
-# Turn on verbose logging for echopype
-# otherwise all logging will be muted
-ep.utils.log.verbose()
 
 
 @flow(log_prints=True, task_runner=task_runner_from_environment())
