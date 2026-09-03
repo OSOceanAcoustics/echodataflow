@@ -59,7 +59,7 @@ mission = [
     "echopype",
     "echoshader",
     "echoregions",
-    "opencv",
+    "opencv-python",
     "dask-image",
 ]
 notebook = [
