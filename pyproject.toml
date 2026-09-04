@@ -26,7 +26,6 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering",
@@ -57,21 +56,25 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 mission = [
-    "echopype",
-    "echoshader",
-    "echoregions",
-    "opencv",
+    "echopype @ git+https://github.com/OSOceanAcoustics/echopype.git",
+    "echoshader @ git+https://github.com/OSOceanAcoustics/echoshader.git",
+    "echoregions @ git+https://github.com/echostack-org/echoregions.git",
+    "opencv-python",
+    "dask-image",
+    "torch",
 ]
+
 notebook = [
     "ipykernel",
 ]
+
 test = [
     "pytest",
     "pytest-cov",
-    "pytest-flake8",
     "pytest-xdist",
     "pytest-mock",
 ]
+
 lint = [
     "black",
     "check-manifest",
@@ -86,6 +89,7 @@ lint = [
     "pre-commit",
     "pylint",
 ]
+
 docs = [
     "jupyter-book",
     "matplotlib",
@@ -109,7 +113,7 @@ include-package-data = true
 where = ["src"]
 
 [tool.setuptools_scm]
-fallback_version = "unknown"
+fallback_version = "0.0.0"
 local_scheme = "no-local-version"
 
 [tool.black]

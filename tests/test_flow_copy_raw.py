@@ -41,12 +41,7 @@ class FakeVariable:
 class FakeDateTime(datetime.datetime):
     @classmethod
     def now(cls, tz=None):
-        if tz is not None:
-            return cls(2024, 7, 7, 0, 30, tzinfo=datetime.timezone.utc)
-
-        # flow_copy_raw() calls datetime.now() without tz, so return the
-        # equivalent local time for 2024-07-07T00:30:00Z.
-        return cls(2024, 7, 6, 17, 30)
+        return cls(2024, 7, 7, 0, 30, tzinfo=datetime.timezone.utc)
 
 
 def test_flow_copy_raw_simulates_new_file_arrivals(monkeypatch, tmp_path):

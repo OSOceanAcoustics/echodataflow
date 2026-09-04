@@ -54,9 +54,9 @@ def flow_copy_raw(
     )
 
     # Set flow execution time to current time - time_offset_seconds
-    flow_time_curr = (
-        datetime.datetime.now() - datetime.timedelta(seconds=time_offset_seconds)
-    ).astimezone(datetime.timezone.utc)
+    flow_time_curr = datetime.datetime.now(datetime.UTC) - datetime.timedelta(
+        seconds=time_offset_seconds
+    )
     print(f"Simulated flow run start time: {flow_time_curr}")
 
     # Get previous flow execution time from Prefect variable, if it exists
