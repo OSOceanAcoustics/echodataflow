@@ -61,6 +61,7 @@ mission = [
     "echopype @ git+https://github.com/echostack-org/echopype.git",
     "echoshader @ git+https://github.com/echostack-org/echoshader.git",
     "echoregions @ git+https://github.com/echostack-org/echoregions.git",
+    "segmentation-inference @ git+https://github.com/uw-echospace/segmentation_inference.git",
     "opencv-python",
     "dask-image",
     "torch",
