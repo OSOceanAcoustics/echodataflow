@@ -8,11 +8,11 @@ project:
   toc:
     - file: index.md
     - file: installation.md
-    - file: guide.md
-    - file: deployment.md
-    - file: examples.md
-    - file: development.md
-    - file: reference.md
+    - file: overview.md
+    - file: recipe_spec.md
+    - file: system_services.md
+    # - file: examples.md
+    # - file: development.md
 
 site:
   template: book-theme

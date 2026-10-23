@@ -1,4 +1,63 @@
-# Workflow reference
+(recipe-spec)=
+# Recipe specifications
+
+
+## Recipes are a pair
+
+A parameter recipe and deployment recipe are validated together. If one declares
+`file_upload_acoustics`, the other must declare the same key:
+
+```yaml
+# params_edge.yaml
+flows:
+  file_upload_acoustics:
+    src_dir: /data/processed
+    dest_dir: cloud:bucket/mission/acoustics
+    exclude_subdirs: [Sv]
+    max_age: 2
+```
+
+```yaml
+# deploy_edge.yaml
+default_work_pool_name: local
+flows:
+  file_upload_acoustics:
+    flow: file_upload
+    deployment_name: file-upload-acoustics
+    interval: 10
+```
+
+The recipe key identifies this particular deployment. The optional `flow` field points it to
+a registered implementation. This is how multiple deployments can reuse `file_upload` with
+different source directories or destinations.
+
+## Schedules and triggers
+
+An `interval` is expressed in minutes and compiled to a cron expression. `cron_offset`
+delays the first minute within the hour, which is useful when one flow should normally follow
+another. For example, an interval of 10 with an offset of 3 runs at minutes 3, 13, 23, and so
+on.
+
+A flow may instead define `triggers`. An event-triggered flow starts when Prefect observes
+the configured event from a related deployment. A single flow entry cannot use both an
+interval and triggers.
+
+Schedule offsets do not establish a data dependency. Flows should remain safe when an
+upstream run is slow, empty, or unsuccessful.
+
+## Historical simulation
+
+Some flows calculate a processing window relative to the current time. A deployment recipe
+can set `flow_start_time` and enable `inject_time_offset` for flows that accept
+`time_offset_seconds`. This maps the current wall clock to a historical mission clock and is
+used by the simulation examples.
+
+Only enable injection for flows that declare `time_offset_seconds`; deployment validation
+rejects incompatible flows.
+
+
+
+
 
 This is a curated reference for operators and workflow developers. Echodataflow uses Jupyter
 Book 2, which does not yet provide Sphinx-style Python autodoc, so source docstrings remain
