@@ -5,42 +5,35 @@ It combines [Prefect](https://www.prefect.io/), YAML deployment recipes, and too
 such as [Echopype](https://github.com/echostack-org/echopype) to run workflows on different
 computing infrastructures.
 
+
+Check out example recipes hosted on the companion repository
+[echodataflow-recipes](https://github.com/echostack-org/echodataflow-recipes).
+
+
+:::{note}
 Echodataflow `v0.1.x` is deprecated. We are currently preparing for the `v0.2.0` release,
 which contains a redesigned architecture and more straightforward mechanisms to add workflow
 components.
+:::
 
 
-## Why Echodataflow?
 
-Operational data pipelines must do more than call a sequence of functions. They need to
-notice new files, avoid overlapping runs, retry transient failures, keep processing state,
-move selected products between edge and cloud systems, and make failures observable.
-Echodataflow provides those orchestration concerns around scientific processing code.
+## Contributors
 
-Its main goals are to:
+Echodataflow is currently developed and maintained by by Wu-Jung Lee ([@leewujung](https://github.com/leewujung)) and Lloyd Izard ([@LOCEANlloydizard](https://github.com/LOCEANlloydizard)), with contributions from Caesar Tuguinay ([@ctuguinay](https://github.com/ctuguinay)). The project was initiated by Don Setiawan ([@lsetiawan](https://github.com/lsetiawan)). Soham Butala ([@Sohambutala](https://github.com/Sohambutala)) developed the first version with guidance from Valentina Staneva ([@valentina-s](https://github.com/valentina-s)).
 
-- define deployments without embedding mission-specific paths and schedules in Python;
-- reuse tested scientific operations across interactive, scheduled, and event-driven runs;
-- support continuous processing where network access may be intermittent;
-- make the movement from prototype to operational workflow incremental; and
-- expose execution state, logs, retries, and schedules through Prefect.
 
-## Where to begin
 
-- [Installation](installation.md) sets up Echodataflow and its system tools.
-- [How Echodataflow works](guide.md) introduces flows, tasks, operations, and recipes.
-- [Deployment](deployment.md) covers Prefect, macOS `launchd`, Linux `systemd`, and
-  deploying workflows.
-- [Examples](examples.md) explains common recipe patterns and walks through a simulated
-  edge workflow.
-- [Development](development.md) covers contribution practices and how to add a workflow
-  step.
-- [Workflow reference](reference.md) catalogs the currently registered flows and recipe
-  fields.
+## Acknowledgement
+We thank funding support from the NOAA Northwest Fisheries Science Center and the 
+Active Acoustics Strategic Inititave (AA-SI) to the development of Echodataflow.
 
-## Project status
+<a href="https://upload.wikimedia.org/wikipedia/commons/7/79/NOAA_logo.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original" style="text-decoration:none;">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/7/79/NOAA_logo.svg?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original" alt="NOAA" width="120">
+</a>
 
-Recipes used for real missions live in the separate
-[echodataflow-recipes](https://github.com/echostack-org/echodataflow-recipes) repository.
-Treat those recipes as deployment-specific examples: review paths, credentials, schedules,
-and resource requirements before using them on another system.
+
+
+## License
+
+Echodataflow is distributed under the [Apache License 2.0](LICENSE).
