@@ -169,6 +169,9 @@ change.
 Jupyter Book 2 uses the MyST engine and `docs/myst.yml`; it does not use Sphinx
 `_config.yml`, `_toc.yml`, or `conf.py` files.
 
+Building the documentation also requires Node.js. If it is not already installed,
+Jupyter Book will prompt you to install it on first use; enter `y` to proceed.
+
 Preview with live reload:
 
 ```shell
